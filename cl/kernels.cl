@@ -446,7 +446,7 @@ __kernel void traceBatchToVoid(
 // commit: this kernel moves changed bricks which have been transfered to the on-device
 // staging buffer to their final location.
 __kernel void commit( const int taskCount, __global uint* staging,
-	__global uint* brick0, __global uint* brick1, __global uint* brick2, __global uint* brick3 )
+	__global uint* brick0, __global uint* brick1, __global uint* brick2, __global uint* brick3, __global uint* zeroes)
 {
 	// put bricks in place
 	int task = get_global_id( 0 );
@@ -464,7 +464,10 @@ __kernel void commit( const int taskCount, __global uint* staging,
 		for (int z = 0; z < 8; z++) for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++)
 			dst[Morton3Bit( x, y, z )] = ((__global PAYLOAD*)src)[x + y * 8 + z * 64];
 	#else
+		zeroes = BRICKSIZE * PAYLOADSIZE;
 		for (int i = 0; i < (BRICKSIZE * PAYLOADSIZE) / 4; i++) brick0[offset + i] = src[i];
+		for( int i = 0; i < BRICKSIZE; i+= 2)
+			zeroes -= (brick0[offset + i] + brick0[offset + i + 1]) != 0; //Determine number of zeroes in brick
 	#endif
 	#else
 		__global uint* page = bricks[(offset / (CHUNKSIZE / 4)) & 3];

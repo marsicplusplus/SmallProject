@@ -1066,7 +1066,7 @@ public:
 	enum { DEFAULT = 0, TEXTURE = 8, TARGET = 16, READONLY = 1, WRITEONLY = 2 };
 	// constructor / destructor
 	Buffer() : hostBuffer( 0 ) {}
-	Buffer( unsigned int N, unsigned int t = DEFAULT, void* ptr = 0 );
+	Buffer( unsigned int N, unsigned int t = DEFAULT, void* ptr = 0, bool pinned = false);
 	~Buffer();
 	cl_mem* GetDevicePtr() { return &deviceBuffer; }
 	unsigned int* GetHostPtr() { return hostBuffer; }

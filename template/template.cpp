@@ -54,10 +54,35 @@ void Plot( const int3 pos, const uint c ) { world->Set( pos.x, pos.y, pos.z, c )
 uint Read( const int x, const int y, const int z ) { return world->Get( x, y, z ); }
 uint Read( const int3 pos ) { return world->Get( pos.x, pos.y, pos.z ); }
 uint Read( const uint3 pos ) { return world->Get( pos.x, pos.y, pos.z ); }
+
+
+
+
+
+
+
+
 float2 GetCursorPosition() { 
 	double xpos, ypos;
 	glfwGetCursorPos(window, &xpos, &ypos);
 	return make_float2(xpos, ypos);
+}
+
+
+
+
+
+void UpdateCAPE(float dt)
+{
+	world->UpdateCAPE(dt);
+}
+void SetMaterialBlock(const float x, const float y, const float z, const float u, const float v, const float w, const float a, const bool c)
+{
+	world->cape->SetMaterialBlock(x, y, z, u, v, w, a, c);
+}
+void InitCAPE(uint updateRate)
+{
+	world->InitCAPE(updateRate);
 }
 void Sphere( const float x, const float y, const float z, const float r, const uint c )
 {
@@ -307,7 +332,7 @@ void InitRenderTarget( int w, int h )
 {
 	// allocate render target and surface
 	scrwidth = w, scrheight = h;
-	renderTarget = new GLTexture( scrwidth, scrheight, GLTexture::FLOAT );
+	renderTarget = new GLTexture( scrwidth, scrheight, GLTexture::INTTARGET );
 }
 void ReshapeWindowCallback( GLFWwindow* window, int w, int h )
 {
@@ -1163,13 +1188,14 @@ static cl_int getPlatformID( cl_platform_id* platform )
 
 // Buffer constructor
 // ----------------------------------------------------------------------------
-Buffer::Buffer( unsigned int N, unsigned int t, void* ptr )
+Buffer::Buffer( unsigned int N, unsigned int t, void* ptr, bool pinned)
 {
 	type = t;
 	ownData = false;
 	int rwFlags = CL_MEM_READ_WRITE;
 	if (t & READONLY) rwFlags = CL_MEM_READ_ONLY;
 	if (t & WRITEONLY) rwFlags = CL_MEM_WRITE_ONLY;
+	if (pinned) rwFlags = rwFlags | CL_MEM_ALLOC_HOST_PTR;
 	if ((t & (TEXTURE | TARGET)) == 0)
 	{
 		size = N;
@@ -1315,7 +1341,7 @@ Kernel::Kernel( char* file, char* entryPoint )
 	// -cl-nv-maxrregcount=64 not faster than leaving it out (same for 128)
 	// -cl-no-subgroup-ifp ? fails on nvidia.
 	//error = clBuildProgram( program, 0, NULL, "-cl-nv-verbose -cl-fast-relaxed-math -cl-mad-enable -cl-single-precision-constant", NULL, NULL );
-	error = clBuildProgram( program, 0, NULL, "-cl-fast-relaxed-math -cl-mad-enable -cl-single-precision-constant", NULL, NULL );
+	error = clBuildProgram( program, 0, NULL, "-cl-std=CL3.0 -cl-fast-relaxed-math -cl-mad-enable -cl-single-precision-constant", NULL, NULL );
 	// handle errors
 	if (error == CL_SUCCESS)
 	{
@@ -1522,7 +1548,7 @@ bool Kernel::InitCL()
 			if (strstr( d, "titan x" )) isPascal = true;
 		}
 	}
-	else if (strstr( d, "amd" ))
+	else if (strstr( d, "amd" )||strstr(d, "gfx"))
 	{
 		isAMD = true;
 	}

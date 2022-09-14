@@ -44,9 +44,11 @@ float4 FixZeroDeltas( float4 V )
 
 #if ONEBRICKBUFFER == 1
 
+//(v && (   (((v >> 8) & 15) * (1.0f / 15.0f)) < 0.05f)) make certain color invisible.
+//&& v != RED
 #define BRICKSTEP(exitLabel)															\
-	v = o + (p >> 20) + ((p >> 7) & (BMSK * BRICKDIM)) + (p & BMSK) * BDIM2;			\
-	v = brick0[v]; if (v) { *dist = t + to, * side = last; return v; }					\
+	v = o + (p >> 20) + ((p >> 7) & (BMSK * BRICKDIM)) + (p & BMSK) * BDIM2;            \
+	v = brick0[v]; if (v && v != RED) { *dist = t + to, * side = last; return v; }				    \
 	t = min( tm.x, min( tm.y, tm.z ) ), last = 0;										\
 	if (t == tm.x) tm.x += td.x, p += dx;												\
 	if (t == tm.y) tm.y += td.y, p += dy, last = 1;										\
