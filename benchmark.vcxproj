@@ -21,7 +21,7 @@
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>NotSet</CharacterSet>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -64,7 +64,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
     <Link>
-      <AdditionalLibraryDirectories>lib/glfw/lib-vc2017;lib/zlib;$(CUDA_PATH)/lib/x64;C:\Users\loren\Desktop\Code\WrldTmpl8\lib\OpenCL\x64</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>lib/glfw/lib-vc2017;lib/zlib;$(CUDA_PATH)/lib/x64;$(SolutionDir)\lib\OpenCL\x64</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
