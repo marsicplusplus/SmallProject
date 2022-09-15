@@ -1065,7 +1065,8 @@ void FatalError( const char* fmt, ... )
 #else
 	fprintf( stderr, t );
 #endif
-	while (1) exit( 0 );
+	throw std::exception("Fatal error");
+	//while (1) exit( 0 );
 }
 
 // source file information

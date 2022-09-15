@@ -129,6 +129,7 @@
     <ClCompile Include="mygame.cpp" />
     <ClCompile Include="mygamescene.cpp" />
     <ClCompile Include="scatterscene.cpp" />
+    <ClCompile Include="template\CAPE.cpp" />
     <ClCompile Include="template\template.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">precomp.h</PrecompiledHeaderFile>
@@ -148,6 +149,7 @@
     <ClInclude Include="mygame.h" />
     <ClInclude Include="mygamescene.h" />
     <ClInclude Include="template\bluenoise.h" />
+    <ClInclude Include="template\CAPE.h" />
     <ClInclude Include="template\common.h" />
     <ClInclude Include="template\precomp.h" />
     <ClInclude Include="template\world.h" />

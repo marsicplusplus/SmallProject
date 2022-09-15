@@ -140,11 +140,15 @@ World::World(const uint targetID)
 	committer->SetArgument(3, brickBuffer);
 	committer->SetArgument(4, brickBuffer);
 	committer->SetArgument(5, brickBuffer);
+	committer->SetArgument(6, zeroesBuffer);
 #else
 	committer->SetArgument(2, brickBuffer[0]);
 	committer->SetArgument(3, brickBuffer[1]);
 	committer->SetArgument(4, brickBuffer[2]);
 	committer->SetArgument(5, brickBuffer[3]);
+	// Not yet sure if this is correct. Was not present at all in fluid sim project,
+	// but obviously leaving it out for this path would give problems in that case
+	committer->SetArgument(6, zeroesBuffer);
 #endif
 	batchTracer->SetArgument(0, &gridMap);
 #if ONEBRICKBUFFER == 1
@@ -224,6 +228,28 @@ void World::ForceSyncAllBricks()
 	for (int i = 0; i < CHUNKCOUNT; i++) brickBuffer[i]->CopyToDevice();
 #endif
 }
+
+void World::InitCAPE(uint updateRate)
+{
+	cape = new CAPE();
+	cape->Initialise(this, updateRate);
+	cout << "Initialised CAPE" << endl;
+}
+
+void World::CAPEThread(float deltaTime)
+{
+	cape->Tick(deltaTime);
+}
+
+void World::UpdateCAPE(float deltaTime)
+{
+	//start new sim if done with previous update (no currently active)
+	if(!capeThread.valid())
+		capeThread = std::async(&World::CAPEThread, this, deltaTime);
+	if (capeThread.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+		capeThread = std::async(&World::CAPEThread, this, deltaTime);
+}
+
 
 // World::OptimizeBricks: replace single-color solid bricks
 // ----------------------------------------------------------------------------

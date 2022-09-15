@@ -154,7 +154,7 @@ private:
 // The world consists of a 128x128x128 top-level grid. Each cell in this grid can
 // either store a solid color, or the index of an 8x8x8 brick. Filling all cells with 
 // brick indices yields the maximum world resolution of 1024x1024x01024.
-// Voxels are 8-bit values. '0' is an empy voxel; all other colors are opaque. Voxel
+// Voxels are 8-bit values. '0' is an empty voxel; all other colors are opaque. Voxel
 // colors are 3-3-2 rgb values. Note that black voxels do not exist in this scheme.
 // The data structure is mirrored to the GPU, with a delay of 1 frame (i.e., the GPU
 // always renders the previous frame). 
