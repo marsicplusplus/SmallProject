@@ -77,6 +77,10 @@ World::World(const uint targetID)
 	// prepare a test world
 	grid = gridOrig = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
 	memset(grid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+	zeroes = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
+	memset(zeroes, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+	zeroesBuffer = new Buffer(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH, Buffer::DEFAULT, (uint*)zeroes);
+	zeroesBuffer->CopyToDevice();
 	DummyWorld();
 	ClearMarks(); // clear 'modified' bit array
 	// report memory usage

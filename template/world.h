@@ -350,6 +350,10 @@ public:
 		UnMark( g1 );		// no need to send it to GPU anymore
 		FreeBrick( g1 );
 	}
+	//Temp Getter to allow easy access to world data from CAPE
+	Buffer* GetBrickBuffer() { return brickBuffer; }
+	Buffer* GetZeroesBuffer() { return zeroesBuffer; }
+	cl_mem GetGridMap() { return gridMap; }
 private:
 	uint NewBrick()
 	{
@@ -471,6 +475,8 @@ private:
 	volatile inline static LONG trashTail = 0;	// thrash circular buffer tail
 	bool viewer = false;
 	uint* trash = 0;					// indices of recycled bricks
+	uint* zeroes = 0;
+	Buffer* zeroesBuffer;
 	Buffer* screen = 0;					// OpenCL buffer that encapsulates the target OpenGL texture
 	uint targetTextureID = 0;			// OpenGL render target
 	int prevFrameIdx = 0;				// index of the previous frame buffer that will be used for TAA
