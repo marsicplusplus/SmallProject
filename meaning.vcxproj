@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>meaningOfLife</ProjectName>
+    <ProjectName>WaterWorld</ProjectName>
     <ProjectGuid>{B83EB91E-1894-4759-B26B-36AE1E4B9E41}</ProjectGuid>
     <RootNamespace>Tmpl8</RootNamespace>
     <Keyword>Win32Proj</Keyword>
@@ -121,7 +121,8 @@
   </ItemDefinitionGroup>
   <!-- END Custom section -->
   <ItemGroup>
-    <ClCompile Include="meaning.cpp" />
+    <ClCompile Include="template\CAPE.cpp" />
+    <ClCompile Include="waterworld.cpp" />
     <ClCompile Include="template\template.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">precomp.h</PrecompiledHeaderFile>
@@ -136,12 +137,13 @@
   <ItemGroup>
     <ClInclude Include="cl\tools.cl" />
     <ClInclude Include="cl\trace.cl" />
-    <ClInclude Include="meaning.h" />
     <ClInclude Include="template\bluenoise.h" />
+    <ClInclude Include="template\CAPE.h" />
     <ClInclude Include="template\common.h" />
     <ClInclude Include="template\precomp.h" />
     <ClInclude Include="template\world.h" />
     <ClInclude Include="template\worldapi.h" />
+    <ClInclude Include="waterworld.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="cl\kernels.cl" />
