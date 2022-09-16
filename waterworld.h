@@ -16,6 +16,9 @@ namespace Tmpl8
 		void InitialiseBuildingDropScenario();
 		void InitialiseTsunami();
 		void InitialiseShallowLakeDropScenario();
+		void SetupReservoirBuffers();
+
+		static void IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg);
 		// game flow methods
 		void Init();
 		void HandleInput(float deltaTime);
@@ -54,6 +57,8 @@ namespace Tmpl8
 		// lasers
 		float laserDelay = 10, laserT;
 		int3 laserA, laserB;
+
+		LightManager lightManager;
 	};
 
 } // namespace Tmpl8
