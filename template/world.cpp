@@ -319,8 +319,10 @@ void World::Clear()
 	uint bs = CHUNKCOUNT * CHUNKSIZE;
 	memset(brick, 0, bs * sizeof(uchar));
 
-	for (int i = 0; i < GRIDSIZE; i++)
-		grid[i] = (i << 1) | 0; //zero identifier
+	// TO-DO: This is done in the fluid sim project, but breaks
+	// the ReSTIR project
+	// for (int i = 0; i < GRIDSIZE; i++)
+	//		grid[i] = (i << 1) | 0; //zero identifier
 	for (int i = 0; i < BRICKCOUNT; i++)
 		zeroes[i] = BRICKSIZE;
 
@@ -1594,8 +1596,7 @@ void World::Render()
 		params.R0 = RandomUInt();
 		params.skyWidth = skySize.x;
 		params.skyHeight = skySize.y;
-		static uint frame = 0;
-		params.frame = frame++ & 255;
+
 		for (int i = 0; i < 6; i++) params.skyLight[i] = skyLight[i];
 		params.skyLightScale = Game::skyDomeLightScale;
 		// get render parameters to GPU and invoke kernel asynchronously
