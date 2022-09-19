@@ -60,6 +60,7 @@ World::World(const uint targetID)
 	brick = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
 #if ONEBRICKBUFFER == 1
 	brickBuffer = new Buffer(CHUNKSIZE * CHUNKCOUNT / 4 /* dwords */, Buffer::DEFAULT, (uchar*)brick);
+	printf("Chunk count: %i, chunk size: %ld", CHUNKCOUNT, CHUNKSIZE);
 	brickBuffer->CopyToDevice();
 #else
 	brick = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
@@ -327,10 +328,6 @@ void World::Clear()
 		zeroes[i] = BRICKSIZE;
 
 	zeroesBuffer->CopyToDevice();
-
-
-
-	
 
 	ClearMarks();
 }

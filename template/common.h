@@ -13,9 +13,9 @@
 // - Add TAA and GI. :)
 
 // settings shared between c/c++ and OpenCL
-#define MAPWIDTH	1024	// total world size, x-axis
-#define MAPHEIGHT	1024	// total world height
-#define MAPDEPTH	1024	// total world size, z-axis
+#define MAPWIDTH	1024ul	// total world size, x-axis
+#define MAPHEIGHT	1024ul	// total world height
+#define MAPDEPTH	1024ul	// total world size, z-axis
 #define BRICKDIM	8		// brick dimensions
 #define BDIMLOG2	3		// must be log2(BRICKDIM)
 #define MAXCOMMITS	8192	// maximum number of bricks that can be committed per frame
@@ -27,8 +27,8 @@
 #else
 // 16-bit voxels: MRGB4444, where M=emitter strength
 #define VOXEL16
-#define PAYLOAD unsigned short
-#define PAYLOADSIZE 2
+#define PAYLOAD unsigned int
+#define PAYLOADSIZE 4
 #endif
 
 // renderer performance setting: set to 0 for slower devices, up to 8 for fast GPUs
@@ -178,7 +178,7 @@ struct DebugInfo
 #define UBERDEPTH	(GRIDDEPTH / 4)
 // note: we reserve 50% of the theoretical peak; a normal scene shouldn't come close to
 // using that many unique (non-empty!) bricks.
-#define BRICKCOUNT	((((MAPWIDTH / BRICKDIM) * (MAPHEIGHT / BRICKDIM) * (MAPDEPTH / BRICKDIM))) / 2)
+#define BRICKCOUNT	((((MAPWIDTH / BRICKDIM) * (MAPHEIGHT / BRICKDIM) * (MAPDEPTH / BRICKDIM))) / 4)
 #define BRICKCOMMITSIZE	(MAXCOMMITS * BRICKSIZE * PAYLOADSIZE + MAXCOMMITS * 4 /* bytes */)
 #define CHUNKCOUNT	4
 #define CHUNKSIZE	((BRICKCOUNT * BRICKSIZE * PAYLOADSIZE) / CHUNKCOUNT)
