@@ -9,113 +9,86 @@ __forceinline uint CAPE::GetBrickIDX(const uint x, const uint y, const uint z)
 	const uint by = y / CAPE_BRICKDIM;
 	const uint bz = z / CAPE_BRICKDIM;
 	if (bx >= CAPE_GRIDWIDTH || by >= CAPE_GRIDHEIGHT || bz >= CAPE_GRIDDEPTH) return UINT32_MAX;
-	const uint brickIdx = BIX(bx,by,bz);
+	const uint brickIdx = BIX(bx, by, bz);
 	return brickIdx;
 }
 
-__forceinline float CAPE::GetData(const uint x, const uint y, const uint z, float* data)
+__forceinline float CAPE::GetData(const uint x, const uint y, const uint z, vector<float*>& data)
 {
 	// obtain brick reference from top-level grid if brick does not exist, return "default" value
-	const uint bID = grid[GetBrickIDX(x, y, z)]; 
-	if (bID == UINT32_MAX) return 0; 
-	float* d = data + bID * CAPE_BRICKSIZE;// [bID] ;
+	const uint bID = grid[GetBrickIDX(x, y, z)];
+	if (bID == UINT32_MAX) return 0;
+	float* d = data[bID];
 	const uint lx = x & (CAPE_BRICKDIM - 1), ly = y & (CAPE_BRICKDIM - 1), lz = z & (CAPE_BRICKDIM - 1);
 	return d[lx + ly * CAPE_BRICKDIM + lz * CAPE_BRICKDIM * CAPE_BRICKDIM];
 }
 
-__forceinline void CAPE::SetData(const uint x, const uint y, const uint z, float v, float* data)
+__forceinline void CAPE::SetData(const uint x, const uint y, const uint z, float v, vector<float*>& data)
 {
 	const uint bID = grid[GetBrickIDX(x, y, z)];
 	if (bID == UINT32_MAX) return;
-	float* d = data + bID * CAPE_BRICKSIZE;
+	float* d = data[bID];
 	const uint lx = x & (CAPE_BRICKDIM - 1), ly = y & (CAPE_BRICKDIM - 1), lz = z & (CAPE_BRICKDIM - 1);
 	uint cellIdx = lx + ly * CAPE_BRICKDIM + lz * CAPE_BRICKDIM * CAPE_BRICKDIM;
 	d[cellIdx] = v;
 }
 
-__forceinline void CAPE::AddData(const uint x, const uint y, const uint z, float v, float* data)
+__forceinline void CAPE::AddData(const uint x, const uint y, const uint z, float v, vector<float*>& data)
 {
 	const uint bID = grid[GetBrickIDX(x, y, z)];
 	if (bID == UINT32_MAX) return;
-	float* d = data + bID * CAPE_BRICKSIZE;
+	float* d = data[bID];
 	const uint lx = x & (CAPE_BRICKDIM - 1), ly = y & (CAPE_BRICKDIM - 1), lz = z & (CAPE_BRICKDIM - 1);
 	uint cellIdx = lx + ly * CAPE_BRICKDIM + lz * CAPE_BRICKDIM * CAPE_BRICKDIM;
 	d[cellIdx] += v;
 }
 
-//Reallocates bricks, doubles the array size, inits new memory to 0
-void CAPE::ReallocBricks()
+//Completely frees memory occupied by brick
+//Costly because of erase (O(n)), but seems acceptable for now since this should be a rare opperation,
+//only used to compress the active bricks vector when it becomes particularly sparse
+//Faster solution would be a copy pass into a temporary buffer
+void CAPE::EraseBrick(uint i)
 {
-	uint obr = bricks_reserved;
-	bricks_reserved = bricks_reserved * 2 + 1;
-	uint ns = bricks_reserved * sizeof(float) * CAPE_BRICKSIZE;
-	m_bricks = (float*)realloc(m_bricks, ns);
-	m0_bricks = (float*)realloc(m0_bricks, ns);
-	vx_bricks = (float*)realloc(vx_bricks, ns);
-	vy_bricks = (float*)realloc(vy_bricks, ns);
-	vz_bricks = (float*)realloc(vz_bricks, ns);
-	vx0_bricks = (float*)realloc(vx0_bricks, ns);
-	vy0_bricks = (float*)realloc(vy0_bricks, ns);
-	vz0_bricks = (float*)realloc(vz0_bricks, ns);
-	p0_bricks = (float*)realloc(p0_bricks, ns);
-	p_bricks = (float*)realloc(p_bricks, ns);
+	//Free memory
+	free(vx_bricks[i]);
+	free(vy_bricks[i]);
+	free(vz_bricks[i]);
+	free(vx0_bricks[i]);
+	free(vy0_bricks[i]);
+	free(vz0_bricks[i]);
+	free(m0_bricks[i]);
+	free(m_bricks[i]);
+	free(p0_bricks[i]);
+	free(p_bricks[i]);
 
-	//realloc brick metadata
-	ns = bricks_reserved * sizeof(float);
-	brick_m = (float*)realloc(brick_m, ns);
-	brick_x = (uint*)realloc(brick_x, ns);
-	brick_y = (uint*)realloc(brick_y, ns);
-	brick_z = (uint*)realloc(brick_z, ns);
-	brick_a = (uint*)realloc(brick_a, ns);
-	brick_oa = (uint*)realloc(brick_oa, ns);
-	brick_jobs = (uint*)realloc(brick_jobs, ns);
-	brick_static = (char*)realloc(brick_static, bricks_reserved);//1 byte per element
+	//Erase from brick vectors
+	brick_x.erase(brick_x.begin() + i);
+	brick_y.erase(brick_y.begin() + i);
+	brick_z.erase(brick_z.begin() + i);
+	brick_m.erase(brick_m.begin() + i);
+	brick_static.erase(brick_static.begin() + i);
 
-	//Set the new part of memory to default 0
-	ns = (obr + 1) * sizeof(float) * CAPE_BRICKSIZE;
-	uint is = obr * CAPE_BRICKSIZE;
-	memset(m_bricks + is, 0.f, ns);
-	memset(m0_bricks + is, 0.f, ns);
-	memset(vx_bricks + is, 0.f, ns);
-	memset(vy_bricks + is, 0.f, ns);
-	memset(vz_bricks + is, 0.f, ns);
-	memset(vx0_bricks + is, 0.f, ns);
-	memset(vy0_bricks + is, 0.f, ns);
-	memset(vz0_bricks + is, 0.f, ns);
-	memset(p0_bricks + is, 0.f, ns);
-	memset(p_bricks + is, 0.f, ns);
-
-	//Set the metadata fields
-	ns = (obr + 1) * sizeof(float);
-	is = obr;
-	memset(brick_m + is, 0.f, ns);
-	memset(brick_x + is, UINT32_MAX, ns);
-	memset(brick_y + is, UINT32_MAX, ns);
-	memset(brick_z + is, UINT32_MAX, ns);
-	memset(brick_a + is, UINT32_MAX, ns);
-	memset(brick_oa + is, UINT32_MAX, ns);
-	memset(brick_jobs + is, UINT32_MAX, ns);
-	memset(brick_static + is, false, (obr + 1));
+	//Erase pointers from brick vectors
+	vx_bricks.erase(vx_bricks.begin() + i);
+	vy_bricks.erase(vy_bricks.begin() + i);
+	vz_bricks.erase(vz_bricks.begin() + i);
+	vx0_bricks.erase(vx0_bricks.begin() + i);
+	vy0_bricks.erase(vy0_bricks.begin() + i);
+	vz0_bricks.erase(vz0_bricks.begin() + i);
+	m_bricks.erase(m_bricks.begin() + i);
+	m0_bricks.erase(m0_bricks.begin() + i);
+	p0_bricks.erase(p0_bricks.begin() + i);
+	p_bricks.erase(p_bricks.begin() + i);
 }
 
 //Remove brick from active bricks buffer
 void CAPE::FreeBrick(uint i)
 {
-	return; //Temporarily disable
-	uint brick_addr = BIX(brick_x[i], brick_y[i], brick_z[i]);
-	bricks_killed++;
-	brick_x[i] = UINT32_MAX; //Mark as dead
-	brick_m[i] = 0; //empty brick
-	trash.push_back(i);
-	grid[brick_addr] = UINT32_MAX;//Unset brick adress in lookup table
-	brick_static[i] = true; //Marked as dead
-	brick_oa[i] = brick_addr; //remember the address this brick had.
-	brick_jobs[i] = 0; //mark brick to be freed
+	uint brick_id = BIX(brick_x[i], brick_y[i], brick_z[i]);
 	bricks_alive--;
-	memset(m0_bricks + i * CAPE_BRICKSIZE, 0, CAPE_BRICKSIZE * sizeof(float));
-	memset(vx0_bricks + i * CAPE_BRICKSIZE, 0, CAPE_BRICKSIZE * sizeof(float));
-	memset(vy0_bricks + i * CAPE_BRICKSIZE, 0, CAPE_BRICKSIZE * sizeof(float));
-	memset(vz0_bricks + i * CAPE_BRICKSIZE, 0, CAPE_BRICKSIZE * sizeof(float));
+	brick_x[i] = UINT32_MAX; //Mark as dead
+	trash.push_back(i);
+	grid[brick_id] = UINT32_MAX;//Unset brick adress in lookup table
 }
 
 //Add brick to active brick buffer and create memory or reuse a dead brick
@@ -123,50 +96,48 @@ uint CAPE::NewBrick(uint bx, uint by, uint bz)
 {
 	uint brick_addr = BIX(bx, by, bz);
 	uint bidx = UINT32_MAX;
-	if (trash.size() > 0 && false) //reuse brick
+	if (trash.size() > 0) //reuse brick
 	{
 		bidx = trash[trash.size() - 1];
 		trash.pop_back();
-		brick_a[bidx] = brick_addr; //record new adress for gpu
-		brick_jobs[bidx] = 1;
-		grid[brick_addr] = bidx; //store new adress
-		brick_x[bidx] = bx; 
+		grid[brick_addr] = bidx;
+		brick_x[bidx] = bx;
 		brick_y[bidx] = by;
 		brick_z[bidx] = bz;
 
 		//make sure crucial data is initialised to default values
 		brick_m[bidx] = 0;
 		brick_static[bidx] = bx == 0 || bx >= CAPE_GRIDWIDTH || by == 0 || by >= CAPE_GRIDHEIGHT || bz == 0 || bz >= CAPE_GRIDDEPTH;
-		memset(m0_bricks + bidx * CAPE_BRICKSIZE, 0, CAPE_BRICKSIZE * sizeof(float));
-		memset(vx0_bricks + bidx * CAPE_BRICKSIZE, 0, CAPE_BRICKSIZE * sizeof(float));
-		memset(vy0_bricks + bidx * CAPE_BRICKSIZE, 0, CAPE_BRICKSIZE * sizeof(float));
-		memset(vz0_bricks + bidx * CAPE_BRICKSIZE, 0, CAPE_BRICKSIZE * sizeof(float));
+		memset(m0_bricks[bidx], 0, CAPE_BRICKSIZE * sizeof(float));
 	}
-	else //insert at the end
+	else //Create new brick memory
 	{
-		//If we have ran out of reserved memory, reallocate
-		if (bricks_allocated >= bricks_reserved)
-		{
-			//Make sure we have all relevant info
-			if (updates > 1) CopyBuffersFromDevice();
-			ReallocBricks();
-			reallocated = true;
-		}
+		brick_x.push_back(bx);
+		brick_y.push_back(by);
+		brick_z.push_back(bz);
 
-		//Set default metadata values
-		brick_m[bricks_allocated] = 0;
-		brick_static[bricks_allocated] = bx == 0 || bx >= CAPE_GRIDWIDTH || by == 0 || by >= CAPE_GRIDHEIGHT || bz == 0 || bz >= CAPE_GRIDDEPTH;
-		brick_jobs[bricks_allocated] = 2;
-		brick_x[bricks_allocated] = bx;
-		brick_y[bricks_allocated] = by;
-		brick_z[bricks_allocated] = bz;
-		brick_a[bricks_allocated] = brick_addr;
-		grid[brick_addr] = bricks_allocated;
+		//Create buffers
+		vx_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+		vy_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+		vz_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+		vx0_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+		vy0_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+		vz0_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+
+		m0_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+		m_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+
+		brick_m.push_back(0);
+		brick_static.push_back(bx == 0 || bx >= CAPE_GRIDWIDTH || by == 0 || by >= CAPE_GRIDHEIGHT || bz == 0 || bz >= CAPE_GRIDDEPTH);
+		p0_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
+		p_bricks.push_back((float*)calloc(CAPE_BRICKSIZE, sizeof(float)));
 
 		//Set brick lookup in lookup table
-		bricks_allocated++;
-		bidx = bricks_allocated - 1;
+		bidx = m_bricks.size() - 1;
+		bricks_allocated = vx_bricks.size();
+		grid[brick_addr] = bidx;
 	}
+
 	bricks_alive++;
 	return bidx;
 }
@@ -178,14 +149,9 @@ uint CAPE::NewBrick(uint bx, uint by, uint bz)
 //take up any memory or require visits in update step.
 void CAPE::UpdateBricks()
 {
-	reallocated = false;
-
-	bool compressed = CheckCompressMemory();
-	reallocated = reallocated || compressed;
-
 	for (int i = 0; i < bricks_allocated; i++)
 	{
-		if (brick_x[i] != UINT32_MAX && !brick_static[i])
+		if (brick_x[i] != UINT32_MAX)
 		{
 			float bm = brick_m[i];
 
@@ -193,9 +159,6 @@ void CAPE::UpdateBricks()
 			uint bx = brick_x[i];
 			uint by = brick_y[i];
 			uint bz = brick_z[i];
-
-			if (grid[BIX(bx, by, bz)] == UINT32_MAX)
-				int x = 0;
 
 			//Check if neighbours exist
 			uint nbc = 0;
@@ -217,8 +180,7 @@ void CAPE::UpdateBricks()
 				float mz1 = (z1 == UINT32_MAX ? 0 : brick_m[z1]);
 
 				float nbm = mx0 + mx1 + my0 + my1 + mz0 + mz1;
-				if (nbm < MIN_BRICKMASS)
-					FreeBrick(i);
+				if (nbm < MIN_BRICKMASS) FreeBrick(i);
 			}
 			else
 			{
@@ -232,125 +194,34 @@ void CAPE::UpdateBricks()
 			}
 		}
 	}
+	for (int i = 0; i < bricks_allocated; i++)
+		brick_m[i] = 0; //Reset brick mass
+	CheckCompressMemory(); 	//Check and try to compress our brick vector if it becomes sparse
 }
 
 //Check if we should compress memory (when we have many dead bricks not being recycled), e.g. most extreme case
-//First and last block in buffer are alive, all others are dead. Helps prevent uncessary brick visits, also 
-//at the same time also rescales reserved memory
-bool CAPE::CheckCompressMemory()
+//First and last block in buffer are alive, all others are dead. Helps prevent uncessary brick visits 
+//There is a much faster way to do this, avoiding the vector.erase operation, but this is a pretty rare operation
+//and generally the cost of this should not be relevant compared to the main update cycle.
+void CAPE::CheckCompressMemory()
 {
-	if (bricks_alive * 4 < bricks_allocated && bricks_allocated > MINBRICKS * 2)
+	if (bricks_alive * 2 < bricks_allocated)
 	{
-		if (updates > 1) CopyBuffersFromDevice();
-
-		//Contract memory
-		bricks_reserved = max((uint)MINBRICKS * 2, bricks_alive * 2);
-		uint ns = bricks_reserved * CAPE_BRICKSIZE;
-
-		//New buffers
-		float* m_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* m0_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* vx_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* vy_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* vz_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* vx0_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* vy0_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* vz0_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* p0_bricks_new = (float*)calloc(ns, sizeof(float));
-		float* p_bricks_new = (float*)calloc(ns, sizeof(float));
-
-		//Brick metadata
-		float* brick_m_new = (float*)calloc(bricks_reserved, sizeof(float));
-		uint* brick_x_new = (uint*)calloc(bricks_reserved, sizeof(uint));
-		uint* brick_y_new = (uint*)calloc(bricks_reserved, sizeof(uint));
-		uint* brick_z_new = (uint*)calloc(bricks_reserved, sizeof(uint));
-		uint* brick_a_new = (uint*)calloc(bricks_reserved, sizeof(uint));
-		uint* brick_oa_new = (uint*)calloc(bricks_reserved, sizeof(uint));
-		uint* brick_jobs_new = (uint*)calloc(bricks_reserved, sizeof(uint));
-		char* brick_static_new = (char*)calloc(bricks_reserved, sizeof(char));
-
-		memset(brick_m_new, 0.f, bricks_reserved * sizeof(float));
-		memset(brick_x_new, UINT32_MAX, bricks_reserved * sizeof(float));
-		memset(brick_y_new, UINT32_MAX, bricks_reserved * sizeof(float));
-		memset(brick_z_new, UINT32_MAX, bricks_reserved * sizeof(float));
-		memset(brick_a_new, UINT32_MAX, bricks_reserved * sizeof(float));
-		memset(brick_oa_new, UINT32_MAX, bricks_reserved * sizeof(float));
-		memset(brick_jobs_new, UINT32_MAX, bricks_reserved * sizeof(float));
-		memset(brick_static_new, false, bricks_reserved);
-
-		//Copy all alive bricks to new buffers, while maintaining new brick references
 		uint brick_idx = 0;
 		for (int i = 0; i < bricks_allocated; i++)
 		{
 			uint brick_addr = BIX(brick_x[i], brick_y[i], brick_z[i]);
-			uint t = brick_x[i];
-			if (grid[brick_addr] != UINT32_MAX)
-			{
-				grid[brick_addr] = brick_idx; //Update brick reference in grid 
-				//Copy brick to new buffer
-				memcpy(m_bricks_new + brick_idx * CAPE_BRICKSIZE, m_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(m0_bricks_new + brick_idx * CAPE_BRICKSIZE, m0_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(vx_bricks_new + brick_idx * CAPE_BRICKSIZE, vx_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(vy_bricks_new + brick_idx * CAPE_BRICKSIZE, vy_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(vz_bricks_new + brick_idx * CAPE_BRICKSIZE, vz_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(vx0_bricks_new + brick_idx * CAPE_BRICKSIZE, vx0_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(vy0_bricks_new + brick_idx * CAPE_BRICKSIZE, vy0_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(vz0_bricks_new + brick_idx * CAPE_BRICKSIZE, vz0_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(p0_bricks_new + brick_idx * CAPE_BRICKSIZE, p0_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-				memcpy(p_bricks_new + brick_idx * CAPE_BRICKSIZE, p_bricks + i * CAPE_BRICKSIZE, CAPE_BRICKSIZE * sizeof(float));
-
-				//brick metadata
-				brick_x_new[brick_idx] = brick_x[i];
-				brick_y_new[brick_idx] = brick_y[i];
-				brick_z_new[brick_idx] = brick_z[i];
-				brick_a_new[brick_idx] = brick_a[i];
-				brick_oa_new[brick_idx] = brick_oa[i];
-				brick_jobs_new[brick_idx] = brick_jobs[i];
-				brick_m_new[brick_idx] = brick_m[i];
-				brick_static_new[brick_idx] = brick_static[i];
-				brick_idx++;
-			}
+			if (brick_x[i] == UINT32_MAX) { EraseBrick(i--); bricks_allocated--; } //If dead brick, delete it's memory / r		
+			grid[brick_addr] = i; //Update brick reference in grid 
 		}
-		bricks_allocated = bricks_alive;
-
-		//swap pointers and delete copy buffers
-		Swap(m_bricks, m_bricks_new); free(m_bricks_new);
-		Swap(m0_bricks, m0_bricks_new); free(m0_bricks_new);
-		Swap(vx_bricks, vx_bricks_new); free(vx_bricks_new);
-		Swap(vy_bricks, vy_bricks_new); free(vy_bricks_new);
-		Swap(vz_bricks, vz_bricks_new); free(vz_bricks_new);
-		Swap(vx0_bricks, vx0_bricks_new); free(vx0_bricks_new);
-		Swap(vy0_bricks, vy0_bricks_new); free(vy0_bricks_new);
-		Swap(vz0_bricks, vz0_bricks_new); free(vz0_bricks_new);
-		Swap(p_bricks, p_bricks_new); free(p_bricks_new);
-		Swap(p0_bricks, p0_bricks_new); free(p0_bricks_new);
-
-		Swap(brick_x, brick_x_new); free(brick_x_new);
-		Swap(brick_y, brick_y_new); free(brick_y_new);
-		Swap(brick_z, brick_z_new); free(brick_z_new);
-		Swap(brick_a, brick_a_new); free(brick_a_new);
-		Swap(brick_oa, brick_oa_new); free(brick_oa_new);
-		Swap(brick_jobs, brick_jobs_new); free(brick_jobs_new);
-		Swap(brick_m, brick_m_new); free(brick_m_new);
-		Swap(brick_static, brick_static_new); free(brick_static_new);
-		return true;
 	}
-	return false;
 }
 
 CAPE::~CAPE()
 {
 	//Delete bricks
-	free(m_bricks);
-	free(m0_bricks);
-	free(vx_bricks);
-	free(vy_bricks);
-	free(vz_bricks);
-	free(vx0_bricks);
-	free(vy0_bricks);
-	free(vz0_bricks);
-	free(p_bricks);
-	free(p0_bricks);
+	for (int i = bricks_allocated - 1; i >= 0; i--)
+		EraseBrick(i);
 	free(grid);
 }
 
@@ -359,50 +230,24 @@ void CAPE::Initialise(World* w, uint updateRate)
 {
 	world = w;
 	timer = Timer();
-	timer2 = Timer();
 	timeStep = 1.0f / updateRate;
 	if (GRAVITYENABLED == 1)
 		ga.push_back(float3(0, -9.81 * CELLSIZE, 0));
 
-	//Initialise brick memory, reserve 20 bricks to start
-	bricks_reserved = MINBRICKS * 100;
-	uint is = bricks_reserved * CAPE_BRICKSIZE * sizeof(float);
-	m_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	m0_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	vx_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	vy_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	vz_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	vx0_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	vy0_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	vz0_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	p_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-	p0_bricks = (float*)calloc(bricks_reserved * CAPE_BRICKSIZE, sizeof(float));
-
-	brick_m = (float*)calloc(bricks_reserved, sizeof(float));
-	brick_x = (uint*)calloc(bricks_reserved, sizeof(uint));
-	brick_y = (uint*)calloc(bricks_reserved, sizeof(uint));
-	brick_z = (uint*)calloc(bricks_reserved, sizeof(uint));
-	brick_a = (uint*)calloc(bricks_reserved, sizeof(uint));
-	brick_oa = (uint*)calloc(bricks_reserved, sizeof(uint));
-	brick_jobs = (uint*)calloc(bricks_reserved, sizeof(uint));
-	memset(brick_a, UINT32_MAX, bricks_reserved * sizeof(uint));
-	memset(brick_x, UINT32_MAX, bricks_reserved * sizeof(uint));
-	memset(brick_y, UINT32_MAX, bricks_reserved * sizeof(uint));
-	memset(brick_z, UINT32_MAX, bricks_reserved * sizeof(uint));
-	brick_static = (char*)calloc(bricks_reserved, sizeof(bool));
-
 	//Top level grid pointing to active bricks
 	grid = (uint*)(malloc(CAPE_GRIDSIZE * sizeof(uint)));
-	if(grid != nullptr) memset(grid, UINT32_MAX, CAPE_GRIDSIZE * sizeof(uint));
+	if (grid != nullptr) memset(grid, UINT32_MAX, CAPE_GRIDSIZE * sizeof(uint));
 
-	capeKernel = new Kernel("cl/cape.cl", "run");
-	materialAdvectionKernel = new Kernel(capeKernel->GetProgram(), "materialAdvection");
-	divergenceKernel = new Kernel(capeKernel->GetProgram(), "calculateDivergence");
-	pressureSolverKernel = new Kernel(capeKernel->GetProgram(), "solvePressure");
-	pressureGradientKernel = new Kernel(capeKernel->GetProgram(), "pressureGradient");
-	velocityAdvectionKernel = new Kernel(capeKernel->GetProgram(), "velocityAdvection");
-    brickUpdateKernel = new Kernel(capeKernel->GetProgram(), "brickUpdate");
-	worldSetKernel = new Kernel(capeKernel->GetProgram(), "worldSetter");
+	m_bricks = vector<float*>();
+	m0_bricks = vector<float*>();
+	p_bricks = vector<float*>();
+	p0_bricks = vector<float*>();
+	vx_bricks = vector<float*>();
+	vy_bricks = vector<float*>();
+	vz_bricks = vector<float*>();
+	vx0_bricks = vector<float*>();
+	vy0_bricks = vector<float*>();
+	vz0_bricks = vector<float*>();
 }
 
 void CAPE::ClearMaterial(uint x, uint y, uint z)
@@ -440,7 +285,7 @@ void CAPE::SetMaterialBlock(uint x0, uint y0, uint z0, uint w, uint h, uint d, f
 		cout << "Block outside of grid" << endl;
 		return;
 	}
-	for(uint x = x0; x < x0 + w; x++)
+	for (uint x = x0; x < x0 + w; x++)
 		for (uint y = y0; y < y0 + h; y++)
 			for (uint z = z0; z < z0 + d; z++)
 			{
@@ -451,553 +296,10 @@ void CAPE::SetMaterialBlock(uint x0, uint y0, uint z0, uint w, uint h, uint d, f
 					ClearMaterial(x, y, z);
 					AddMaterial(x, y, z, amount);
 				}
-				else if(v == 0)
+				else if (v == 0)
 					AddMaterial(x, y, z, amount);
 			}
 }
-
-void CAPE::SetKernelArguments()
-{
-	materialAdvectionKernel->SetArgument(0, grid_buffer);
-	materialAdvectionKernel->SetArgument(1, brick_x_buffer);
-	materialAdvectionKernel->SetArgument(2, brick_y_buffer);
-	materialAdvectionKernel->SetArgument(3, brick_z_buffer);
-	materialAdvectionKernel->SetArgument(4, brick_static_buffer);
-	materialAdvectionKernel->SetArgument(5, brick_m_buffer);
-
-	materialAdvectionKernel->SetArgument(6, m_bricks_buffer);
-	materialAdvectionKernel->SetArgument(7, m0_bricks_buffer);
-	materialAdvectionKernel->SetArgument(8, vx0_bricks_buffer);
-	materialAdvectionKernel->SetArgument(9, vy0_bricks_buffer);
-	materialAdvectionKernel->SetArgument(10, vz0_bricks_buffer);
-	materialAdvectionKernel->SetArgument(11, vx_bricks_buffer);
-	materialAdvectionKernel->SetArgument(12, vy_bricks_buffer);
-	materialAdvectionKernel->SetArgument(13, vz_bricks_buffer);
-	materialAdvectionKernel->SetArgument(14, p0_bricks_buffer);
-	cl_mem gm = world->GetGridMap();
-	materialAdvectionKernel->SetArgument(15, &gm);
-	materialAdvectionKernel->SetArgument(16, world->GetBrickBuffer());
-
-	velocityAdvectionKernel->SetArgument(0, grid_buffer);
-	velocityAdvectionKernel->SetArgument(1, brick_x_buffer);
-	velocityAdvectionKernel->SetArgument(2, brick_y_buffer);
-	velocityAdvectionKernel->SetArgument(3, brick_z_buffer);
-	velocityAdvectionKernel->SetArgument(4, brick_static_buffer);
-	velocityAdvectionKernel->SetArgument(5, brick_m_buffer);
-	velocityAdvectionKernel->SetArgument(14, p0_bricks_buffer);
-
-	divergenceKernel->SetArgument(0, grid_buffer);
-	divergenceKernel->SetArgument(1, brick_x_buffer);
-	divergenceKernel->SetArgument(2, brick_y_buffer);
-	divergenceKernel->SetArgument(3, brick_z_buffer);
-	divergenceKernel->SetArgument(4, brick_static_buffer);
-}
-
-//Creates OpenCL Buffers
-//Delete and replace old buffers if reallocate = true
-void CAPE::CreateBuffers(bool reallocate = false)
-{
-	if (reallocate)
-	{
-		clReleaseMemObject(grid_buffer->deviceBuffer);
-		clReleaseMemObject(brick_static_buffer->deviceBuffer);
-		clReleaseMemObject(brick_m_buffer->deviceBuffer);
-		clReleaseMemObject(brick_x_buffer->deviceBuffer);
-		clReleaseMemObject(brick_y_buffer->deviceBuffer);
-		clReleaseMemObject(brick_z_buffer->deviceBuffer);
-		clReleaseMemObject(brick_a_buffer->deviceBuffer);
-		clReleaseMemObject(brick_oa_buffer->deviceBuffer);
-		clReleaseMemObject(brick_jobs_buffer->deviceBuffer);
-
-		clReleaseMemObject(m_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(m0_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(vx_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(vy_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(vz_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(vx0_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(vy0_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(vz0_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(p_bricks_buffer->deviceBuffer);
-		clReleaseMemObject(p0_bricks_buffer->deviceBuffer);
-
-		delete(grid_buffer);
-		delete(brick_static_buffer);
-		delete(brick_m_buffer);
-		delete(brick_x_buffer);
-		delete(brick_y_buffer);
-		delete(brick_z_buffer);
-		delete(brick_a_buffer);
-		delete(brick_oa_buffer);
-		delete(brick_jobs_buffer);
-
-		delete(m_bricks_buffer);
-		delete(m0_bricks_buffer);
-		delete(vx_bricks_buffer);
-		delete(vy_bricks_buffer);
-		delete(vz_bricks_buffer);
-		delete(vx0_bricks_buffer);
-		delete(vy0_bricks_buffer);
-		delete(vz0_bricks_buffer);
-		delete(p_bricks_buffer);
-		delete(p0_bricks_buffer);
-		reallocated = false;
-	}
-
-	grid_buffer = new Buffer(CAPE_GRIDSIZE, Buffer::DEFAULT, grid);
-	brick_x_buffer = new Buffer(bricks_reserved, Buffer::DEFAULT, brick_x);
-	brick_y_buffer = new Buffer(bricks_reserved, Buffer::DEFAULT, brick_y);
-	brick_z_buffer = new Buffer(bricks_reserved, Buffer::DEFAULT, brick_z);
-	brick_a_buffer = new Buffer(bricks_reserved, Buffer::DEFAULT, brick_a, true);
-	brick_oa_buffer = new Buffer(bricks_reserved, Buffer::DEFAULT, brick_oa, true);
-	brick_jobs_buffer = new Buffer(bricks_reserved, Buffer::DEFAULT, brick_jobs, true);
-	brick_m_buffer = new Buffer(bricks_reserved, Buffer::DEFAULT, brick_m, true);
-	brick_static_buffer = new Buffer(bricks_reserved / 4, Buffer::DEFAULT, brick_static);
-
-	//Brick data buffers
-	uint s = bricks_reserved * CAPE_BRICKSIZE;
-	m_bricks_buffer = new Buffer(s, Buffer::DEFAULT, m_bricks);
-	m0_bricks_buffer = new Buffer(s, Buffer::DEFAULT, m0_bricks);
-	vx0_bricks_buffer = new Buffer(s, Buffer::DEFAULT, vx0_bricks);
-	vy0_bricks_buffer = new Buffer(s, Buffer::DEFAULT, vy0_bricks);
-	vz0_bricks_buffer = new Buffer(s, Buffer::DEFAULT, vz0_bricks);
-	vx_bricks_buffer = new Buffer(s, Buffer::DEFAULT, vx_bricks);
-	vy_bricks_buffer = new Buffer(s, Buffer::DEFAULT, vy_bricks);
-	vz_bricks_buffer = new Buffer(s, Buffer::DEFAULT, vz_bricks);
-	p_bricks_buffer = new Buffer(s, Buffer::DEFAULT, p_bricks);
-	p0_bricks_buffer = new Buffer(s, Buffer::DEFAULT, p0_bricks);
-
-	CopyBuffersToDevice();
-}
-
-//Fully copy cpu buffers and copy them to gpu => later only if buffer size changes and we have implemented all simulation on gpu
-void CAPE::CopyBuffersToDevice()
-{
-	grid_buffer->CopyToDevice(false);
-	brick_x_buffer->CopyToDevice(false);
-	brick_y_buffer->CopyToDevice(false);
-	brick_z_buffer->CopyToDevice(false);
-	brick_a_buffer->CopyToDevice(false);
-	brick_oa_buffer->CopyToDevice(false);
-	brick_jobs_buffer->CopyToDevice(false);
-	brick_m_buffer->CopyToDevice(false);
-	brick_static_buffer->CopyToDevice(false);
-
-	m_bricks_buffer->CopyToDevice(false);
-	m0_bricks_buffer->CopyToDevice(false);
-	vx0_bricks_buffer->CopyToDevice(false);
-	vy0_bricks_buffer->CopyToDevice(false);
-	vz0_bricks_buffer->CopyToDevice(false);
-	vx_bricks_buffer->CopyToDevice(false);
-	vy_bricks_buffer->CopyToDevice(false);
-	vz_bricks_buffer->CopyToDevice(false);
-	p_bricks_buffer->CopyToDevice(false);
-	p0_bricks_buffer->CopyToDevice(true);
-}
-
-void CAPE::CopyBuffersFromDevice()
-{
-	grid_buffer->CopyFromDevice(false);
-	brick_x_buffer->CopyFromDevice(false);
-	brick_y_buffer->CopyFromDevice(false);
-	brick_z_buffer->CopyFromDevice(false);
-	brick_a_buffer->CopyFromDevice(false);
-	brick_oa_buffer->CopyFromDevice(false);
-	brick_jobs_buffer->CopyFromDevice(false);
-	brick_m_buffer->CopyFromDevice(false);
-	brick_static_buffer->CopyFromDevice(false);
-
-	m_bricks_buffer->CopyFromDevice(false);
-	m0_bricks_buffer->CopyFromDevice(false);
-	vx0_bricks_buffer->CopyFromDevice(false);
-	vy0_bricks_buffer->CopyFromDevice(false);
-	vz0_bricks_buffer->CopyFromDevice(false);
-	vx_bricks_buffer->CopyFromDevice(false);
-	vy_bricks_buffer->CopyFromDevice(false);
-	vz_bricks_buffer->CopyFromDevice(false);
-	p_bricks_buffer->CopyFromDevice(false);
-	p0_bricks_buffer->CopyFromDevice(true);
-}
-
-//__global char* brick_static, __global float* m_bricks, __global float* m0_bricks, __global float* vx0_bricks, __global float* vy0_bricks,
-//__global float* vz0_bricks, __global float* vx_bricks, __global float* vy_bricks, __global float* vz_bricks
-void CAPE::ExecuteGPUDivergence()
-{
-	divergenceKernel->SetArgument(5, m_bricks_buffer);
-	divergenceKernel->SetArgument(6, m0_bricks_buffer);
-	divergenceKernel->SetArgument(7, vx0_bricks_buffer);
-	divergenceKernel->SetArgument(8, vy0_bricks_buffer);
-	divergenceKernel->SetArgument(9, vz0_bricks_buffer);
-	divergenceKernel->SetArgument(10, vx_bricks_buffer);
-	divergenceKernel->SetArgument(11, vy_bricks_buffer);
-	divergenceKernel->SetArgument(12, vz_bricks_buffer);
-	divergenceKernel->SetArgument(13, p0_bricks_buffer);
-	cl_event divergenceDone;
-	prevtime = timer.elapsed();
-	divergenceKernel->Run(bricks_allocated * CAPE_BRICKSIZE, 0, 0, &divergenceEvent);
-}
-
-void CAPE::ExecuteGPUPressure()
-{
-	pressureSolverKernel->SetArgument(0, grid_buffer);
-	pressureSolverKernel->SetArgument(1, brick_x_buffer);
-	pressureSolverKernel->SetArgument(2, brick_y_buffer);
-	pressureSolverKernel->SetArgument(3, brick_z_buffer);
-	pressureSolverKernel->SetArgument(4, brick_static_buffer);
-	pressureSolverKernel->SetArgument(5, m_bricks_buffer);
-	pressureSolverKernel->SetArgument(6, m0_bricks_buffer);
-	pressureSolverKernel->SetArgument(7, p_bricks_buffer);
-	pressureSolverKernel->SetArgument(8, p0_bricks_buffer);
-	cl_mem gm = world->GetGridMap();
-	pressureSolverKernel->SetArgument(9, &gm);
-	pressureSolverKernel->SetArgument(10, world->GetBrickBuffer());
-
-	for (int i = 0; i < PRESSURE_ITERATIONS; i++)
-	{
-		pressureSolverKernel->Run(bricks_allocated * CAPE_BRICKSIZE, 0, 0, &pressureSolverEvent);
-
-		//Swap buffers
-		cl_mem tmp = p_bricks_buffer->deviceBuffer;
-		p_bricks_buffer->deviceBuffer = p0_bricks_buffer->deviceBuffer;
-		p0_bricks_buffer->deviceBuffer = tmp;
-
-		pressureSolverKernel->SetArgument(7, p_bricks_buffer);
-		pressureSolverKernel->SetArgument(8, p0_bricks_buffer);
-	}
-}
-
-void CAPE::ExecuteGPUPressureGradient()
-{
-	pressureGradientKernel->SetArgument(0, grid_buffer);
-	pressureGradientKernel->SetArgument(1, brick_x_buffer);
-	pressureGradientKernel->SetArgument(2, brick_y_buffer);
-	pressureGradientKernel->SetArgument(3, brick_z_buffer);
-	pressureGradientKernel->SetArgument(4, brick_static_buffer);
-	pressureGradientKernel->SetArgument(5, m_bricks_buffer);
-	pressureGradientKernel->SetArgument(6, m0_bricks_buffer);
-	pressureGradientKernel->SetArgument(7, vx0_bricks_buffer);
-	pressureGradientKernel->SetArgument(8, vy0_bricks_buffer);
-	pressureGradientKernel->SetArgument(9, vz0_bricks_buffer);
-	pressureGradientKernel->SetArgument(10, vx_bricks_buffer);
-	pressureGradientKernel->SetArgument(11, vy_bricks_buffer);
-	pressureGradientKernel->SetArgument(12, vz_bricks_buffer);
-	pressureGradientKernel->SetArgument(13, p0_bricks_buffer);
-	cl_mem gm = world->GetGridMap();
-	pressureGradientKernel->SetArgument(14, &gm);
-	pressureGradientKernel->SetArgument(15, world->GetBrickBuffer());
-
-	prevtime = timer.elapsed();
-	pressureGradientKernel->Run(bricks_allocated * CAPE_BRICKSIZE, 0, 0, &pressureGradientEvent);
-
-	//Swap velocity
-	cl_mem tmp = vx_bricks_buffer->deviceBuffer;
-	vx_bricks_buffer->deviceBuffer = vx0_bricks_buffer->deviceBuffer;
-	vx0_bricks_buffer->deviceBuffer = tmp;
-
-	tmp = vy_bricks_buffer->deviceBuffer;
-	vy_bricks_buffer->deviceBuffer = vy0_bricks_buffer->deviceBuffer;
-	vy0_bricks_buffer->deviceBuffer = tmp;
-
-	tmp = vz_bricks_buffer->deviceBuffer;
-	vz_bricks_buffer->deviceBuffer = vz0_bricks_buffer->deviceBuffer;
-	vz0_bricks_buffer->deviceBuffer = tmp;
-}
-
-void CAPE::ExecuteGPUMaterialAdvection()
-{
-	materialAdvectionKernel->Run(bricks_allocated * CAPE_BRICKSIZE, 0, &brickUpdateEvent, &materialAdvectionEvent);
-
-	//Swap buffers
-	cl_mem tmp = m_bricks_buffer->deviceBuffer;
-	m_bricks_buffer->deviceBuffer = m0_bricks_buffer->deviceBuffer;
-	m0_bricks_buffer->deviceBuffer = tmp;
-
-	tmp = vx_bricks_buffer->deviceBuffer;
-	vx_bricks_buffer->deviceBuffer = vx0_bricks_buffer->deviceBuffer;
-	vx0_bricks_buffer->deviceBuffer = tmp;
-
-	tmp = vy_bricks_buffer->deviceBuffer;
-	vy_bricks_buffer->deviceBuffer = vy0_bricks_buffer->deviceBuffer;
-	vy0_bricks_buffer->deviceBuffer = tmp;
-
-	tmp = vz_bricks_buffer->deviceBuffer;
-	vz_bricks_buffer->deviceBuffer = vz0_bricks_buffer->deviceBuffer;
-	vz0_bricks_buffer->deviceBuffer = tmp;
-}
-
-void CAPE::ExecuteGPUVelocityAdvection()
-{
-
-	velocityAdvectionKernel->SetArgument(6, m_bricks_buffer);
-	velocityAdvectionKernel->SetArgument(7, m0_bricks_buffer);
-	velocityAdvectionKernel->SetArgument(8, vx0_bricks_buffer);
-	velocityAdvectionKernel->SetArgument(9, vy0_bricks_buffer);
-	velocityAdvectionKernel->SetArgument(10, vz0_bricks_buffer);
-	velocityAdvectionKernel->SetArgument(11, vx_bricks_buffer);
-	velocityAdvectionKernel->SetArgument(12, vy_bricks_buffer);
-	velocityAdvectionKernel->SetArgument(13, vz_bricks_buffer);
-
-	cl_mem gm = world->GetGridMap();
-	velocityAdvectionKernel->SetArgument(15, &gm);
-	velocityAdvectionKernel->SetArgument(16, world->GetBrickBuffer());
-
-	prevtime = timer.elapsed();
-	velocityAdvectionKernel->Run(bricks_allocated * CAPE_BRICKSIZE, 0, 0, &velocityAdvectionEvent);
-}
-
-void CAPE::ExecuteGPUBrickUpdate()
-{
-	brickUpdateKernel->SetArgument(0, grid_buffer);
-	brickUpdateKernel->SetArgument(1, brick_x_buffer);
-	brickUpdateKernel->SetArgument(2, brick_y_buffer);
-	brickUpdateKernel->SetArgument(3, brick_z_buffer);
-	brickUpdateKernel->SetArgument(4, brick_a_buffer);
-	brickUpdateKernel->SetArgument(5, brick_oa_buffer);
-	brickUpdateKernel->SetArgument(6, brick_jobs_buffer);
-	brickUpdateKernel->SetArgument(7, brick_m_buffer);
-	brickUpdateKernel->SetArgument(8, brick_static_buffer);
-	brickUpdateKernel->SetArgument(9, m0_bricks_buffer);
-	brickUpdateKernel->SetArgument(10, vx0_bricks_buffer);
-	brickUpdateKernel->SetArgument(11, vy0_bricks_buffer);
-	brickUpdateKernel->SetArgument(12, vz0_bricks_buffer);
-	brickUpdateKernel->Run(bricks_allocated * CAPE_BRICKSIZE, 0, 0, &brickUpdateEvent);
-}
-
-void CAPE::ExecuteGPUWorldSetter()
-{
-	worldSetKernel->SetArgument(0, grid_buffer);
-	worldSetKernel->SetArgument(1, brick_x_buffer);
-	worldSetKernel->SetArgument(2, brick_y_buffer);
-	worldSetKernel->SetArgument(3, brick_z_buffer);
-	worldSetKernel->SetArgument(4, brick_static_buffer);
-	worldSetKernel->SetArgument(5, m0_bricks_buffer);
-	cl_mem gm = world->GetGridMap();
-	worldSetKernel->SetArgument(6, &gm);
-	worldSetKernel->SetArgument(7, world->GetBrickBuffer());
-	worldSetKernel->SetArgument(8, world->GetZeroesBuffer());
-	worldSetKernel->Run(bricks_allocated * CAPE_BRICKSIZE, 0, 0, &worldSetEvent);
-}
-
-//Returns kernel execution time in milliseconds
-double KernelExecutionTime(cl_event& e)
-{
-	cl_ulong time_start;
-	cl_ulong time_end;
-	clGetEventProfilingInfo(e, CL_PROFILING_COMMAND_START, sizeof(time_start), &time_start, NULL);
-	clGetEventProfilingInfo(e, CL_PROFILING_COMMAND_END, sizeof(time_end), &time_end, NULL);
-	double nanoSeconds = time_end - time_start;
-	return nanoSeconds / 1000000.0;
-}
-
-//Performs a single update - also maintains timers and calls print function
-void CAPE::Tick(float deltaTime)
-{
-	clFinish(capeKernel->GetQueue());
-	if (updates == 0) //init, move to initialise
-		CreateBuffers(false);
-	else
-		otherTime += timer2.elapsed();
-
-	for (int i = 0; i < SIMS_PER_RENDER; i++)
-	{
-		updates++;
-		if (updates > SIMS_PER_RENDER)//I have no clue, but there is some sort of race condition if we try to run the simulation on the first visit
-		{
-			timer.reset();
-
-			prevtime = timer.elapsed();
-			UpdateBricks();
-			brickTime += timer.elapsed() - prevtime;
-
-			//Update buffers
-			if (reallocated)
-				CreateBuffers(true);
-			brick_a_buffer->CopyToDevice(false);
-			brick_oa_buffer->CopyToDevice(false);
-			brick_jobs_buffer->CopyToDevice(false);
-			SetKernelArguments();
-
-			//Step 0: Update bricks
-			ExecuteGPUBrickUpdate();
-
-			//Step 1: Let all cells advect
-			ExecuteGPUMaterialAdvection();
-
-			//data in buffer is finalised, retrieve for future brickupdate (we can do this out of order.. and asynchronously.
-			brick_m_buffer->CopyFromDevice(false);
-
-			//Step 2: Let all cells transition their velocity and apply global acceleration
-			ExecuteGPUVelocityAdvection();
-
-			//Step 3: Determine expected divergence with new velocities
-			ExecuteGPUDivergence();
-
-			//Step 4: Solve for a pressure that will prevent divergence
-			ExecuteGPUPressure();
-
-			//Step 5: Apply pressure gradient to correct velocity
-			ExecuteGPUPressureGradient();
-
-			//Step 6: Convert sim data to voxels in render data
-			ExecuteGPUWorldSetter();
-
-			clFinish(capeKernel->GetQueue());
-
-			for (int i = 0; i < bricks_allocated; i++) //Jobs done
-				brick_jobs[i] = UINT32_MAX;
-		}
-	}
-
-	if (updates > SIMS_PER_RENDER)
-		PrintState();
-}
-
-//Retrieves amount of incoming momentum on the X-axis from tangential moving material across the y and z axis
-float CAPE::IncomingMomentumX(uint x, uint y, uint z)
-{
-	float yl = GetData(x, y - 1, z, vx_bricks);
-	float yr = GetData(x, y + 1, z, vx_bricks);
-	//incoming for x across y axis
-	float xym = -min(0.0f, GetData(x - 1, y + 1, z, vy_bricks)) * AL * GetData(x - 1, y + 1, z, m_bricks) * max(0.0f, yr) * AL //left above
-		+ max(0.0f, GetData(x - 1, y, z, vy_bricks)) * AL * GetData(x - 1, y - 1, z, m_bricks) * max(0.0f, yl) * AL//left below
-		+ -min(0.0f, GetData(x, y + 1, z, vy_bricks)) * AL * GetData(x, y + 1, z, m_bricks) * min(0.0f, yr) * AL //right above
-		+ max(0.0f, GetData(x, y, z, vy_bricks)) * AL * GetData(x, y - 1, z, m_bricks) * min(0.0f, yl) * AL; //right below
-	float zl = GetData(x, y, z - 1, vx_bricks);
-	float zr = GetData(x, y, z + 1, vx_bricks);
-	//incoming for x across z axis
-	float xzm = -min(0.0f, GetData(x - 1, y, z + 1, vz_bricks)) * AL * GetData(x - 1, y, z + 1, m_bricks) * max(0.0f, zr) * AL //left above
-		+ max(0.0f, GetData(x - 1, y, z, vz_bricks)) * AL * GetData(x - 1, y, z - 1, m_bricks) * max(0.0f, zl) * AL//left below
-		+ -min(0.0f, GetData(x, y, z + 1, vz_bricks)) * AL * GetData(x, y, z + 1, m_bricks) * min(0.0f, zr) * AL //right above
-		+ max(0.0f, GetData(x, y, z, vz_bricks)) * AL * GetData(x, y, z - 1, m_bricks) * min(0.0f, zl) * AL; //right below
-	return xym + xzm;
-}
-
-//Retrieves amount of incoming momentum on the Y-axis from tangential moving material across the x and z axis
-float CAPE::IncomingMomentumY(uint x, uint y, uint z)
-{
-	float xl = GetData(x - 1, y, z, vy_bricks);
-	float xr = GetData(x + 1, y, z, vy_bricks);
-	//incoming for x across y axis
-	float yxm = -min(0.0f, GetData(x + 1, y - 1, z, vx_bricks)) * AL * GetData(x + 1, y - 1, z, m_bricks) * max(0.0f, xr) * AL //left above
-		+ max(0.0f, GetData(x, y - 1, z, vx_bricks)) * AL * GetData(x - 1, y - 1, z, m_bricks) * max(0.0f, xl) * AL//left below
-		+ -min(0.0f, GetData(x + 1, y, z, vx_bricks)) * AL * GetData(x + 1, y, z, m_bricks) * min(0.0f, xr) * AL //right above
-		+ max(0.0f, GetData(x, y, z, vx_bricks)) * AL * GetData(x - 1, y, z, m_bricks) * min(0.0f, xl) * AL; //right below
-
-	float zl = GetData(x, y, z - 1, vy_bricks);
-	float zr = GetData(x, y, z + 1, vy_bricks);
-	//incoming for x across z axis
-	float yzm = -min(0.0f, GetData(x, y - 1, z + 1, vz_bricks)) * AL * GetData(x, y - 1, z + 1, m_bricks) * max(0.0f, zr) * AL //left above
-		+ max(0.0f, GetData(x, y - 1, z, vz_bricks)) * AL * GetData(x, y - 1, z - 1, m_bricks) * max(0.0f, zl) * AL//left below
-		+ -min(0.0f, GetData(x, y, z + 1, vz_bricks)) * AL * GetData(x, y, z + 1, m_bricks) * min(0.0f, zr) * AL //right above
-		+ max(0.0f, GetData(x, y, z, vz_bricks)) * AL * GetData(x, y, z - 1, m_bricks) * min(0.0f, zl) * AL; //right below
-	return yxm + yzm;
-}
-
-//Retrieves amount of incoming momentum on the Z-axis from tangential moving material across the x and y axis
-float CAPE::IncomingMomentumZ(uint x, uint y, uint z)
-{
-	float xl = GetData(x - 1, y, z, vz_bricks);
-	float xr = GetData(x + 1, y, z, vz_bricks);
-	//incoming for x across y axis
-	float zxm = -min(0.0f, GetData(x + 1, y, z - 1, vx_bricks)) * AL * GetData(x + 1, y, z - 1, m_bricks) * max(0.0f, xr) * AL //left above
-		+ max(0.0f, GetData(x, y, z - 1, vx_bricks)) * AL * GetData(x - 1, y, z - 1, m_bricks) * max(0.0f, xl) * AL//left below
-		+ -min(0.0f, GetData(x + 1, y, z, vx_bricks)) * AL * GetData(x + 1, y, z, m_bricks) * min(0.0f, xr) * AL //right above
-		+ max(0.0f, GetData(x, y, z, vx_bricks)) * AL * GetData(x - 1, y, z, m_bricks) * min(0.0f, xl) * AL; //right below
-
-	float yl = GetData(x, y - 1, z, vz_bricks);
-	float yr = GetData(x, y + 1, z, vz_bricks);
-	//incoming for x across z axis
-	float zym = -min(0.0f, GetData(x, y + 1, z - 1, vy_bricks)) * AL * GetData(x, y + 1, z - 1, m_bricks) * max(0.0f, yr) * AL //left above
-		+ max(0.0f, GetData(x, y, z - 1, vy_bricks)) * AL * GetData(x, y - 1, z - 1, m_bricks) * max(0.0f, yl) * AL//left below
-		+ -min(0.0f, GetData(x, y + 1, z, vy_bricks)) * AL * GetData(x, y + 1, z, m_bricks) * min(0.0f, yr) * AL //right above
-		+ max(0.0f, GetData(x, y, z, vy_bricks)) * AL * GetData(x, y - 1, z, m_bricks) * min(0.0f, yl) * AL; //right below
-	return zxm + zym;
-}
-
-//Converts simulation data to actual voxels placed in the world
-void CAPE::ConvertToVoxels()
-{
-	RunOverAllBricks(this, &CAPE::SetColorForCell, timeStep);
-}
-
-//Remove simulation data from world
-void CAPE::ClearVoxels()
-{
-	RunOverAllBricks(this, &CAPE::ClearColorForCell, timeStep);
-}
-
-
-//Converts rgb value to the 4-4-4 12 bit rgb format used 
-uint LerpToRGB(float r, float g, float b)
-{
-	r = clamp(r, 0.0f, 1.0f);
-	g = clamp(g, 0.0f, 1.0f);
-	b = clamp(b, 0.0f, 1.0f);
-	return (uint)(15 * b) + ((uint)(15 * g) << 4) + ((uint)(15 * r) << 8);
-}
-
-//Converts cell state to a color and sets it into the world
-void CAPE::ClearColorForCell(uint x, uint y, uint z, float timeStep)
-{
-	uint color = 0;
-	float mass = GetData(x, y, z, m0_bricks);
-	if (mass > 0.00001)
-		world->Set(x - CAPE_BRICKDIM, y - CAPE_BRICKDIM, z - CAPE_BRICKDIM, 0);
-}
-
-//Converts cell state to a color and sets it into the world
-void CAPE::SetColorForCell(uint x, uint y, uint z, float timeStep)
-{
-	uint color = 0;
-	float mass = GetData(x,y,z, m0_bricks);
-	if (mass > 0.0001)
-	{
-		//interpolate mass between 0 and - max mass for the 15 different colors.
-		float mass = GetData(x, y, z, m0_bricks);
-		float diffFromEmpty = 1 - clamp(1 - mass, 0.0f, 1.0f);
-		if (diffFromEmpty < MINRENDERMASS)
-			world->Set(x - CAPE_BRICKDIM, y - CAPE_BRICKDIM, z - CAPE_BRICKDIM, 0);
-		else
-		{
-			float b = 1 - diffFromEmpty / 2.0f + 0.5f;
-			float g = diffFromEmpty > 0.5f ? 1 - (diffFromEmpty - 0.5f) : 1;
-			world->Set(x - CAPE_BRICKDIM, y - CAPE_BRICKDIM, z - CAPE_BRICKDIM, LerpToRGB(0, g, b));
-		}	
-	}
-}
-
-//Print simulation debug information
-void CAPE::PrintState()
-{
-	system("cls");
-	cout << "Timestep: " << timeStep << endl;
-	cout << "brick update time " << brickTime / updates * 1000 << endl;
-	cout << "device buffer update time " << buffertime / updates * 1000 << endl;
-	printf("BrickUpdate OpenCl Execution time is: %0.3f milliseconds \n", KernelExecutionTime(brickUpdateEvent));
-	printf("MaterialAdvection OpenCl Execution time is: %0.3f milliseconds \n", KernelExecutionTime(materialAdvectionEvent));
-	printf("VelocityAdvection OpenCl Execution time is: %0.3f milliseconds \n", KernelExecutionTime(velocityAdvectionEvent));
-	printf("Divergence OpenCl Execution time is: %0.3f milliseconds \n", KernelExecutionTime(divergenceEvent));
-	printf("PressureSolver OpenCl Execution time is: %0.3f milliseconds \n", KernelExecutionTime(pressureSolverEvent) * 8); //assume latest pressure solve kernel is average, fine over time
-	printf("PressureGradient OpenCl Execution time is: %0.3f milliseconds \n", KernelExecutionTime(pressureGradientEvent));
-	printf("WorldSet OpenCl Execution time is: %0.3f milliseconds \n", KernelExecutionTime(worldSetEvent));
-	float pipelinekerneltime = KernelExecutionTime(materialAdvectionEvent) + KernelExecutionTime(velocityAdvectionEvent) + KernelExecutionTime(divergenceEvent)
-		+ KernelExecutionTime(pressureSolverEvent) * 8 + KernelExecutionTime(pressureGradientEvent) + KernelExecutionTime(worldSetEvent);
-	cout << "pipelinekerneltime: " << pipelinekerneltime << " milliseconds" << endl;
-
-	float potpipelinekernelUpdates = 1000 / (pipelinekerneltime);
-
-	cout << "pipeline time " << pipelineTime / updates << endl;
-	cout << "tick time: " << (otherTime + simulationTime) / updates * 1000 << endl;
-	cout << "fps: " << 1 / ((otherTime + simulationTime) / updates) << endl;
-	cout << "Update: " << updates << endl;
-	cout << "Alive Bricks: " << bricks_alive << endl;
-	cout << "Allocated Bricks: " << bricks_allocated << endl;
-	cout << "Active Cells: " << bricks_alive * CAPE_BRICKSIZE << endl;
-	cout << "Cells updated per second: " << bricks_alive * CAPE_BRICKSIZE * (1 / (simulationTime / updates)) << endl;
-	cout << "potential pipeline kernel cells updated per second: " << bricks_alive * CAPE_BRICKSIZE * potpipelinekernelUpdates << endl;
-	cout << "world set time: " << worldsetTime / (updates / SIMS_PER_RENDER) * 1000 << endl;
-}
-
-//Old CPU Sim Rules
 
 //Update all bricks, if they are allocated, alive and non-static
 //When using concurrency, assign a brick to each thread
@@ -1256,9 +558,9 @@ void CAPE::CellVelocityUpdate(uint x, uint y, uint z, float timeStep)
 	float rmz = mz0 + omz;
 
 	//New momentum = remainin momentum + incoming colinear momentum + incoming tangential momentum
-	float vcx = rmx + imx + 0;// IncomingMomentumX(x, y, z);
-	float vcy = rmy + imy + 0;// IncomingMomentumY(x, y, z);
-	float vcz = rmz + imz + 0;// IncomingMomentumZ(x, y, z);
+	float vcx = rmx + imx + IncomingMomentumX(x, y, z);
+	float vcy = rmy + imy + IncomingMomentumY(x, y, z);
+	float vcz = rmz + imz + IncomingMomentumZ(x, y, z);
 
 	//mass of source cell
 	float massx = vcx > 0 ? matxl : mat;
@@ -1310,6 +612,184 @@ void CAPE::CellDivergenceUpdate(uint x, uint y, uint z, float timeStep)
 	SetData(x, y, z, div, m_bricks);
 }
 
+//Performs a single update - also maintains timers and calls print function
+void CAPE::Tick(float deltaTime)
+{
+	updates++;
+	timer.reset();
+	cellUpdates = 0;
+
+	prevtime = 0;
+	UpdateBricks();
+	brickTime += timer.elapsed() - prevtime;
+	prevtime = timer.elapsed();
+
+	//Step 1: Let all cells advect
+	RunOverAllBricks(this, &CAPE::MaterialAdvection, timeStep);
+	Swap(vx_bricks, vx0_bricks);
+	Swap(vy_bricks, vy0_bricks);
+	Swap(vz_bricks, vz0_bricks);
+	Swap(m_bricks, m0_bricks);
+
+	advectTime += timer.elapsed() - prevtime;
+	prevtime = timer.elapsed();
+
+	//Step 2: Let all cells transition their velocity and apply global acceleration
+	RunOverAllBricks(this, &CAPE::CellVelocityUpdate, timeStep);
+
+	velupdateTime += timer.elapsed() - prevtime;
+	prevtime = timer.elapsed();
+
+	//Step 3: Determine expected divergence with new velocities
+	RunOverAllBricks(this, &CAPE::CellDivergenceUpdate, timeStep);
+
+	divergenceupdatetime += timer.elapsed() - prevtime;
+	prevtime = timer.elapsed();
+
+	//Step 4: Solve for a pressure that will prevent divergence
+	for (int i = 0; i < PRESSURE_ITERATIONS; i++)
+	{
+		RunOverAllBricks(this, &CAPE::SolvePressure, timeStep);
+		Swap(p_bricks, p0_bricks);
+	}
+
+	pressuresolvetime += timer.elapsed() - prevtime;
+	prevtime = timer.elapsed();
+
+	//Step 5: Apply pressure gradient to correct velocity
+	RunOverAllBricks(this, &CAPE::PressureGradient, timeStep);
+	Swap(vx_bricks, vx0_bricks);
+	Swap(vy_bricks, vy0_bricks);
+	Swap(vz_bricks, vz0_bricks);
+
+	pressuregradienttime += timer.elapsed() - prevtime;
+	prevtime = timer.elapsed();
+
+	simulationTime = timer.elapsed();
+
+	PrintState();
+}
+
+//Retrieves amount of incoming momentum on the X-axis from tangential moving material across the y and z axis
+float CAPE::IncomingMomentumX(uint x, uint y, uint z)
+{
+	float yl = GetData(x, y - 1, z, vx_bricks);
+	float yr = GetData(x, y + 1, z, vx_bricks);
+	//incoming for x across y axis
+	float xym = -min(0.0f, GetData(x - 1, y + 1, z, vy_bricks)) * AL * GetData(x - 1, y + 1, z, m_bricks) * max(0.0f, yr) * AL //left above
+		+ max(0.0f, GetData(x - 1, y, z, vy_bricks)) * AL * GetData(x - 1, y - 1, z, m_bricks) * max(0.0f, yl) * AL//left below
+		+ -min(0.0f, GetData(x, y + 1, z, vy_bricks)) * AL * GetData(x, y + 1, z, m_bricks) * min(0.0f, yr) * AL //right above
+		+ max(0.0f, GetData(x, y, z, vy_bricks)) * AL * GetData(x, y - 1, z, m_bricks) * min(0.0f, yl) * AL; //right below
+	float zl = GetData(x, y, z - 1, vx_bricks);
+	float zr = GetData(x, y, z + 1, vx_bricks);
+	//incoming for x across z axis
+	float xzm = -min(0.0f, GetData(x - 1, y, z + 1, vz_bricks)) * AL * GetData(x - 1, y, z + 1, m_bricks) * max(0.0f, zr) * AL //left above
+		+ max(0.0f, GetData(x - 1, y, z, vz_bricks)) * AL * GetData(x - 1, y, z - 1, m_bricks) * max(0.0f, zl) * AL//left below
+		+ -min(0.0f, GetData(x, y, z + 1, vz_bricks)) * AL * GetData(x, y, z + 1, m_bricks) * min(0.0f, zr) * AL //right above
+		+ max(0.0f, GetData(x, y, z, vz_bricks)) * AL * GetData(x, y, z - 1, m_bricks) * min(0.0f, zl) * AL; //right below
+	return xym + xzm;
+}
+
+//Retrieves amount of incoming momentum on the Y-axis from tangential moving material across the x and z axis
+float CAPE::IncomingMomentumY(uint x, uint y, uint z)
+{
+	float xl = GetData(x - 1, y, z, vy_bricks);
+	float xr = GetData(x + 1, y, z, vy_bricks);
+	//incoming for x across y axis
+	float yxm = -min(0.0f, GetData(x + 1, y - 1, z, vx_bricks)) * AL * GetData(x + 1, y - 1, z, m_bricks) * max(0.0f, xr) * AL //left above
+		+ max(0.0f, GetData(x, y - 1, z, vx_bricks)) * AL * GetData(x - 1, y - 1, z, m_bricks) * max(0.0f, xl) * AL//left below
+		+ -min(0.0f, GetData(x + 1, y, z, vx_bricks)) * AL * GetData(x + 1, y, z, m_bricks) * min(0.0f, xr) * AL //right above
+		+ max(0.0f, GetData(x, y, z, vx_bricks)) * AL * GetData(x - 1, y, z, m_bricks) * min(0.0f, xl) * AL; //right below
+
+	float zl = GetData(x, y, z - 1, vy_bricks);
+	float zr = GetData(x, y, z + 1, vy_bricks);
+	//incoming for x across z axis
+	float yzm = -min(0.0f, GetData(x, y - 1, z + 1, vz_bricks)) * AL * GetData(x, y - 1, z + 1, m_bricks) * max(0.0f, zr) * AL //left above
+		+ max(0.0f, GetData(x, y - 1, z, vz_bricks)) * AL * GetData(x, y - 1, z - 1, m_bricks) * max(0.0f, zl) * AL//left below
+		+ -min(0.0f, GetData(x, y, z + 1, vz_bricks)) * AL * GetData(x, y, z + 1, m_bricks) * min(0.0f, zr) * AL //right above
+		+ max(0.0f, GetData(x, y, z, vz_bricks)) * AL * GetData(x, y, z - 1, m_bricks) * min(0.0f, zl) * AL; //right below
+	return yxm + yzm;
+}
+
+//Retrieves amount of incoming momentum on the Z-axis from tangential moving material across the x and y axis
+float CAPE::IncomingMomentumZ(uint x, uint y, uint z)
+{
+	float xl = GetData(x - 1, y, z, vz_bricks);
+	float xr = GetData(x + 1, y, z, vz_bricks);
+	//incoming for x across y axis
+	float zxm = -min(0.0f, GetData(x + 1, y, z - 1, vx_bricks)) * AL * GetData(x + 1, y, z - 1, m_bricks) * max(0.0f, xr) * AL //left above
+		+ max(0.0f, GetData(x, y, z - 1, vx_bricks)) * AL * GetData(x - 1, y, z - 1, m_bricks) * max(0.0f, xl) * AL//left below
+		+ -min(0.0f, GetData(x + 1, y, z, vx_bricks)) * AL * GetData(x + 1, y, z, m_bricks) * min(0.0f, xr) * AL //right above
+		+ max(0.0f, GetData(x, y, z, vx_bricks)) * AL * GetData(x - 1, y, z, m_bricks) * min(0.0f, xl) * AL; //right below
+
+	float yl = GetData(x, y - 1, z, vz_bricks);
+	float yr = GetData(x, y + 1, z, vz_bricks);
+	//incoming for x across z axis
+	float zym = -min(0.0f, GetData(x, y + 1, z - 1, vy_bricks)) * AL * GetData(x, y + 1, z - 1, m_bricks) * max(0.0f, yr) * AL //left above
+		+ max(0.0f, GetData(x, y, z - 1, vy_bricks)) * AL * GetData(x, y - 1, z - 1, m_bricks) * max(0.0f, yl) * AL//left below
+		+ -min(0.0f, GetData(x, y + 1, z, vy_bricks)) * AL * GetData(x, y + 1, z, m_bricks) * min(0.0f, yr) * AL //right above
+		+ max(0.0f, GetData(x, y, z, vy_bricks)) * AL * GetData(x, y - 1, z, m_bricks) * min(0.0f, yl) * AL; //right below
+	return zxm + zym;
+}
+
+//Converts simulation data to actual voxels placed in the world
+void CAPE::ConvertToVoxels()
+{
+	RunOverAllBricks(this, &CAPE::SetColorForCell, timeStep);
+}
+
+//Converts rgb value to the 4-4-4 12 bit rgb format used 
+uint LerpToRGB(float r, float g, float b)
+{
+	r = clamp(r, 0.0f, 1.0f);
+	g = clamp(g, 0.0f, 1.0f);
+	b = clamp(b, 0.0f, 1.0f);
+	return (uint)(15 * b) + ((uint)(15 * g) << 4) + ((uint)(15 * r) << 8);
+}
+
+//Converts cell state to a color and sets it into the world
+void CAPE::SetColorForCell(uint x, uint y, uint z, float timeStep)
+{
+	uint color = 0;
+	float mass = GetData(x, y, z, m0_bricks);
+	if (mass > 0.0001)
+	{
+		//interpolate mass between 0 and - max mass for the 15 different colors.
+		float mass = GetData(x, y, z, m0_bricks);
+		float diffFromEmpty = 1 - clamp(1 - mass, 0.0f, 1.0f);
+		if (diffFromEmpty < MINRENDERMASS)
+			world->Set(x - CAPE_BRICKDIM, y - CAPE_BRICKDIM, z - CAPE_BRICKDIM, 0);
+		else
+		{
+			float b = 1 - diffFromEmpty / 2.0f + 0.5f;
+			float g = diffFromEmpty > 0.5f ? 1 - (diffFromEmpty - 0.5f) : 1;
+			world->Set(x - CAPE_BRICKDIM, y - CAPE_BRICKDIM, z - CAPE_BRICKDIM, LerpToRGB(0, g, b));
+		}
+	}
+}
+
+//Print simulation debug information
+void CAPE::PrintState()
+{
+	system("cls");
+	cout << "Timestep: " << timeStep << endl;
+	float mass = TotalMass();
+	cout << "Total Mass in System: " << mass << endl;
+	float divergence = TotalDivergence();
+	cout << "Total divergence: " << divergence << " which is " << 100 * divergence / (mass - divergence) << "%" << endl;
+	cout << "Elapsed Simulation Time: " << simulationTime << endl;
+	cout << "brick update time " << brickTime / updates << endl;
+	cout << "advection time " << advectTime / updates << endl;
+	cout << "vel update time " << velupdateTime / updates << endl;
+	cout << "divergence time " << divergenceupdatetime / updates << endl;
+	cout << "pressure solve time " << pressuresolvetime / updates << endl;
+	cout << "pressure gradient time " << pressuregradienttime / updates << endl;
+	cout << "Simulations per Second: " << 1 / simulationTime << endl;
+	cout << "Alive Bricks: " << bricks_alive << endl;
+	cout << "Allocated Bricks: " << bricks_allocated << endl;
+	cout << "Active Cells: " << bricks_alive * CAPE_BRICKSIZE << endl;
+	cout << "Cells updated per second: " << bricks_alive * CAPE_BRICKSIZE / simulationTime << endl;
+}
 
 //Some functions that aggregate simulation data for debugging
 float CAPE::TotalDivergence()
@@ -1349,3 +829,4 @@ float CAPE::TotalMass()
 	}
 	return totalMass;
 }
+
