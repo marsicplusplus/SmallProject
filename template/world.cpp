@@ -240,6 +240,7 @@ void World::InitCAPE(uint updateRate)
 void World::CAPEThread(float deltaTime)
 {
 	cape->Tick(deltaTime);
+	cape->ConvertToVoxels();
 }
 
 void World::UpdateCAPE(float deltaTime)
