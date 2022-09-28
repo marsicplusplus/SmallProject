@@ -37,7 +37,7 @@ static float3 Os[10] = {
 	float3(107.85, 60.81, -48.86), float3(107.85, 60.81, -48.86)
 };
 
-static int world_index = 2;
+static int world_index = 4;
 static int angle_offset_index = 0;
 
 // -----------------------------------------------------------
@@ -48,15 +48,15 @@ void MyGame::Init()
 	string import_filename = "/grid.vx";
 	string export_dir = "/scene";
 
-	string worlds[5] = {"mountain","letters","scattered","cornellbox",""};
+	string worlds[5] = { "mountain","letters","scattered","cornellbox","" };
 	string world_dir = worlds[world_index];
 	string import_path = "scene_export/" + world_dir + import_filename;
 	string export_path = "scene_export/" + world_dir + export_dir;
 
 	World& world = *GetWorld();
 
-	int loadedworld = MyGameScene::LoadWorld(world, import_path);
-	//int loadedworld = -1;
+	//int loadedworld = MyGameScene::LoadWorld(world, import_path);
+	int loadedworld = -1;
 	if (loadedworld < 0)
 	{
 		switch (world_index)

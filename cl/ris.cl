@@ -177,15 +177,43 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 	struct Reservoir res = prevReservoirs[x + y * SCRWIDTH];
 
-	float3 color = (float3)(0.0, 0.0, 0.0);
+	float3 color = (float3)(0.5, 0.4, 1.0);
 	// hit the background/exit the scene
 	if (voxel == 0)
 	{
-		dist = 1e20f;
-		if (params->skyDomeSampling) color = SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight);
+		if (HitWorldGrid(params->E, D))
+		{
+			color = (float3)(0.8, 0.8, 0.8);
+		}
+		else if (params->skyDomeSampling)
+		{
+			color = SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight);
+		}
 	}
 	else
 	{
+		{
+			const float3 shadingPoint = D * dist + params->E;
+			const bool selected = true;
+			float delta = 0.025;
+			if (selected)
+			{
+				bool hitx = shadingPoint.x - floor(shadingPoint.x) < delta || ceil(shadingPoint.x) - shadingPoint.x < delta;
+				bool hity = shadingPoint.y - floor(shadingPoint.y) < delta || ceil(shadingPoint.y) - shadingPoint.y < delta;
+				bool hitz = shadingPoint.z - floor(shadingPoint.z) < delta || ceil(shadingPoint.z) - shadingPoint.z < delta;
+
+				if (((hitx || hity) && hitz) ||
+					((hity || hitz) && hitx) ||
+					((hitx || hitz) && hity))
+				{
+					color = (0.0, 0.0, 0.0);
+					return (float4)(color, dist);
+				}
+			}
+		}
+
+
+
 		// hit emitter
 		if (IsEmitter(voxel))
 		{

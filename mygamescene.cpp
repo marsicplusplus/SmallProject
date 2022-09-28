@@ -3,9 +3,9 @@
 #include <filesystem>
 
 using namespace MyGameScene;
-const int world_width = 256;
+const int world_width = 128;
 const int world_height = 128;
-const int world_depth = 288;
+const int world_depth = 128;
 
 void MyGameScene::DrawBox(World& world, uint _x, uint _y, uint _z, uint _xm, uint _ym, uint _zm, uint c)
 {
@@ -42,7 +42,7 @@ void DummyWorld(World& world)
 	uint EMIT_YELLOW = YELLOW | EMIT;
 	uint EMIT_ORANGE = ORANGE | EMIT;
 
-	array color_strenth{0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 2.0f, 2.0f, 8.0f, 15.0f};
+	array color_strenth{ 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 2.0f, 2.0f, 8.0f, 15.0f };
 	auto get_voxel_color_random = [&](uint emit_color, float probability)
 	{
 		float randomfloat = RandomFloat();
@@ -58,7 +58,7 @@ void DummyWorld(World& world)
 		return (uint)0;
 	};
 
-#if 1 // BOX
+#if 0 // BOX
 	DrawBox(world, 0, 0, 0, _xm, _ym, _zm);
 #endif
 
@@ -138,6 +138,6 @@ void MyGameScene::CreateWorld(World& world)
 	world.Clear();
 	DummyWorld(world);
 
-	uint a = LoadSprite("assets/corvette.vx");
-	StampSpriteTo(a, 96, 8, 24);
+	//uint a = LoadSprite("assets/corvette.vx");
+	//StampSpriteTo(a, 96, 8, 24);
 }
