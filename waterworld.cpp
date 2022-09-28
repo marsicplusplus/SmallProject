@@ -157,7 +157,6 @@ void WaterWorld::Init()
 {
 	World& world = *GetWorld();
 	ShowCursor(false);
-	skyDomeLightScale = 6.0f;
 	// default scene is a box; punch a hole in the ceiling
 	Box(256, 240, 256, 768, 260, 768, 0);
 	// add some objects

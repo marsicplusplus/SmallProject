@@ -27,8 +27,8 @@
 #else
 // 16-bit voxels: MRGB4444, where M=emitter strength
 #define VOXEL16
-#define PAYLOAD unsigned int
-#define PAYLOADSIZE 4
+#define PAYLOAD unsigned short
+#define PAYLOADSIZE 2
 #endif
 
 // renderer performance setting: set to 0 for slower devices, up to 8 for fast GPUs
@@ -178,7 +178,7 @@ struct DebugInfo
 #define UBERDEPTH	(GRIDDEPTH / 4)
 // note: we reserve 50% of the theoretical peak; a normal scene shouldn't come close to
 // using that many unique (non-empty!) bricks.
-#define BRICKCOUNT	((((MAPWIDTH / BRICKDIM) * (MAPHEIGHT / BRICKDIM) * (MAPDEPTH / BRICKDIM))) / 4)
+#define BRICKCOUNT	((((MAPWIDTH / BRICKDIM) * (MAPHEIGHT / BRICKDIM) * (MAPDEPTH / BRICKDIM))) / 1)
 #define BRICKCOMMITSIZE	(MAXCOMMITS * BRICKSIZE * PAYLOADSIZE + MAXCOMMITS * 4 /* bytes */)
 #define CHUNKCOUNT	4
 #define CHUNKSIZE	((BRICKCOUNT * BRICKSIZE * PAYLOADSIZE) / CHUNKCOUNT)
