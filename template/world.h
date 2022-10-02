@@ -240,6 +240,8 @@ public:
 	void DrawBigTiles( const char* tileString, const uint x, const uint y, const uint z );
 	// inline ray tracing / cpu-only ray tracing / inline ray batch rendering
 	uint TraceRay( float4 A, const float4 B, float& dist, float3& N, int steps );
+	uint TraceBrick( float4 A, const float4 B, float& dist, float3& N, int steps );
+	uint TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps, const PAYLOAD* oldBricks, const uint* oldGrid);
 	void TraceRayToVoid( float4 A, const float4 B, float& dist, float3& N );
 	Ray* GetBatchBuffer();
 	Intersection* TraceBatch( const uint batchSize );

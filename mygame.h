@@ -18,7 +18,7 @@ namespace Tmpl8
 		void Tick(float deltaTime);
 		void Shutdown() { /* implement if you want to do something on exit */ }
 		// input handling 
-		void MouseUp(int button) { /* implement if you want to detect mouse button presses */ }
+		void MouseUp(int button) { worldEditor.MouseUp(button); }
 		void MouseDown(int button) { worldEditor.MouseDown(button); };
 		void MouseMove(int x, int y) { worldEditor.MouseMove(x, y); };
 		void KeyUp(int key) { /* implement if you want to handle keys */ }

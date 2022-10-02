@@ -2,37 +2,103 @@
 #include "worldeditor.h"
 
 
+WorldEditor::WorldEditor()
+{
+	tempBricks = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
+	tempGrid = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
+	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+}
+
 void WorldEditor::MouseMove(int x, int y)
 {
 	mousePos.x = x, mousePos.y = y;
-	UpdateSelectedVoxels();
+
+	// just hovering
+	if (gesture.state == GESTURE_POSSIBLE)
+	{
+		UpdateSelectedBrick();
+		return;
+	}
+
+	if (gesture.state == GESTURE_START)
+	{
+		gesture.state = GESTURE_UPDATE;
+	}
+
+	if (gesture.button == GESTURE_LMB)
+	{
+		AddBrick();
+	}
+
+	if (gesture.button == GESTURE_RMB)
+	{
+		RemoveBrick();
+	}
+
+	UpdateSelectedBrick();
 }
 
 void WorldEditor::MouseDown(int button)
 {
+	if (gesture.state != GESTURE_POSSIBLE)
+	{
+		return;
+	}
+
+	gesture.state = GESTURE_START;
+	gesture.button = (GestureButton)button;
+	World& world = *GetWorld();
+	memcpy(world.GetBrick(), tempBricks, BRICKSIZE * PAYLOADSIZE);
+	memcpy(world.GetGrid(), tempGrid, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4);
+
 	// Delete all voxels within the selected bounding box
 	if (button == GLFW_MOUSE_BUTTON_RIGHT)
 	{
-		World& world = *GetWorld();
-
-		for (int x = selectedVoxels.box.bmin[0]; x <= selectedVoxels.box.bmax[0]; x++)
-			for (int y = selectedVoxels.box.bmin[1]; y <= selectedVoxels.box.bmax[1]; y++)
-				for (int z = selectedVoxels.box.bmin[2]; z <= selectedVoxels.box.bmax[2]; z++)
-				{
-					world.Set(x, y, z, 0);
-				}
+		RemoveBrick();
 	}
 
 	// For now, add a brick to the face of the selected voxel the cursor is on
 	// Needs to be reworked when allowing for selection of multiple voxels
 	if (button == GLFW_MOUSE_BUTTON_LEFT)
 	{
-		World& world = *GetWorld();
-		float3 newVoxel = selectedVoxels.box.bmin3 + selectedVoxels.N;
-		world.Set(newVoxel.x, newVoxel.y, newVoxel.z, WHITE);
+		AddBrick();
 	}
 
-	UpdateSelectedVoxels();
+	UpdateSelectedBrick();
+}
+
+void WorldEditor::AddBrick()
+{
+	World& world = *GetWorld();
+	float3 newBrickPos = selectedBricks.box.bmin3 + selectedBricks.N;
+	world.SetBrick(newBrickPos.x * BRICKDIM, newBrickPos.y * BRICKDIM, newBrickPos.z * BRICKDIM, WHITE);
+}
+
+void WorldEditor::RemoveBrick()
+{
+	World& world = *GetWorld();
+	for (int x = selectedBricks.box.bmin[0]; x <= selectedBricks.box.bmax[0]; x++)
+		for (int y = selectedBricks.box.bmin[1]; y <= selectedBricks.box.bmax[1]; y++)
+			for (int z = selectedBricks.box.bmin[2]; z <= selectedBricks.box.bmax[2]; z++)
+			{
+				world.SetBrick(x, y, z, 0);
+			}
+}
+
+void WorldEditor::MouseUp(int button)
+{
+	if ((gesture.state != GESTURE_START && gesture.state != GESTURE_UPDATE) || 
+		gesture.button != button)
+	{
+		return;
+	}
+
+	World& world = *GetWorld();
+	memcpy(tempBricks, world.GetBrick(),BRICKSIZE * PAYLOADSIZE);
+	memcpy(tempGrid, world.GetGrid(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4);
+
+	gesture.state = GESTURE_POSSIBLE;
+	UpdateSelectedBrick();
 }
 
 // Linear to SRGB, also via https://www.shadertoy.com/view/3sfBWs
@@ -44,7 +110,7 @@ bool LessThan(const float2 a, const float2 b)
 }
 
 // Update which brick is currently selected by the mouse cursor 
-void WorldEditor::UpdateSelectedVoxels()
+void WorldEditor::UpdateSelectedBrick()
 {
 	World& world = *GetWorld();
 	RenderParams& params = world.GetRenderParams();
@@ -61,11 +127,23 @@ void WorldEditor::UpdateSelectedVoxels()
 	ray.D = normalize(P - params.E);
 	ray.t = 1e34f;
 	// trace the ray
-	Intersection intersection = Trace(ray);
+
+	Intersection intersection; 
+
+	if (gesture.state == GESTURE_UPDATE || gesture.state == GESTURE_START)
+	{
+		intersection = Trace(ray, tempBricks, tempGrid);
+		//printf("Dragging Mouse \n");
+	}
+	else 
+	{
+		intersection = Trace(ray);
+	}
+
 	if (intersection.GetVoxel() == 0)
 	{
 
-		float3 radius = make_float3(64, 64, 64);
+		float3 radius = make_float3(512, 512, 512);
 
 		// Move to the box's reference frame. This is unavoidable and un-optimizable.
 		float3 rayOrigin = ray.O - radius;
@@ -127,15 +205,19 @@ void WorldEditor::UpdateSelectedVoxels()
 		float3 hitpoint = ray.O + ray.D * distance;
 
 		// Get position inside of the voxel to determine brick location
-		float3 voxelPos = hitpoint - 0.1 * normal;
+		float3 voxelPos = hitpoint + 0.5 * normal;
 
 		// Reset the selected voxel aabb 
-		selectedVoxels.box = aabb{};
-		selectedVoxels.box.Grow(make_float3(floor(voxelPos.x), floor(voxelPos.y), floor(voxelPos.z)));
-		selectedVoxels.N = normal;
+		selectedBricks.box = aabb{};
+		float3 brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
+		selectedBricks.box.Grow(brickPos);
+		selectedBricks.N = float3(0, 0, 0);
+		printf("Hit World Grid - Brick X: %i   Brick Y: %i    Brick Z: %i \n", (int)brickPos.x, (int)brickPos.y, (int)brickPos.z);
+
 	}
 	else
 	{
+
 		float t = intersection.GetDistance();
 		float3 N = intersection.GetNormal();
 		float3 hitPoint = ray.O + ray.D * t;
@@ -143,8 +225,9 @@ void WorldEditor::UpdateSelectedVoxels()
 		float3 voxelPos = hitPoint - 0.1 * N;
 
 		// Reset the selected voxel aabb 
-		selectedVoxels.box = aabb{};
-		selectedVoxels.box.Grow(make_float3(floor(voxelPos.x), floor(voxelPos.y), floor(voxelPos.z)));
-		selectedVoxels.N = N;
+		selectedBricks.box = aabb{};
+		selectedBricks.box.Grow(make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM));
+		selectedBricks.N = N;
+		printf("Hit Brick \n");
 	}
 }

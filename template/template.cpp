@@ -294,6 +294,28 @@ Intersection Trace( const Ray& r )
 	i.N = (voxel == 0 ? 0 : Nval) + (voxel << 16);
 	return i;
 }
+Intersection Trace(const Ray& r, PAYLOAD* oldBricks, uint* oldGrid)
+{
+	float3 N;
+	float dist;
+	Intersection i;
+	const uint voxel = world->TraceRay(make_float4(r.O, 1), make_float4(r.D, 1), dist, N, 999999, oldBricks, oldGrid);
+	i.t = dist < r.t ? dist : 1e34f;
+	const uint Nval = ((int)N.x + 1) + (((int)N.y + 1) << 2) + (((int)N.z + 1) << 4);
+	i.N = (voxel == 0 ? 0 : Nval) + (voxel << 16);
+	return i;
+}
+Intersection TraceBrick(const Ray& r)
+{
+	float3 N;
+	float dist;
+	Intersection i;
+	const uint brick = world->TraceBrick(make_float4(r.O, 1), make_float4(r.D, 1), dist, N, 999999);
+	i.t = dist < r.t ? dist : 1e34f;
+	const uint Nval = ((int)N.x + 1) + (((int)N.y + 1) << 2) + (((int)N.z + 1) << 4);
+	i.N = (brick == 0 ? 0 : Nval) + (brick << 16);
+	return i;
+}
 Intersection TraceToVoid( const Ray& r )
 {
 	float3 N;

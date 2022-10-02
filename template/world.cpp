@@ -1375,6 +1375,149 @@ uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps
 	} while (!(tp & 0xf80e0380));
 	return 0U;
 }
+
+uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps, const PAYLOAD* oldBricks, const uint* oldGrid)
+{
+	const float4 V = FixZeroDeltas(B), rV = make_float4(1 / V.x, 1 / V.y, 1 / V.z, 1);
+	const bool originOutsideGrid = A.x < 0 || A.y < 0 || A.z < 0 || A.x > MAPWIDTH || A.y > MAPHEIGHT || A.z > MAPDEPTH;
+	float to = 0; // distance to travel to get into grid
+	if (steps == 999999 && originOutsideGrid)
+	{
+		// use slab test to clip ray origin against scene AABB
+		const float tx1 = -A.x * rV.x, tx2 = (MAPWIDTH - A.x) * rV.x;
+		float tmin = min(tx1, tx2), tmax = max(tx1, tx2);
+		const float ty1 = -A.y * rV.y, ty2 = (MAPHEIGHT - A.y) * rV.y;
+		tmin = max(tmin, min(ty1, ty2)), tmax = min(tmax, max(ty1, ty2));
+		const float tz1 = -A.z * rV.z, tz2 = (MAPDEPTH - A.z) * rV.z;
+		tmin = max(tmin, min(tz1, tz2)), tmax = min(tmax, max(tz1, tz2));
+		if (tmax < tmin || tmax <= 0) return 0; /* ray misses scene */ else A += tmin * V; // new ray entry point
+		to = tmin;
+	}
+	uint tp = (clamp((uint)A.x >> 3, 0u, 127u) << 20) + (clamp((uint)A.y >> 3, 0u, 127u) << 10) +
+		clamp((uint)A.z >> 3, 0u, 127u);
+	const int bits = SELECT(4, 34, V.x > 0) + SELECT(3072, 10752, V.y > 0) + SELECT(1310720, 3276800, V.z > 0); // magic
+	float4 tm = (make_float4((float)(((tp >> 20) & 127) + ((bits >> 5) & 1)), (float)(((tp >> 10) & 127) + ((bits >> 13) & 1)),
+		(float)((tp & 127) + ((bits >> 21) & 1)), 0) - A * 0.125f) * rV;
+	float t = 0;
+	const float4 td = make_float4((float)DIR_X, (float)DIR_Y, (float)DIR_Z, 0) * rV;
+	uint last = 0;
+	do
+	{
+		// fetch brick from top grid
+		uint o = oldGrid[(tp >> 20) + ((tp & 127) << 7) + (((tp >> 10) & 127) << 14)];
+		if (!--steps) break;
+		if (o != 0) if ((o & 1) == 0) /* solid */
+		{
+			dist = (t + to) * 8.0f;
+			N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
+			return o >> 1;
+		}
+		else // brick
+		{
+			// backup top-grid traversal state
+			const float4 tm_ = tm;
+			// intialize brick traversal
+			tm = A + V * (t *= 8); // abusing tm for I to save registers
+			uint p = (clamp((uint)tm.x, tp >> 17, (tp >> 17) + 7) << 20) +
+				(clamp((uint)tm.y, (tp >> 7) & 1023, ((tp >> 7) & 1023) + 7) << 10) +
+				clamp((uint)tm.z, (tp << 3) & 1023, ((tp << 3) & 1023) + 7), lp = ~1;
+			tm = (make_float4((float)((p >> 20) + OFFS_X), (float)(((p >> 10) & 1023) + OFFS_Y), (float)((p & 1023) + OFFS_Z), 0) - A) * rV;
+			p &= 7 + (7 << 10) + (7 << 20), o = (o >> 1) * BRICKSIZE;
+			do // traverse brick
+			{
+				const uint v = oldBricks[o + (p >> 20) + ((p >> 7) & (BMSK * BRICKDIM)) + (p & BMSK) * BDIM2];
+				if (v)
+				{
+					dist = t + to;
+					N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
+					return v;
+				}
+				t = min(tm.x, min(tm.y, tm.z));
+				if (t == tm.x) tm.x += td.x, p += DIR_X << 20, last = 0;
+				else if (t == tm.y) tm.y += td.y, p += ((bits << 2) & 3072) - 1024, last = 1;
+				else if (t == tm.z) tm.z += td.z, p += DIR_Z, last = 2;
+			} while (!(p & TOPMASK3));
+			tm = tm_; // restore top-grid traversal state
+		}
+		t = min(tm.x, min(tm.y, tm.z));
+		if (t == tm.x) tm.x += td.x, tp += DIR_X << 20, last = 0;
+		else if (t == tm.y) tm.y += td.y, tp += DIR_Y << 10, last = 1;
+		else if (t == tm.z) tm.z += td.z, tp += DIR_Z, last = 2;
+	} while (!(tp & 0xf80e0380));
+	return 0U;
+}
+
+uint World::TraceBrick(float4 A, const float4 B, float& dist, float3& N, int steps)
+{
+	const float4 V = FixZeroDeltas(B), rV = make_float4(1 / V.x, 1 / V.y, 1 / V.z, 1);
+	const bool originOutsideGrid = A.x < 0 || A.y < 0 || A.z < 0 || A.x > MAPWIDTH || A.y > MAPHEIGHT || A.z > MAPDEPTH;
+	float to = 0; // distance to travel to get into grid
+	if (steps == 999999 && originOutsideGrid)
+	{
+		// use slab test to clip ray origin against scene AABB
+		const float tx1 = -A.x * rV.x, tx2 = (MAPWIDTH - A.x) * rV.x;
+		float tmin = min(tx1, tx2), tmax = max(tx1, tx2);
+		const float ty1 = -A.y * rV.y, ty2 = (MAPHEIGHT - A.y) * rV.y;
+		tmin = max(tmin, min(ty1, ty2)), tmax = min(tmax, max(ty1, ty2));
+		const float tz1 = -A.z * rV.z, tz2 = (MAPDEPTH - A.z) * rV.z;
+		tmin = max(tmin, min(tz1, tz2)), tmax = min(tmax, max(tz1, tz2));
+		if (tmax < tmin || tmax <= 0) return 0; /* ray misses scene */ else A += tmin * V; // new ray entry point
+		to = tmin;
+	}
+	uint tp = (clamp((uint)A.x >> 3, 0u, 127u) << 20) + (clamp((uint)A.y >> 3, 0u, 127u) << 10) +
+		clamp((uint)A.z >> 3, 0u, 127u);
+	const int bits = SELECT(4, 34, V.x > 0) + SELECT(3072, 10752, V.y > 0) + SELECT(1310720, 3276800, V.z > 0); // magic
+	float4 tm = (make_float4((float)(((tp >> 20) & 127) + ((bits >> 5) & 1)), (float)(((tp >> 10) & 127) + ((bits >> 13) & 1)),
+		(float)((tp & 127) + ((bits >> 21) & 1)), 0) - A * 0.125f) * rV;
+	float t = 0;
+	const float4 td = make_float4((float)DIR_X, (float)DIR_Y, (float)DIR_Z, 0) * rV;
+	uint last = 0;
+	do
+	{
+		// fetch brick from top grid
+		uint o = grid[(tp >> 20) + ((tp & 127) << 7) + (((tp >> 10) & 127) << 14)];
+		if (!--steps) break;
+		if (o != 0) if ((o & 1) == 0) /* solid */
+		{
+			dist = (t + to) * 8.0f;
+			N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
+			return o >> 1;
+		}
+		else // brick
+		{
+			// backup top-grid traversal state
+			const float4 tm_ = tm;
+			// intialize brick traversal
+			tm = A + V * (t *= 8); // abusing tm for I to save registers
+			uint p = (clamp((uint)tm.x, tp >> 17, (tp >> 17) + 7) << 20) +
+				(clamp((uint)tm.y, (tp >> 7) & 1023, ((tp >> 7) & 1023) + 7) << 10) +
+				clamp((uint)tm.z, (tp << 3) & 1023, ((tp << 3) & 1023) + 7), lp = ~1;
+			tm = (make_float4((float)((p >> 20) + OFFS_X), (float)(((p >> 10) & 1023) + OFFS_Y), (float)((p & 1023) + OFFS_Z), 0) - A) * rV;
+			p &= 7 + (7 << 10) + (7 << 20), o = (o >> 1) * BRICKSIZE;
+			do // traverse brick
+			{
+				const uint v = brick[o + (p >> 20) + ((p >> 7) & (BMSK * BRICKDIM)) + (p & BMSK) * BDIM2];
+				if (v)
+				{
+					dist = t + to;
+					N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
+					return o;
+				}
+				t = min(tm.x, min(tm.y, tm.z));
+				if (t == tm.x) tm.x += td.x, p += DIR_X << 20, last = 0;
+				else if (t == tm.y) tm.y += td.y, p += ((bits << 2) & 3072) - 1024, last = 1;
+				else if (t == tm.z) tm.z += td.z, p += DIR_Z, last = 2;
+			} while (!(p & TOPMASK3));
+			tm = tm_; // restore top-grid traversal state
+		}
+		t = min(tm.x, min(tm.y, tm.z));
+		if (t == tm.x) tm.x += td.x, tp += DIR_X << 20, last = 0;
+		else if (t == tm.y) tm.y += td.y, tp += DIR_Y << 10, last = 1;
+		else if (t == tm.z) tm.z += td.z, tp += DIR_Z, last = 2;
+	} while (!(tp & 0xf80e0380));
+	return 0U;
+}
+
 void World::TraceRayToVoid(float4 A, const float4 B, float& dist, float3& N)
 {
 	// find the first empty voxel

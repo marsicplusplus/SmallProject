@@ -144,9 +144,9 @@ float3 SampleSky(const float3 T, __global float4* sky, uint w, uint h)
 }
 
 // Check if we've hit the world grid using the Ray-Box Intersection Algorithm from https://jcgt.org/published/0007/03/04/paper-lowres.pdf
-bool HitWorldGrid(const float3 O, const float3 D)
+bool HitWorldGrid(const float3 O, const float3 D/*, const float gridsize*/)
 {
-	float3 radius = (64, 64, 64);
+	float3 radius = (512, 512, 512);
 
 	// Move to the box's reference frame. This is unavoidable and un-optimizable.
 	float3 rayOrigin = O - radius;
@@ -208,9 +208,13 @@ bool HitWorldGrid(const float3 O, const float3 D)
 	float delta = 0.1;
 
 	// Check if we've hit a section of the grid
-	bool hitx = hitpoint.x - floor(hitpoint.x) < delta || ceil(hitpoint.x) - hitpoint.x < delta;
-	bool hity = hitpoint.y - floor(hitpoint.y) < delta || ceil(hitpoint.y) - hitpoint.y < delta;
-	bool hitz = hitpoint.z - floor(hitpoint.z) < delta || ceil(hitpoint.z) - hitpoint.z < delta;
+	//bool hitx = hitpoint.x - floor(hitpoint.x) < delta || ceil(hitpoint.x) - hitpoint.x < delta;
+	//bool hity = hitpoint.y - floor(hitpoint.y) < delta || ceil(hitpoint.y) - hitpoint.y < delta;
+	//bool hitz = hitpoint.z - floor(hitpoint.z) < delta || ceil(hitpoint.z) - hitpoint.z < delta;
+
+	bool hitx = ((int)floor(hitpoint.x) % 8 == 0 || (int)ceil(hitpoint.x) % 8 == 0) /*&& (hitpoint.x - floor(hitpoint.x) < delta || ceil(hitpoint.x) - hitpoint.x < delta)*/;
+	bool hity = ((int)floor(hitpoint.y) % 8 == 0 || (int)ceil(hitpoint.y) % 8 == 0) /*&& (hitpoint.y - floor(hitpoint.y) < delta || ceil(hitpoint.y) - hitpoint.y < delta)*/;
+	bool hitz = ((int)floor(hitpoint.z) % 8 == 0 || (int)ceil(hitpoint.z) % 8 == 0) /*&& (hitpoint.z - floor(hitpoint.z) < delta || ceil(hitpoint.z) - hitpoint.z < delta)*/;
 
 	if (((hitx || hity) && hitz) ||
 		((hity || hitz) && hitx) ||

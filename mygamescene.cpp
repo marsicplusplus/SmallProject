@@ -3,9 +3,9 @@
 #include <filesystem>
 
 using namespace MyGameScene;
-const int world_width = 128;
-const int world_height = 128;
-const int world_depth = 128;
+const int world_width = 1024;
+const int world_height = 1024;
+const int world_depth = 1024;
 
 void MyGameScene::DrawBox(World& world, uint _x, uint _y, uint _z, uint _xm, uint _ym, uint _zm, uint c)
 {

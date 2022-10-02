@@ -194,7 +194,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	{
 		{
 			const float3 shadingPoint = D * dist + params->E;
-			const bool selected = true;
+			const bool selected = false;
 			float delta = 0.025;
 			if (selected)
 			{
