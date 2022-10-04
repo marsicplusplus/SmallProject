@@ -256,6 +256,7 @@ void World::UpdateCAPE(float deltaTime)
 // ----------------------------------------------------------------------------
 void World::OptimizeBricks()
 {
+	return;
 	Timer t;
 	int replaced = 0;
 	for (int i = 0; i < GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH; i++)
@@ -322,8 +323,8 @@ void World::Clear()
 
 	// TO-DO: This is done in the fluid sim project, but breaks
 	// the ReSTIR project
-	// for (int i = 0; i < GRIDSIZE; i++)
-	//		grid[i] = (i << 1) | 0; //zero identifier
+	for (int i = 0; i < GRIDSIZE; i++)
+		grid[i] = (i << 1) | 1; //zero identifier
 	for (int i = 0; i < BRICKCOUNT; i++)
 		zeroes[i] = BRICKSIZE;
 
