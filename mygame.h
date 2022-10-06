@@ -21,8 +21,8 @@ namespace Tmpl8
 		void MouseUp(int button) { worldEditor.MouseUp(button); }
 		void MouseDown(int button) { worldEditor.MouseDown(button); };
 		void MouseMove(int x, int y) { worldEditor.MouseMove(x, y); };
-		void KeyUp(int key) { /* implement if you want to handle keys */ }
-		void KeyDown(int key) { /* implement if you want to handle keys */ }
+		void KeyUp(int key) { worldEditor.KeyUp(key); }
+		void KeyDown(int key) { worldEditor.KeyDown(key); }
 		// data members
 		void DumpScreenBuffer();
 

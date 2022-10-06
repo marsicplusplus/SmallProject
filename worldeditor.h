@@ -7,26 +7,40 @@ namespace Tmpl8
 		typedef struct Selected
 		{
 			aabb box;
-			float3 N;
+			aabb anchor;
 		};
 
 		// Taking inspiration from Goxel's gesture class
-		enum GestureButton {
+		enum class GestureButton {
+			GESTURE_DEFAULT = -1,
 			GESTURE_LMB = 0,
-			GESTURE_RMB
+			GESTURE_RMB,
 		};
 
-		enum GestureState {
+		enum class GestureKey {
+			GESTURE_DEFAULT = -1,
+			GESTURE_CTRL = 0
+		};
+
+		enum class GestureState {
 			GESTURE_POSSIBLE = 0,
 			GESTURE_START,
 			GESTURE_UPDATE,
 			GESTURE_END
 		};
 
+		enum class GestureMode {
+			GESTURE_DEFAULT = -1,
+			GESTURE_ADD = 0,
+			GESTURE_SUBTRACT
+		};
+
 		typedef struct Gesture
 		{
-			GestureButton button;
-			GestureState state;
+			GestureButton button = GestureButton::GESTURE_DEFAULT;
+			GestureKey key = GestureKey::GESTURE_DEFAULT;
+			GestureState state = GestureState::GESTURE_POSSIBLE;
+			GestureMode mode = GestureMode::GESTURE_ADD;
 		};
 
 	public:
@@ -34,6 +48,8 @@ namespace Tmpl8
 		void MouseMove(int x, int y);
 		void MouseDown(int button);
 		void MouseUp(int button);
+		void KeyUp(int key);
+		void KeyDown(int key);
 
 	private:
 		void UpdateSelectedBrick();
@@ -45,7 +61,7 @@ namespace Tmpl8
 		int2 mousePos;
 		Gesture gesture;
 		PAYLOAD* tempBricks = 0;
-		uint* tempGrid;
+		uint* tempGrid = 0;
 
 	};
 }

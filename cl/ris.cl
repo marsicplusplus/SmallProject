@@ -179,6 +179,14 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 	float3 color = (float3)(0.5, 0.4, 1.0);
 	// hit the background/exit the scene
+
+	float distance = dist;
+	if (HitSelectedBrick(params->E, D, params->selectedMin, params->selectedMax, &distance))
+	{
+		color = (float3)(0.2, 0.8, 0.8);
+		return (float4)(color, distance);
+	}
+
 	if (voxel == 0)
 	{
 		if (HitWorldGrid(params->E, D))
@@ -192,28 +200,6 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	}
 	else
 	{
-		{
-			const float3 shadingPoint = D * dist + params->E;
-			const bool selected = false;
-			float delta = 0.025;
-			if (selected)
-			{
-				bool hitx = shadingPoint.x - floor(shadingPoint.x) < delta || ceil(shadingPoint.x) - shadingPoint.x < delta;
-				bool hity = shadingPoint.y - floor(shadingPoint.y) < delta || ceil(shadingPoint.y) - shadingPoint.y < delta;
-				bool hitz = shadingPoint.z - floor(shadingPoint.z) < delta || ceil(shadingPoint.z) - shadingPoint.z < delta;
-
-				if (((hitx || hity) && hitz) ||
-					((hity || hitz) && hitx) ||
-					((hitx || hitz) && hity))
-				{
-					color = (0.0, 0.0, 0.0);
-					return (float4)(color, dist);
-				}
-			}
-		}
-
-
-
 		// hit emitter
 		if (IsEmitter(voxel))
 		{

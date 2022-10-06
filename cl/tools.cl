@@ -143,13 +143,13 @@ float3 SampleSky(const float3 T, __global float4* sky, uint w, uint h)
 	return s.xyz;
 }
 
-// Check if we've hit the world grid using the Ray-Box Intersection Algorithm from https://jcgt.org/published/0007/03/04/paper-lowres.pdf
-bool HitWorldGrid(const float3 O, const float3 D/*, const float gridsize*/)
+bool HitAABB(const float3 O, const float3 D, const float3 boxMin, const float3 boxMax, bool useWinding, float* distance)
 {
-	float3 radius = (512, 512, 512);
+	float3 center = (boxMax + boxMin) / 2;
+	float3 radius = (boxMax - boxMin) / 2;
 
 	// Move to the box's reference frame. This is unavoidable and un-optimizable.
-	float3 rayOrigin = O - radius;
+	float3 rayOrigin = O - center;
 
 
 	// Winding direction: -1 if the ray starts inside of the box (i.e., and is leaving), +1 if it is starting outside of the box
@@ -167,7 +167,7 @@ bool HitWorldGrid(const float3 O, const float3 D/*, const float gridsize*/)
 
 	// Ray-plane intersection. For each pair of planes, choose the one that is front-facing
 	// to the ray and compute the distance to it.
-	float3 distanceToPlane = radius * -1.0 * sgn - rayOrigin;
+	float3 distanceToPlane = radius * (useWinding ? winding : -1.0) * sgn - rayOrigin;
 	distanceToPlane *= (1.0 / D);
 
 	// Perform all three ray-box tests and cast to 0 or 1 on each axis. 
@@ -189,10 +189,6 @@ bool HitWorldGrid(const float3 O, const float3 D/*, const float gridsize*/)
 	// ray direction as well. Notice that we were able to drop storage of the test vector from registers,
 	// because it will never be used again.
 
-	// Mask the distance by the non-zero axis
-	// Dot product is faster than this CMOV chain, but doesn't work when distanceToPlane contains nans or infs. 
-	//
-	float distance = (sgn.x != 0.0) ? distanceToPlane.x : ((sgn.y != 0.0) ? distanceToPlane.y : distanceToPlane.z);
 
 	// Normal must face back along the ray. If you need
 	// to know whether we're entering or leaving the box, 
@@ -200,9 +196,79 @@ bool HitWorldGrid(const float3 O, const float3 D/*, const float gridsize*/)
 	// texture coordinates, then use box.invDirection * hitPoint.
 	float3 normal = sgn;
 
-	bool hit = (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
-	if (!hit) return false;
+	// Mask the distance by the non-zero axis
+	// Dot product is faster than this CMOV chain, but doesn't work when distanceToPlane contains nans or infs. 
+	//
+	float dist = (sgn.x != 0.0) ? distanceToPlane.x : ((sgn.y != 0.0) ? distanceToPlane.y : distanceToPlane.z);
+	if (dist > *distance && *distance != 0)
+		return false;
+	//printf(" Distance: %f \n", *distance);
 
+	*distance = dist;
+	bool hit = (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
+	return hit;
+}
+
+bool HitSelectedBrick(const float3 O, const float3 D, const float3 bboxMin, const float3 bboxMax, float* distance)
+{
+	float closeDistance = *distance;
+	float3 wireMin = bboxMin - (float3)(0.1, 0.1, 0.1);
+	float3 wireMax = bboxMax + (float3)(0.1, 0.1, 0.1);
+
+	if (HitAABB(O, D, wireMin, wireMax, true, &closeDistance))
+	{
+		const float3 shadingPoint = D * closeDistance + O;
+		float delta = 0.3;
+		bool hitx = fabs(shadingPoint.x - bboxMin.x) < delta || fabs(bboxMax.x - shadingPoint.x) < delta;
+		bool hity = fabs(shadingPoint.y - bboxMin.y) < delta || fabs(bboxMax.y - shadingPoint.y) < delta;
+		bool hitz = fabs(shadingPoint.z - bboxMin.z) < delta || fabs(bboxMax.z - shadingPoint.z) < delta;
+
+
+		if (((hitx || hity) && hitz) ||
+			((hity || hitz) && hitx) ||
+			((hitx || hitz) && hity))
+		{
+			*distance = closeDistance;
+			return true;
+		}
+	}
+
+	float farDistance = *distance;
+	if (HitAABB(O, D, wireMin, wireMax, false, &farDistance))
+	{
+		const float3 shadingPoint = D * farDistance + O;
+		float delta = 0.3;
+		bool hitx = fabs(shadingPoint.x - bboxMin.x) < delta || fabs(bboxMax.x - shadingPoint.x) < delta;
+		bool hity = fabs(shadingPoint.y - bboxMin.y) < delta || fabs(bboxMax.y - shadingPoint.y) < delta;
+		bool hitz = fabs(shadingPoint.z - bboxMin.z) < delta || fabs(bboxMax.z - shadingPoint.z) < delta;
+
+
+		if (((hitx || hity) && hitz) ||
+			((hity || hitz) && hitx) ||
+			((hitx || hitz) && hity))
+		{
+			*distance = farDistance;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+
+// Check if we've hit the world grid using the Ray-Box Intersection Algorithm from https://jcgt.org/published/0007/03/04/paper-lowres.pdf
+bool HitWorldGrid(const float3 O, const float3 D)
+{
+
+	float3 worldMin = (0, 0, 0);
+	float3 worldMax = (1024, 1024, 1024);
+	float distance = 0;
+	// This allows us to ensure we're always looking inside the world grid
+	bool useWinding = false;
+	if (!HitAABB(O, D, worldMin, worldMax, useWinding, &distance)) return false;
+
+	//printf(/*"Shading Point X: %f, Shading Point Y: %f,  Shading Point Z: %f, */ "Distance: % f", /*shadingPoint.x, shadingPoint.y, shadingPoint.z,*/ distance);
 
 	float3 hitpoint = O + D * distance;
 	float delta = 0.1;
@@ -222,7 +288,6 @@ bool HitWorldGrid(const float3 O, const float3 D/*, const float gridsize*/)
 	{
 		return true;
 	}
-
 
 	return false;
 

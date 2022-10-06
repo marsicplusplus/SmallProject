@@ -6,6 +6,7 @@ WorldEditor::WorldEditor()
 {
 	tempBricks = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
 	tempGrid = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
+	memset(tempBricks, 0, CHUNKCOUNT * CHUNKSIZE);
 	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 }
 
@@ -14,64 +15,144 @@ void WorldEditor::MouseMove(int x, int y)
 	mousePos.x = x, mousePos.y = y;
 
 	// just hovering
-	if (gesture.state == GESTURE_POSSIBLE)
+	if (gesture.state == GestureState::GESTURE_POSSIBLE)
 	{
+		// Reset the selected voxel aabb 
+		selectedBricks.box = aabb{};
 		UpdateSelectedBrick();
 		return;
 	}
 
-	if (gesture.state == GESTURE_START)
+	if (gesture.state == GestureState::GESTURE_START)
 	{
-		gesture.state = GESTURE_UPDATE;
+		gesture.state = GestureState::GESTURE_UPDATE;
 	}
 
-	if (gesture.button == GESTURE_LMB)
+	// Default brush behaviour
+	if (gesture.key == GestureKey::GESTURE_DEFAULT)
 	{
-		AddBrick();
+		selectedBricks.box = aabb{};
+		UpdateSelectedBrick();
+
+		if (gesture.button == GestureButton::GESTURE_LMB)
+		{
+			if (gesture.mode == GestureMode::GESTURE_ADD)
+			{
+				AddBrick();
+			}
+
+			if (gesture.mode == GestureMode::GESTURE_SUBTRACT)
+			{
+				RemoveBrick();
+			}
+		}
+	}
+	else if (gesture.key == GestureKey::GESTURE_CTRL)
+	{
+		selectedBricks.box = selectedBricks.anchor;
+		UpdateSelectedBrick();
+
+		World& world = *GetWorld();
+		memcpy(world.GetBrick(), tempBricks, CHUNKCOUNT * CHUNKSIZE);
+		memcpy(world.GetGrid(), tempGrid, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+
+		if (gesture.button == GestureButton::GESTURE_LMB)
+		{
+			if (gesture.mode == GestureMode::GESTURE_ADD)
+			{
+				AddBrick();
+			}
+
+			if (gesture.mode == GestureMode::GESTURE_SUBTRACT)
+			{
+				RemoveBrick();
+			}
+		}
 	}
 
-	if (gesture.button == GESTURE_RMB)
-	{
-		RemoveBrick();
-	}
-
-	UpdateSelectedBrick();
 }
 
-void WorldEditor::MouseDown(int button)
+void WorldEditor::KeyDown(int key)
 {
-	if (gesture.state != GESTURE_POSSIBLE)
+	// Make sure ctrl button isn't pressed during another gesture
+	if (gesture.state != GestureState::GESTURE_POSSIBLE)
 	{
 		return;
 	}
 
-	gesture.state = GESTURE_START;
-	gesture.button = (GestureButton)button;
-	World& world = *GetWorld();
-	memcpy(world.GetBrick(), tempBricks, BRICKSIZE * PAYLOADSIZE);
-	memcpy(world.GetGrid(), tempGrid, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4);
-
-	// Delete all voxels within the selected bounding box
-	if (button == GLFW_MOUSE_BUTTON_RIGHT)
+	if (key == GLFW_KEY_LEFT_CONTROL)
 	{
-		RemoveBrick();
+		gesture.key = GestureKey::GESTURE_CTRL;
 	}
+
+	if (key == GLFW_KEY_LEFT_SHIFT)
+	{
+		if (gesture.mode == GestureMode::GESTURE_ADD)
+		{
+			gesture.mode = GestureMode::GESTURE_SUBTRACT;
+		}
+		else if (gesture.mode == GestureMode::GESTURE_SUBTRACT)
+		{
+			gesture.mode = GestureMode::GESTURE_ADD;
+		}
+	}
+}
+
+void WorldEditor::KeyUp(int key)
+{
+	if (key == GLFW_KEY_LEFT_CONTROL)
+	{
+		// If the ctrl button wasn't pressed at beginning of gesture ignore the keyup
+		if (!(gesture.key == GestureKey::GESTURE_CTRL))
+		{
+			return;
+		}
+
+		gesture.key = GestureKey::GESTURE_DEFAULT;
+	}
+}
+
+void WorldEditor::MouseDown(int mouseButton)
+{
+	if (gesture.state != GestureState::GESTURE_POSSIBLE)
+	{
+		return;
+	}
+
+	gesture.state = GestureState::GESTURE_START;
+	gesture.button = (GestureButton)mouseButton;
 
 	// For now, add a brick to the face of the selected voxel the cursor is on
-	// Needs to be reworked when allowing for selection of multiple voxels
-	if (button == GLFW_MOUSE_BUTTON_LEFT)
+	if (gesture.button == GestureButton::GESTURE_LMB)
 	{
-		AddBrick();
+		World& world = *GetWorld();
+		memcpy(tempBricks, world.GetBrick(), CHUNKCOUNT * CHUNKSIZE);
+		memcpy(tempGrid, world.GetGrid(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+
+		if (gesture.mode == GestureMode::GESTURE_ADD)
+		{
+			AddBrick();
+
+		}
+		else if (gesture.mode == GestureMode::GESTURE_SUBTRACT)
+		{
+			RemoveBrick();
+		}
+
+		selectedBricks.anchor = selectedBricks.box;
 	}
 
-	UpdateSelectedBrick();
+	// Reset the selected voxel aabb 
+	UpdateSelectedBrick(); 
 }
 
 void WorldEditor::AddBrick()
 {
 	World& world = *GetWorld();
-	float3 newBrickPos = selectedBricks.box.bmin3 + selectedBricks.N;
-	world.SetBrick(newBrickPos.x * BRICKDIM, newBrickPos.y * BRICKDIM, newBrickPos.z * BRICKDIM, WHITE);
+	for (int x = selectedBricks.box.bmin[0]; x <= selectedBricks.box.bmax[0]; x++)
+		for (int y = selectedBricks.box.bmin[1]; y <= selectedBricks.box.bmax[1]; y++)
+			for (int z = selectedBricks.box.bmin[2]; z <= selectedBricks.box.bmax[2]; z++)
+				world.SetBrick(x * BRICKDIM, y * BRICKDIM, z * BRICKDIM, WHITE);
 }
 
 void WorldEditor::RemoveBrick()
@@ -80,24 +161,22 @@ void WorldEditor::RemoveBrick()
 	for (int x = selectedBricks.box.bmin[0]; x <= selectedBricks.box.bmax[0]; x++)
 		for (int y = selectedBricks.box.bmin[1]; y <= selectedBricks.box.bmax[1]; y++)
 			for (int z = selectedBricks.box.bmin[2]; z <= selectedBricks.box.bmax[2]; z++)
-			{
-				world.SetBrick(x, y, z, 0);
-			}
+				world.SetBrick(x * BRICKDIM, y * BRICKDIM, z * BRICKDIM, 0);
 }
 
-void WorldEditor::MouseUp(int button)
+void WorldEditor::MouseUp(int mouseButton)
 {
-	if ((gesture.state != GESTURE_START && gesture.state != GESTURE_UPDATE) || 
-		gesture.button != button)
+	if ((gesture.state != GestureState::GESTURE_START && gesture.state != GestureState::GESTURE_UPDATE) ||
+		gesture.button != (GestureButton)mouseButton)
 	{
 		return;
 	}
 
-	World& world = *GetWorld();
-	memcpy(tempBricks, world.GetBrick(),BRICKSIZE * PAYLOADSIZE);
-	memcpy(tempGrid, world.GetGrid(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4);
+	gesture.state = GestureState::GESTURE_POSSIBLE;
+	gesture.button = GestureButton::GESTURE_DEFAULT;
 
-	gesture.state = GESTURE_POSSIBLE;
+	// Reset the selected voxel aabb 
+	selectedBricks.box = aabb{};
 	UpdateSelectedBrick();
 }
 
@@ -130,14 +209,16 @@ void WorldEditor::UpdateSelectedBrick()
 
 	Intersection intersection; 
 
-	if (gesture.state == GESTURE_UPDATE || gesture.state == GESTURE_START)
+	if (gesture.state == GestureState::GESTURE_UPDATE || gesture.state == GestureState::GESTURE_START)
 	{
 		intersection = Trace(ray, tempBricks, tempGrid);
-		//printf("Dragging Mouse \n");
+		printf("Temp Trace\n");
 	}
 	else 
 	{
 		intersection = Trace(ray);
+		printf("Normal Trace\n");
+
 	}
 
 	if (intersection.GetVoxel() == 0)
@@ -207,11 +288,8 @@ void WorldEditor::UpdateSelectedBrick()
 		// Get position inside of the voxel to determine brick location
 		float3 voxelPos = hitpoint + 0.5 * normal;
 
-		// Reset the selected voxel aabb 
-		selectedBricks.box = aabb{};
 		float3 brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
 		selectedBricks.box.Grow(brickPos);
-		selectedBricks.N = float3(0, 0, 0);
 		printf("Hit World Grid - Brick X: %i   Brick Y: %i    Brick Z: %i \n", (int)brickPos.x, (int)brickPos.y, (int)brickPos.z);
 
 	}
@@ -223,11 +301,21 @@ void WorldEditor::UpdateSelectedBrick()
 		float3 hitPoint = ray.O + ray.D * t;
 		// Get position inside of the voxel to determine brick location
 		float3 voxelPos = hitPoint - 0.1 * N;
+		float3 brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
+		
+		// Adding
+		if (gesture.mode == GestureMode::GESTURE_ADD)
+		{
+			selectedBricks.box.Grow(brickPos + N);
 
-		// Reset the selected voxel aabb 
-		selectedBricks.box = aabb{};
-		selectedBricks.box.Grow(make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM));
-		selectedBricks.N = N;
+		}
+		else if (gesture.mode == GestureMode::GESTURE_SUBTRACT)
+		{
+			selectedBricks.box.Grow(brickPos);
+		}
 		printf("Hit Brick \n");
 	}
+
+	params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM;
+	params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM + make_float3(BRICKDIM, BRICKDIM, BRICKDIM);
 }
