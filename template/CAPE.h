@@ -128,11 +128,14 @@ namespace Tmpl8
 		uint* brick_a;
 		uint* brick_oa;
 
-		float* m_bricks;
-		float* m0_bricks;
-		float* p_bricks;
+		// Each 0 counterpart is a reference to the previous update. New/updated data
+		// is written to the "regular" named counterpart. At the end of the update, the two buffers
+		// are swapped
+		float* m_bricks;	// Material for each brick
+		float* m0_bricks;			
+		float* p_bricks;	// Pressure for each brick
 		float* p0_bricks;
-		float* vx_bricks;
+		float* vx_bricks;	// Velocity x, y, z for each brick
 		float* vy_bricks;
 		float* vz_bricks;
 		float* vx0_bricks;
@@ -150,13 +153,13 @@ namespace Tmpl8
 		Kernel* worldSetKernel;
 
 		//Kernel events
-		cl_event brickUpdateEvent;
-		cl_event materialAdvectionEvent;
-		cl_event velocityAdvectionEvent;
-		cl_event divergenceEvent;
-		cl_event pressureSolverEvent;
-		cl_event pressureGradientEvent;
-		cl_event worldSetEvent;
+		cl_event brickUpdateEvent = nullptr;
+		cl_event materialAdvectionEvent = nullptr;
+		cl_event velocityAdvectionEvent = nullptr;
+		cl_event divergenceEvent = nullptr;
+		cl_event pressureSolverEvent = nullptr;
+		cl_event pressureGradientEvent = nullptr;
+		cl_event worldSetEvent = nullptr;
 
 		//Brick buffers
 		Buffer* grid_buffer;

@@ -7,7 +7,16 @@
     <ClCompile Include="template\world.cpp">
       <Filter>template</Filter>
     </ClCompile>
-    <ClCompile Include="meaning.cpp" />
+    <ClCompile Include="waterworld.cpp" />
+    <ClCompile Include="template\CAPE.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
+    <ClCompile Include="light_manager.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
+    <ClCompile Include="world_to_obj.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="template\bluenoise.h">
@@ -31,7 +40,16 @@
     <ClInclude Include="cl\tools.cl">
       <Filter>template\cl</Filter>
     </ClInclude>
-    <ClInclude Include="meaning.h" />
+    <ClInclude Include="waterworld.h" />
+    <ClInclude Include="template\CAPE.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="light_manager.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="world_to_obj.h">
+      <Filter>template</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="template\LICENSE">
@@ -41,6 +59,21 @@
       <Filter>template</Filter>
     </None>
     <None Include="cl\kernels.cl">
+      <Filter>template\cl</Filter>
+    </None>
+    <None Include="cl\cape.cl">
+      <Filter>template\cl</Filter>
+    </None>
+    <None Include="cl\phat.cl">
+      <Filter>template\cl</Filter>
+    </None>
+    <None Include="cl\reservoir.cl">
+      <Filter>template\cl</Filter>
+    </None>
+    <None Include="cl\ris.cl">
+      <Filter>template\cl</Filter>
+    </None>
+    <None Include="cl\spatialSampling.cl">
       <Filter>template\cl</Filter>
     </None>
   </ItemGroup>

@@ -293,63 +293,41 @@ public:
 	}
 	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */ )
 	{
-		if (v > 0)
-		{
-			bounds.Grow(make_float3(x, y, z));
-		}
 		// calculate brick location in top-level grid
-		const uint bx = x / BRICKDIM;
-		const uint by = y / BRICKDIM;
-		const uint bz = z / BRICKDIM;
-		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
+		uint bx = x / BRICKDIM;
+		uint by = y / BRICKDIM;
+		uint bz = z / BRICKDIM;
+
+		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH)
+			return;		//Way to prevent this branching?
+
+		//Get the grid index
 		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-		// obtain current brick identifier from top-level grid
-		uint g = grid[cellIdx], g1 = g >> 1;
-		if ((g & 1) == 0 /* this is currently a 'solid' grid cell */)
-		{
-			if (g1 == v) return; // about to set the same value; we're done here
-			const uint newIdx = NewBrick();
-		#if BRICKDIM == 8 && PAYLOADSIZE == 1
-			// fully unrolled loop for writing the 512 bytes needed for a single brick, faster than memset
-			const __m256i zero8 = _mm256_set1_epi8( static_cast<char>(g1) );
-			__m256i* d8 = (__m256i*)(brick + newIdx * BRICKSIZE);
-			d8[0] = zero8, d8[1] = zero8, d8[2] = zero8, d8[3] = zero8;
-			d8[4] = zero8, d8[5] = zero8, d8[6] = zero8, d8[7] = zero8;
-			d8[8] = zero8, d8[9] = zero8, d8[10] = zero8, d8[11] = zero8;
-			d8[12] = zero8, d8[13] = zero8, d8[14] = zero8, d8[15] = zero8;
-		#elif BRICKDIM == 8 && PAYLOADSIZE == 2
-			// fully unrolled loop for writing 1KB needed for a single brick, faster than memset
-			const __m256i zero16 = _mm256_set1_epi16( static_cast<short>(g1) );
-			__m256i* d = (__m256i*)(brick + newIdx * BRICKSIZE);
-			d[0] = zero16, d[1] = zero16, d[2] = zero16, d[3] = zero16;
-			d[4] = zero16, d[5] = zero16, d[6] = zero16, d[7] = zero16;
-			d[8] = zero16, d[9] = zero16, d[10] = zero16, d[11] = zero16;
-			d[12] = zero16, d[13] = zero16, d[14] = zero16, d[15] = zero16;
-			d[16] = zero16, d[17] = zero16, d[18] = zero16, d[19] = zero16;
-			d[20] = zero16, d[21] = zero16, d[22] = zero16, d[23] = zero16;
-			d[24] = zero16, d[25] = zero16, d[26] = zero16, d[27] = zero16;
-			d[28] = zero16, d[29] = zero16, d[30] = zero16, d[31] = zero16;
-		#else
-			// TODO: generic case
-		#endif
-			// we keep track of the number of zeroes, so we can remove fully zeroed bricks
-			brickInfo[newIdx].zeroes = g == 0 ? BRICKSIZE : 0;
-			g1 = newIdx, grid[cellIdx] = g = (newIdx << 1) | 1;
-		}
+
 		// calculate the position of the voxel inside the brick
 		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
-		const uint voxelIdx = g1 * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM;
-		const uint cv = brick[voxelIdx];
-		if ((brickInfo[g1].zeroes += (cv != 0 && v == 0) - (cv == 0 && v != 0)) < BRICKSIZE)
-		{
-			brick[voxelIdx] = v;
-			Mark( g1 ); // tag to be synced with GPU
-			return;
-		}
-		grid[cellIdx] = 0;	// brick just became completely zeroed; recycle
-		UnMark( g1 );		// no need to send it to GPU anymore
-		FreeBrick( g1 );
+		const uint voxelIdx = cellIdx * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM; //Precalculate this?
+		const uint originalValue = brick[voxelIdx];
+
+		//Gain or lose a zero
+		int zeroChange = (originalValue != 0 && v == 0) - (originalValue == 0 && v != 0);
+
+		zeroes[cellIdx] += zeroChange;
+		//If not all are zeroes
+		bool nonEmpty = zeroes[cellIdx] < BRICKSIZE;
+
+		//Masking trick to remove branching
+		grid[cellIdx] = (cellIdx << 1) | 1;
+		brick[voxelIdx] = v; //Normally wouldnt do this if zero doesnt change, but doesnt change result and prevents branching
+
+		//This isn't necessary if we port this to the gpu
+		//If brick is not empty and has changed
+		if (nonEmpty)
+			Mark(cellIdx);
+		else
+			UnMark(cellIdx);
 	}
+
 	//Temp Getter to allow easy access to world data from CAPE
 	Buffer* GetBrickBuffer() { return brickBuffer; }
 	Buffer* GetZeroesBuffer() { return zeroesBuffer; }

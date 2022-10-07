@@ -60,6 +60,7 @@ World::World(const uint targetID)
 	brick = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
 #if ONEBRICKBUFFER == 1
 	brickBuffer = new Buffer(CHUNKSIZE * CHUNKCOUNT / 4 /* dwords */, Buffer::DEFAULT, (uchar*)brick);
+	printf("Chunk count: %i, chunk size: %ld", CHUNKCOUNT, CHUNKSIZE);
 	brickBuffer->CopyToDevice();
 #else
 	brick = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
@@ -273,7 +274,7 @@ void World::OptimizeBricks()
 		if (solid)
 		{
 			// this one has 8x8x8 times the same voxel; replace by solid brick in grid
-			grid[i] = firstVoxel << 1;
+			grid[i] = (firstVoxel << 1) | 0;
 			// recycle brick
 			FreeBrick(value >> 1);
 			// statistics
@@ -315,6 +316,19 @@ void World::Clear()
 	memset(trash, 0, BRICKCOUNT * 4);
 	for (uint i = 0; i < BRICKCOUNT; i++) trash[(i * 31 /* prevent false sharing*/) & (BRICKCOUNT - 1)] = i;
 	trashHead = BRICKCOUNT, trashTail = 0;
+	
+	uint bs = CHUNKCOUNT * CHUNKSIZE;
+	memset(brick, 0, bs * sizeof(uchar));
+
+	// TO-DO: This is done in the fluid sim project, but breaks
+	// the ReSTIR project
+	for (int i = 0; i < GRIDSIZE; i++)
+		grid[i] = (i << 1) | 1; //zero identifier
+	for (int i = 0; i < BRICKCOUNT; i++)
+		zeroes[i] = BRICKSIZE;
+
+	zeroesBuffer->CopyToDevice();
+
 	ClearMarks();
 }
 
@@ -1633,11 +1647,21 @@ void World::Render()
 
 			currentRenderer->SetArgument(renderer_arg_i++, paramBuffer);
 #if RIS == 1
+
+
 			currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer);
 			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferOutIndex]); //write
 			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferInIndex]); //read
 
 #endif
+// TODO: THIS BLOCK NEEDS TO BE CHECKED. In Waterworld is the following:
+/* 
+* 			renderer->SetArgument( 1, paramBuffer );
+*			renderer->SetArgument( 2, &gridMap );
+*			renderer->SetArgument( 3, sky );
+*			renderer->SetArgument( 4, blueNoise );
+*			renderer->SetArgument( 5, &uberGrid );
+*/ 
 			currentRenderer->SetArgument(renderer_arg_i++, &gridMap);
 			currentRenderer->SetArgument(renderer_arg_i++, sky);
 			currentRenderer->SetArgument(renderer_arg_i++, blueNoise);
@@ -1705,8 +1729,10 @@ void World::Render()
 			accumulatorFinalizer->SetArgument(2, accumulator);
 			accumulatorFinalizer->SetArgument(3, paramBuffer);
 			accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
+
 #elif TAA == 1
 			static int histIn = 0, histOut = 1;
+
 			// renderer->Run( screen, make_int2( 8, 16 ) );
 			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 			finalizer->SetArgument(0, historyTAA[histIn]);
@@ -1779,6 +1805,8 @@ void World::Commit()
 	// asynchroneously copy the CPU data to the GPU via the staging buffer
 	if (tasks > 0 || firstFrame)
 	{
+		zeroesBuffer->CopyToDevice(); //Lazy commit zeroes
+
 		// copy top-level grid to start of pinned buffer in preparation of final transfer
 		StreamCopyMT((__m256i*)pinnedMemPtr, (__m256i*)grid, gridSize);
 		// enqueue (on queue 2) memcopy of pinned buffer to staging buffer on GPU
