@@ -59,6 +59,8 @@ namespace Tmpl8
 		int3 laserA, laserB;
 
 		LightManager lightManager;
+		bool runCAPESimulation = false;
+		bool keyPressed[0xFF];
 	};
 
 } // namespace Tmpl8

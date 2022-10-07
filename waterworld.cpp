@@ -232,6 +232,15 @@ void WaterWorld::HandleInput(float deltaTime)
 	if (GetAsyncKeyState(VK_UP)) D = normalize(D - up * 0.025f * speed);
 	if (GetAsyncKeyState(VK_DOWN)) D = normalize(D + up * 0.025f * speed);
 	if (GetAsyncKeyState(VK_SPACE)) UpdateCAPE(deltaTime);
+	if (GetAsyncKeyState(VK_SHIFT) && !keyPressed[VK_SHIFT])
+	{
+		runCAPESimulation = !runCAPESimulation;
+		keyPressed[VK_SHIFT] = true;
+	}
+	else if (!GetAsyncKeyState(VK_SHIFT))
+	{
+		keyPressed[VK_SHIFT] = false;
+	}
 #if 1
 	// enable to set spline path points using P key
 	static bool pdown = false;
@@ -274,6 +283,6 @@ void WaterWorld::Tick(float deltaTime)
 		lightManager.PopLights(deltaTime);
 	}
 	
-	//if (static int counter = 0; counter++ < 2)
-		//UpdateCAPE(deltaTime);
+	if (runCAPESimulation)
+		UpdateCAPE(deltaTime);
 }
