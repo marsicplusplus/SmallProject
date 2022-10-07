@@ -256,6 +256,7 @@ void World::UpdateCAPE(float deltaTime)
 // ----------------------------------------------------------------------------
 void World::OptimizeBricks()
 {
+	return;
 	Timer t;
 	int replaced = 0;
 	for (int i = 0; i < GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH; i++)
