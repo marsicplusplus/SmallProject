@@ -72,7 +72,7 @@ float4 FixZeroDeltas( float4 V )
 
 #define GRIDSTEP(exitX)																			\
 	if (!--steps) break;																		\
-	if (o != 0) if (!(o & 1)) { *dist = (t + to) * 8.0f, *side = last; return o >> 1; } else	\
+	if (o != 0) if ((o & 1) == 0) { *dist = (t + to) * 8.0f, *side = last; return o >> 1; } else	\
 	{																							\
 		const float4 tm_ = tm;																	\
 		const uint4 p4 = convert_uint4( A + V * (t *= 8) );										\

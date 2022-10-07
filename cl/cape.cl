@@ -163,7 +163,8 @@ void worldSet(const uint x, const uint y, const uint z, __write_only image3d_t g
 	const uint cv = brick[voxelIdx]; //original value
 
 	atomic_add(zeroes + cellIdx, (cv != 0 && v == 0) - (cv == 0 && v != 0)); //Apply the change in zeroes
-//	write_imageui(grid, (int4)(bx, bz, by, 0), (uint4)((cellIdx << 1) | (zeroes[cellIdx] < BRICKSIZE), 0,0,0)); //Update zero status
+	const uint result = zeroes[cellIdx] < BRICKSIZE ? ((cellIdx << 1) | 1) : (v << 1 | 0);
+	write_imageui(grid, (int4)(bx, bz, by, 0), (uint4)(result, 0,0,0)); //Update zero status
 	brick[voxelIdx] = v;
 }
 

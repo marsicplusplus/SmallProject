@@ -256,7 +256,6 @@ void World::UpdateCAPE(float deltaTime)
 // ----------------------------------------------------------------------------
 void World::OptimizeBricks()
 {
-	return;
 	Timer t;
 	int replaced = 0;
 	for (int i = 0; i < GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH; i++)
@@ -275,7 +274,7 @@ void World::OptimizeBricks()
 		if (solid)
 		{
 			// this one has 8x8x8 times the same voxel; replace by solid brick in grid
-			grid[i] = firstVoxel << 1;
+			grid[i] = (firstVoxel << 1) | 0;
 			// recycle brick
 			FreeBrick(value >> 1);
 			// statistics
