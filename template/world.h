@@ -166,13 +166,7 @@ private:
 class World
 {
 public:
-	void InitCAPE(uint updateRate);
-	void UpdateCAPE(float deltaTime);
-	void CAPEThread(float deltaTime);
-	bool capeRunning = false;
-	std::future<void> capeThread;
 	//thread capeThread;
-	CAPE* cape;
 	// constructor / destructor
 	World(const uint targetID);
 	~World();

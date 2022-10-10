@@ -68,22 +68,6 @@ float2 GetCursorPosition() {
 	return make_float2(xpos, ypos);
 }
 
-
-
-
-
-void UpdateCAPE(float dt)
-{
-	world->UpdateCAPE(dt);
-}
-void SetMaterialBlock(const float x, const float y, const float z, const float u, const float v, const float w, const float a, const bool c)
-{
-	world->cape->SetMaterialBlock(x, y, z, u, v, w, a, c);
-}
-void InitCAPE(uint updateRate)
-{
-	world->InitCAPE(updateRate);
-}
 void Sphere( const float x, const float y, const float z, const float r, const uint c )
 {
 	world->Sphere( x, y, z, r, c );

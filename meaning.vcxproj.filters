@@ -17,6 +17,7 @@
     <ClCompile Include="world_to_obj.cpp">
       <Filter>template</Filter>
     </ClCompile>
+    <ClCompile Include="fluid_simulator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="template\bluenoise.h">
@@ -50,6 +51,7 @@
     <ClInclude Include="world_to_obj.h">
       <Filter>template</Filter>
     </ClInclude>
+    <ClInclude Include="fluid_simulator.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="template\LICENSE">
