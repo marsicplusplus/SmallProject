@@ -3,6 +3,8 @@
 #define OGT_VOX_IMPLEMENTATION
 #include "lib/ogt_vox.h"
 
+#include "light_manager.h"
+
 // Acknowledgements:
 // B&H'21 = Brian Janssen and Hugo Peters, INFOMOV'21 assignment
 // CO'21  = Christian Oliveros, INFOMOV'21 assignment
@@ -188,6 +190,47 @@ World::World(const uint targetID)
 	delete[] data32;
 	// load a bitmap font for the print command
 	font = new Surface("assets/font.png");
+
+}
+
+void World::InitReSTIR() {
+	/* ReSTIR initialization */
+	lm = new Tmpl8::LightManager();
+	params.numberOfLights = 0;
+	params.accumulate = false;
+	params.spatial = USESPATIAL;
+	params.temporal = USETEMPORAL;
+	params.spatialTaps = SPATIALTAPS;
+	params.spatialRadius = SPATIALRADIUS;
+	params.numberOfCandidates = NUMBEROFCANDIDATES;
+	params.numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
+	params.skyDomeSampling = true;
+	vector<Light> ls;
+	SetupLights(ls);
+	SetupReservoirBuffers();
+}
+
+void World::SetupReservoirBuffers()
+{
+	Buffer* reservoirbuffer = GetReservoirsBuffer()[0];
+	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT;
+	if (!reservoirbuffer)
+	{
+		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
+		SetReservoirBuffer(reservoirbuffer, 0);
+	}
+
+	Buffer* prevReservoirbuffer = GetReservoirsBuffer()[1];
+	if (!prevReservoirbuffer)
+	{
+		prevReservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
+		SetReservoirBuffer(prevReservoirbuffer, 1);
+	}
+}
+void World::SetupLights(vector<Light>& ls)
+{
+	lm->FindLightsInWorld(ls);
+	lm->SetupBuffer(ls);
 }
 
 // World Destructor
@@ -211,6 +254,7 @@ World::~World()
 	delete sky;
 	delete blueNoise;
 	delete font;
+	delete lm;
 	clReleaseProgram(sharedProgram);
 }
 
@@ -1508,6 +1552,17 @@ Intersection* World::TraceBatchToVoid(const uint batchSize)
 	}
 	// return host buffer with ray tracing results
 	return (Intersection*)rayBatchResult->hostBuffer;
+}
+
+void World::UpdateLights(float deltaTime) {
+	if (lm->lightsAreMoving)
+	{
+		lm->MoveLights();
+	}
+	if (lm->poppingLights)
+	{
+		lm->PopLights(deltaTime);
+	}
 }
 
 /*

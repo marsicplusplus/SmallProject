@@ -16,26 +16,6 @@ void WaterWorld::SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint 
 				Plot(x, y, z, v);
 }
 
-void WaterWorld::SetupReservoirBuffers()
-{
-	World& world = *GetWorld();
-
-	Buffer* reservoirbuffer = world.GetReservoirsBuffer()[0];
-	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT;
-	if (!reservoirbuffer)
-	{
-		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
-		world.SetReservoirBuffer(reservoirbuffer, 0);
-	}
-
-	Buffer* prevReservoirbuffer = world.GetReservoirsBuffer()[1];
-	if (!prevReservoirbuffer)
-	{
-		prevReservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
-		world.SetReservoirBuffer(prevReservoirbuffer, 1);
-	}
-}
-
 //Little dam holding water with a hole in it
 void WaterWorld::InitialiseDamHoleScenario()
 {
@@ -171,7 +151,7 @@ void WaterWorld::Init()
 	//InitialiseBuildingDropScenario();
 	//InitialiseTsunami();
 
-	/* Initialization stuff for ReSTIR */
+	/* Overwrite defaults for ReSTIR */
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
@@ -184,24 +164,10 @@ void WaterWorld::Init()
 	params.skyDomeSampling = skyDomeSampling;
 	world.GetDebugInfo().counter = 0;
 
-	commands.insert({ "spatialtaps", &params.spatialTaps });
-	commands.insert({ "spatialradius", &params.spatialRadius });
-	commands.insert({ "numberofcandidates", &params.numberOfCandidates });
-	commands.insert({ "temporalimportance", &params.numberOfMaxTemporalImportance });
-	commands.insert({ "spatial", &params.spatial });
-	commands.insert({ "temporal", &params.temporal });
-	commands.insert({ "skydome", &params.skyDomeSampling });
-	functionCommands.insert({ "addlights", [](WaterWorld& _1, string _2) {IntArgFunction([](WaterWorld& g, int a) {g.lightManager.AddRandomLights(a); }, _1, _2, 2500); }});
-	functionCommands.insert({ "removelights", [](WaterWorld& _1, string _2) {IntArgFunction([](WaterWorld& g, int a) {g.lightManager.RemoveRandomLights(a); }, _1, _2, 2500); } });
-	functionCommands.insert({ "movelightcount", [](WaterWorld& _1, string _2) {IntArgFunction([](WaterWorld& g, int a) {g.lightManager.SetUpMovingLights(a); }, _1, _2, 2500); } });
-
-	vector<Light> ls;
 	world.OptimizeBricks(); //important to recognize bricks
-	lightManager.FindLightsInWorld(ls);
-	lightManager.SetupBuffer(ls);
-	SetupReservoirBuffers();
-	/**/
 
+	vector<Light> vls;
+	world.SetupLights(vls);
 }
 void WaterWorld::IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg)
 {
@@ -274,14 +240,7 @@ void WaterWorld::Tick(float deltaTime)
 {
 	// update camera
 	HandleInput(deltaTime);
-	if (lightManager.lightsAreMoving)
-	{
-		lightManager.MoveLights();
-	}
-	if (lightManager.poppingLights)
-	{
-		lightManager.PopLights(deltaTime);
-	}
+	
 	
 	if (runCAPESimulation)
 		UpdateCAPE(deltaTime);
