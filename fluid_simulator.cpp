@@ -17,7 +17,7 @@ void FluidSimulator::Update(float deltaTime)
 	cape->Tick(deltaTime);
 }
 
-void FluidSimulator::SetMaterialBlock(const float x, const float y, const float z, const float width, const float height, const float depth, const float amount, const bool clear)
+void FluidSimulator::SetMaterialBlock(uint x, uint y, uint z, uint width, uint height, uint depth, uint amount, bool clear)
 {
 	cape->SetMaterialBlock(x, y, z, width, height, depth, amount, clear);
 }

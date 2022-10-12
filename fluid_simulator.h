@@ -8,7 +8,7 @@ public:
 	~FluidSimulator();
 
 	void Update(float deltaTime);
-	void SetMaterialBlock(const float x, const float y, const float z, const float width, const float height, const float depth, const float amount, const bool clear);
+	void SetMaterialBlock(uint x, uint y, uint z, uint width, uint height, uint depth, uint amount, bool clear);
 private:
 	void InitCAPE(World* world, uint updateRate);
 	void UpdateCAPE(float deltaTime);
