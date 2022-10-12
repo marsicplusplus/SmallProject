@@ -187,6 +187,7 @@ public:
 	void UpdateSkylights(); // updates the six skylight colors
 	void ForceSyncAllBricks();
 	void OptimizeBricks();
+	LightManager* getLightManager() { return lm; };
 	// camera
 	void SetCameraMatrix(const mat4& m) { camMat = m; }
 	float3 GetCameraViewDir() { return make_float3(camMat[2], camMat[6], camMat[10]); }
@@ -519,7 +520,7 @@ private:
 	Surface* font;						// bitmap font for print command
 	bool firstFrame = true;				// for doing things in the first frame
 	float4 skyLight[6];					// integrated light for the 6 possible normals
-	Tmpl8::LightManager *lm;
+	LightManager *lm;
 };
 
 } // namespace Tmpl8
