@@ -780,12 +780,17 @@ void CAPE::ExecuteGPUWorldSetter()
 //Returns kernel execution time in milliseconds
 double KernelExecutionTime(cl_event& e)
 {
-	cl_ulong time_start;
-	cl_ulong time_end;
-	clGetEventProfilingInfo(e, CL_PROFILING_COMMAND_START, sizeof(time_start), &time_start, NULL);
-	clGetEventProfilingInfo(e, CL_PROFILING_COMMAND_END, sizeof(time_end), &time_end, NULL);
-	double nanoSeconds = time_end - time_start;
-	return nanoSeconds / 1000000.0;
+	// The event can be nullptr if we haven't done anything yet. Makes handling the case easier
+	if (e != nullptr)
+	{
+		cl_ulong time_start;
+		cl_ulong time_end;
+		clGetEventProfilingInfo(e, CL_PROFILING_COMMAND_START, sizeof(time_start), &time_start, NULL);
+		clGetEventProfilingInfo(e, CL_PROFILING_COMMAND_END, sizeof(time_end), &time_end, NULL);
+		double nanoSeconds = time_end - time_start;
+		return nanoSeconds / 1000000.0;
+	}
+	return 0;
 }
 
 //Performs a single update - also maintains timers and calls print function
@@ -814,33 +819,37 @@ void CAPE::Tick(float deltaTime)
 			brick_a_buffer->CopyToDevice(false);
 			brick_oa_buffer->CopyToDevice(false);
 			brick_jobs_buffer->CopyToDevice(false);
-			SetKernelArguments();
 
-			//Step 0: Update bricks
-			ExecuteGPUBrickUpdate();
+			if (bricks_allocated > 0)
+			{
+				SetKernelArguments();
 
-			//Step 1: Let all cells advect
-			ExecuteGPUMaterialAdvection();
+				//Step 0: Update bricks
+				ExecuteGPUBrickUpdate();
 
-			//data in buffer is finalised, retrieve for future brickupdate (we can do this out of order.. and asynchronously.
-			brick_m_buffer->CopyFromDevice(false);
+				//Step 1: Let all cells advect
+				ExecuteGPUMaterialAdvection();
 
-			//Step 2: Let all cells transition their velocity and apply global acceleration
-			ExecuteGPUVelocityAdvection();
+				//data in buffer is finalised, retrieve for future brickupdate (we can do this out of order.. and asynchronously.
+				brick_m_buffer->CopyFromDevice(false);
 
-			//Step 3: Determine expected divergence with new velocities
-			ExecuteGPUDivergence();
+				//Step 2: Let all cells transition their velocity and apply global acceleration
+				ExecuteGPUVelocityAdvection();
 
-			//Step 4: Solve for a pressure that will prevent divergence
-			ExecuteGPUPressure();
+				//Step 3: Determine expected divergence with new velocities
+				ExecuteGPUDivergence();
 
-			//Step 5: Apply pressure gradient to correct velocity
-			ExecuteGPUPressureGradient();
+				//Step 4: Solve for a pressure that will prevent divergence
+				ExecuteGPUPressure();
 
-			//Step 6: Convert sim data to voxels in render data
-			ExecuteGPUWorldSetter();
+				//Step 5: Apply pressure gradient to correct velocity
+				ExecuteGPUPressureGradient();
 
-			clFinish(capeKernel->GetQueue());
+				//Step 6: Convert sim data to voxels in render data
+				ExecuteGPUWorldSetter();
+
+				clFinish(capeKernel->GetQueue());
+			}
 
 			for (int i = 0; i < bricks_allocated; i++) //Jobs done
 				brick_jobs[i] = UINT32_MAX;
