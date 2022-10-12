@@ -1,7 +1,6 @@
 #include "precomp.h"
 #include "worldeditor.h"
 
-
 WorldEditor::WorldEditor()
 {
 	tempBricks = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
@@ -49,24 +48,61 @@ void WorldEditor::MouseMove(int x, int y)
 	}
 	else if (gesture.key == GestureKey::GESTURE_CTRL)
 	{
+		aabb oldBox = selectedBricks.box;
 		selectedBricks.box = selectedBricks.anchor;
 		UpdateSelectedBrick();
 
-		World& world = *GetWorld();
-		memcpy(world.GetBrick(), tempBricks, CHUNKCOUNT * CHUNKSIZE);
-		memcpy(world.GetGrid(), tempGrid, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-
-		if (gesture.button == GestureButton::GESTURE_LMB)
+		if (!(oldBox == selectedBricks.box))
 		{
-			if (gesture.mode == GestureMode::GESTURE_ADD)
-			{
-				AddBrick();
-			}
+			World& world = *GetWorld();
+			unsigned short* brick = world.GetBrick();
+			uint* grid = world.GetGrid();
 
-			if (gesture.mode == GestureMode::GESTURE_SUBTRACT)
-			{
-				RemoveBrick();
-			}
+			// Calculate the symmetrical difference
+			// Subtract the intersextion from oldbox is voxels to remove
+			// Subtracting intersection from newbox is voxels to add
+			aabb intersection = oldBox.Intersection(selectedBricks.box);
+
+			// We've updated the selected bricks box so now it doesn't cover the same bricks
+			// For all updated bricks, put back the old bricks values
+			for (int bx = oldBox.bmax3.x; bx >= oldBox.bmin3.x; bx--)
+				for (int by = oldBox.bmax3.y; by >= oldBox.bmin3.y; by--)
+					for (int bz = oldBox.bmax3.z; bz >= oldBox.bmin3.z; bz--)
+					{
+						__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
+						if (intersection.Contains(b4))
+							continue;
+
+						const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+						const uint value = tempGrid[cellIdx];
+						uint brickOffset = (value >> 1);
+
+						memcpy(brick + brickOffset * BRICKSIZE, tempBricks + brickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+						grid[cellIdx] = value;
+						world.Mark(brickOffset);
+					}
+
+			// Either add or remove the bricks in the new selected bricks aabb
+			for (int bx = selectedBricks.box.bmax3.x; bx >= selectedBricks.box.bmin3.x; bx--)
+				for (int by = selectedBricks.box.bmax3.y; by >= selectedBricks.box.bmin3.y; by--)
+					for (int bz = selectedBricks.box.bmax3.z; bz >= selectedBricks.box.bmin3.z; bz--)
+					{
+						__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
+						if (intersection.Contains(b4))
+							continue;
+
+						if (gesture.mode == GestureMode::GESTURE_ADD)
+						{
+							world.SetBrick(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM, WHITE);
+
+						}
+
+						if (gesture.mode == GestureMode::GESTURE_SUBTRACT)
+						{
+							world.RemoveBrick(bx, by, bz);
+						}
+					}
+
 		}
 	}
 
@@ -149,19 +185,19 @@ void WorldEditor::MouseDown(int mouseButton)
 void WorldEditor::AddBrick()
 {
 	World& world = *GetWorld();
-	for (int x = selectedBricks.box.bmin[0]; x <= selectedBricks.box.bmax[0]; x++)
-		for (int y = selectedBricks.box.bmin[1]; y <= selectedBricks.box.bmax[1]; y++)
-			for (int z = selectedBricks.box.bmin[2]; z <= selectedBricks.box.bmax[2]; z++)
-				world.SetBrick(x * BRICKDIM, y * BRICKDIM, z * BRICKDIM, WHITE);
+	for (int bx = selectedBricks.box.bmin[0]; bx <= selectedBricks.box.bmax[0]; bx++)
+		for (int by = selectedBricks.box.bmin[1]; by <= selectedBricks.box.bmax[1]; by++)
+			for (int bz = selectedBricks.box.bmin[2]; bz <= selectedBricks.box.bmax[2]; bz++)
+				world.SetBrick(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM, WHITE);
 }
 
 void WorldEditor::RemoveBrick()
 {
 	World& world = *GetWorld();
-	for (int x = selectedBricks.box.bmin[0]; x <= selectedBricks.box.bmax[0]; x++)
-		for (int y = selectedBricks.box.bmin[1]; y <= selectedBricks.box.bmax[1]; y++)
-			for (int z = selectedBricks.box.bmin[2]; z <= selectedBricks.box.bmax[2]; z++)
-				world.SetBrick(x * BRICKDIM, y * BRICKDIM, z * BRICKDIM, 0);
+	for (int bx = selectedBricks.box.bmin[0]; bx <= selectedBricks.box.bmax[0]; bx++)
+		for (int by = selectedBricks.box.bmin[1]; by <= selectedBricks.box.bmax[1]; by++)
+			for (int bz = selectedBricks.box.bmin[2]; bz <= selectedBricks.box.bmax[2]; bz++)
+				world.RemoveBrick(bx, by, bz);
 }
 
 void WorldEditor::MouseUp(int mouseButton)
@@ -181,7 +217,7 @@ void WorldEditor::MouseUp(int mouseButton)
 }
 
 // Linear to SRGB, also via https://www.shadertoy.com/view/3sfBWs
-bool LessThan(const float2 a, const float2 b)
+bool LessThan(float2 a, float2 b)
 {
 	return
 		(a.x < b.x) &&

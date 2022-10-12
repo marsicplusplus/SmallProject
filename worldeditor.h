@@ -62,7 +62,6 @@ namespace Tmpl8
 		Gesture gesture;
 		PAYLOAD* tempBricks = 0;
 		uint* tempGrid = 0;
-
 	};
 }
 

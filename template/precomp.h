@@ -683,6 +683,17 @@ class aabb
 {
 public:
 	aabb() = default;
+	bool operator==(const aabb& bb) const
+	{
+		return (
+			bmin3.x == bb.bmin3.x && 
+			bmin3.y == bb.bmin3.y && 
+			bmin3.z == bb.bmin3.z &&
+			bmax3.x == bb.bmax3.x && 
+			bmax3.y == bb.bmax3.y && 
+			bmax3.z == bb.bmax3.z
+		);
+	}
 	aabb( __m128 a, __m128 b ) { bmin4 = a, bmax4 = b; bmin[3] = bmax[3] = 0; }
 	aabb( float3 a, float3 b ) { bmin[0] = a.x, bmin[1] = a.y, bmin[2] = a.z, bmin[3] = 0, bmax[0] = b.x, bmax[1] = b.y, bmax[2] = b.z, bmax[3] = 0; }
 	__inline void Reset() { bmin4 = _mm_set_ps1( 1e34f ), bmax4 = _mm_set_ps1( -1e34f ); }

@@ -293,6 +293,18 @@ public:
 			}
 		}
 	}
+	__forceinline void RemoveBrick(const uint bx, const uint by, const uint bz)
+	{
+		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
+		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		// obtain current brick identifier from top-level grid
+		uint g = grid[cellIdx], g1 = g >> 1;
+
+		brickInfo[g1].zeroes = BRICKSIZE;
+		grid[cellIdx] = 0;	// brick just became completely zeroed; recycle
+		Mark(g1);			// no need to send it to GPU anymore
+		FreeBrick(g1);
+	}
 	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */ )
 	{
 		if (v > 0)
@@ -349,13 +361,32 @@ public:
 			return;
 		}
 		grid[cellIdx] = 0;	// brick just became completely zeroed; recycle
-		UnMark( g1 );		// no need to send it to GPU anymore
+		//UnMark( g1 );		// no need to send it to GPU anymore
 		FreeBrick( g1 );
 	}
 	//Temp Getter to allow easy access to world data from CAPE
 	Buffer* GetBrickBuffer() { return brickBuffer; }
 	Buffer* GetZeroesBuffer() { return zeroesBuffer; }
 	cl_mem GetGridMap() { return gridMap; }
+
+	void Mark(const uint idx)
+	{
+	#if THREADSAFEWORLD
+		// be careful, setting a bit in an array is not thread-safe without _interlockedbittestandset
+		_interlockedbittestandset((LONG*)modified + (idx >> 5), idx & 31);
+	#else
+		modified[idx >> 5] |= 1 << (idx & 31);
+	#endif
+	}
+	void UnMark(const uint idx)
+	{
+	#if THREADSAFEWORLD
+		// be careful, resetting a bit in an array is not thread-safe without _interlockedbittestandreset
+		_interlockedbittestandreset((LONG*)modified + (idx >> 5), idx & 31);
+	#else
+		modified[idx >> 5] &= 0xffffffffu - (1 << (idx & 31));
+	#endif
+	}
 private:
 	uint NewBrick()
 	{
@@ -379,24 +410,7 @@ private:
 		trash[trashHead++ & (BRICKCOUNT - 1)] = idx;
 	#endif
 	}
-	void Mark( const uint idx )
-	{
-	#if THREADSAFEWORLD
-		// be careful, setting a bit in an array is not thread-safe without _interlockedbittestandset
-		_interlockedbittestandset( (LONG*)modified + (idx >> 5), idx & 31 );
-	#else
-		modified[idx >> 5] |= 1 << (idx & 31);
-	#endif
-	}
-	void UnMark( const uint idx )
-	{
-	#if THREADSAFEWORLD
-		// be careful, resetting a bit in an array is not thread-safe without _interlockedbittestandreset
-		_interlockedbittestandreset( (LONG*)modified + (idx >> 5), idx & 31 );
-	#else
-		modified[idx >> 5] &= 0xffffffffu - (1 << (idx & 31));
-	#endif
-	}
+
 	bool IsDirty( const uint idx ) { return (modified[idx >> 5] & (1 << (idx & 31))) > 0; }
 	bool IsDirty32( const uint idx ) { return modified[idx] != 0; }
 	void ClearMarks32( const uint idx ) { modified[idx] = 0; }
