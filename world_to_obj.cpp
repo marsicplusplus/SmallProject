@@ -41,7 +41,7 @@ uint Tmpl8::ToUint(float3 c)
 
 int createVertex(unordered_map<int, int>& map, vector<int3>& vertices, int3 v)
 {
-	int hash = v.x + v.z * GRIDWIDTH * BRICKDIM + v.y * GRIDWIDTH * BRICKDIM * GRIDDEPTH * BRICKDIM;
+	int hash = v.x + v.z * GRIDWIDTH * BRICKDIM + v.y * GRIDSIZE * BRICKDIM;
 	auto search = map.find(hash);
 	if (search != map.end())
 	{
