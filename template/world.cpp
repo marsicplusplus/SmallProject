@@ -10,8 +10,8 @@
 
 using namespace Tmpl8;
 
-static const uint gridSize = GRIDSIZE * sizeof(uint);
-static const uint commitSize = BRICKCOMMITSIZE + gridSize;
+static const uint numBytesGrid = GRIDSIZE * sizeof(uint);
+static const uint commitSize = BRICKCOMMITSIZE + numBytesGrid;
 
 // helper defines for inline ray tracing
 #define OFFS_X		((bits >> 5) & 1)			// extract grid plane offset over x (0 or 1)
@@ -76,16 +76,16 @@ World::World(const uint targetID)
 	memset(trash, 0, BRICKCOUNT * 4);
 	for (uint i = 0; i < BRICKCOUNT; i++) trash[(i * 31 /* prevent false sharing*/) & (BRICKCOUNT - 1)] = i;
 	// prepare a test world
-	grid = gridOrig = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
-	memset(grid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-	zeroes = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
-	memset(zeroes, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-	zeroesBuffer = new Buffer(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH, Buffer::DEFAULT, (uint*)zeroes);
+	grid = gridOrig = (uint*)_aligned_malloc(numBytesGrid, 64);
+	memset(grid, 0, numBytesGrid);
+	zeroes = (uint*)_aligned_malloc(numBytesGrid, 64);
+	memset(zeroes, 0, numBytesGrid);
+	zeroesBuffer = new Buffer(GRIDSIZE, Buffer::DEFAULT, (uint*)zeroes);
 	zeroesBuffer->CopyToDevice();
 	DummyWorld();
 	ClearMarks(); // clear 'modified' bit array
 	// report memory usage
-	printf("Allocated %iMB on CPU and GPU for the top-level grid.\n", (int)(gridSize >> 20));
+	printf("Allocated %iMB on CPU and GPU for the top-level grid.\n", (int)(numBytesGrid >> 20));
 	printf("Allocated %iMB on CPU and GPU for %ik bricks.\n", (int)((BRICKCOUNT * BRICKSIZE) >> 20), (int)(BRICKCOUNT >> 10));
 	printf("Allocated %iKB on CPU for bitfield.\n", (int)(BRICKCOUNT >> 15));
 	printf("Allocated %iMB on CPU for brickInfo.\n", (int)((BRICKCOUNT * sizeof(BrickInfo)) >> 20));
@@ -1758,15 +1758,15 @@ void World::Commit()
 	static uint* pinnedMemPtr = 0;
 	if (pinnedMemPtr == 0)
 	{
-		const uint pinnedSize = commitSize + gridSize;
+		const uint pinnedSize = commitSize + numBytesGrid;
 		cl_mem pinned = clCreateBuffer(Kernel::GetContext(), CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, commitSize * 2, 0, 0);
 		pinnedMemPtr = (uint*)clEnqueueMapBuffer(Kernel::GetQueue(), pinned, 1, CL_MAP_WRITE, 0, pinnedSize, 0, 0, 0, 0);
-		StreamCopy((__m256i*)(pinnedMemPtr + commitSize / 4), (__m256i*)grid, gridSize);
+		StreamCopy((__m256i*)(pinnedMemPtr + commitSize / 4), (__m256i*)grid, numBytesGrid);
 		grid = pinnedMemPtr + commitSize / 4; // top-level grid resides at the start of the staging buffer
 	}
 	// gather changed bricks
 	tasks = 0;
-	uint* brickIndices = pinnedMemPtr + gridSize / 4;
+	uint* brickIndices = pinnedMemPtr + numBytesGrid / 4;
 	uchar* changedBricks = (uchar*)(brickIndices + MAXCOMMITS);
 	for (uint j = 0; j < BRICKCOUNT / 32; j++) if (IsDirty32(j) /* if not dirty: skip 32 bits at once */)
 	{
@@ -1787,9 +1787,9 @@ void World::Commit()
 		zeroesBuffer->CopyToDevice(); //Lazy commit zeroes
 
 		// copy top-level grid to start of pinned buffer in preparation of final transfer
-		StreamCopyMT((__m256i*)pinnedMemPtr, (__m256i*)grid, gridSize);
+		StreamCopyMT((__m256i*)pinnedMemPtr, (__m256i*)grid, numBytesGrid);
 		// enqueue (on queue 2) memcopy of pinned buffer to staging buffer on GPU
-		const uint copySize = firstFrame ? commitSize : (gridSize + MAXCOMMITS * 4 + tasks * BRICKSIZE * PAYLOADSIZE);
+		const uint copySize = firstFrame ? commitSize : (numBytesGrid + MAXCOMMITS * 4 + tasks * BRICKSIZE * PAYLOADSIZE);
 		clEnqueueWriteBuffer(Kernel::GetQueue2(), devmem, 0, 0, copySize, pinnedMemPtr, 0, 0, 0);
 		const size_t ws = UBERWIDTH * UBERHEIGHT * UBERDEPTH;
 		const size_t ls = 16;
