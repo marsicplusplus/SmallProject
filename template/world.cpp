@@ -299,13 +299,8 @@ void World::Clear()
 	uint bs = CHUNKCOUNT * CHUNKSIZE;
 	memset(brick, 0, bs * sizeof(uchar));
 
-	// TO-DO: This is done in the fluid sim project, but breaks
-	// the ReSTIR project
-	for (int i = 0; i < GRIDSIZE; i++)
-		grid[i] = (i << 1) | 1; //zero identifier
 	for (int i = 0; i < BRICKCOUNT; i++)
-		zeroes[i] = BRICKSIZE;
-
+		zeroes[i] = 0;
 	zeroesBuffer->CopyToDevice();
 
 	ClearMarks();
@@ -1633,14 +1628,6 @@ void World::Render()
 			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferInIndex]); //read
 
 #endif
-// TODO: THIS BLOCK NEEDS TO BE CHECKED. In Waterworld is the following:
-/* 
-* 			renderer->SetArgument( 1, paramBuffer );
-*			renderer->SetArgument( 2, &gridMap );
-*			renderer->SetArgument( 3, sky );
-*			renderer->SetArgument( 4, blueNoise );
-*			renderer->SetArgument( 5, &uberGrid );
-*/ 
 			currentRenderer->SetArgument(renderer_arg_i++, &gridMap);
 			currentRenderer->SetArgument(renderer_arg_i++, sky);
 			currentRenderer->SetArgument(renderer_arg_i++, blueNoise);
