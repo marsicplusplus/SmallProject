@@ -58,7 +58,6 @@ namespace Tmpl8
 		float laserDelay = 10, laserT;
 		int3 laserA, laserB;
 
-		LightManager lightManager;
 		bool runCAPESimulation = false;
 		bool keyPressed[0xFF];
 	};

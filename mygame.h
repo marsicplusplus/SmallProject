@@ -7,10 +7,7 @@ class MyGame : public Game
 {
 	void PrintDebug();
 	void PrintStats();
-	LightManager lightManager;
 public:
-	LightManager& GetLightManager() { return lightManager; }
-	void SetupReservoirBuffers();
 	// game flow methods
 	void Init();
 	void Tick( float deltaTime );
