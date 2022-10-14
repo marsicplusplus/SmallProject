@@ -1274,6 +1274,7 @@ public:
 #include "worldapi.h"
 #include "world_to_obj.h"
 #include "light_manager.h"
+
 struct KeyHandler
 {
 	SHORT last = 0;

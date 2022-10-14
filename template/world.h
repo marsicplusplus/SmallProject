@@ -2,6 +2,7 @@
 #include <CAPE.h>
 #include <future>
 
+
 #define THREADSAFEWORLD 1
 #define SQR(x) ((x)*(x))
 #define TILESIZE	8
@@ -11,6 +12,7 @@
 
 namespace Tmpl8
 {
+class LightManager;
 
 struct BrickInfo { uint zeroes; /* , location; */ };
 
@@ -168,6 +170,7 @@ class World
 public:
 	//thread capeThread;
 	// constructor / destructor
+	CAPE* cape;
 	World(const uint targetID);
 	~World();
 	// initialization
@@ -179,6 +182,7 @@ public:
 	void UpdateSkylights(); // updates the six skylight colors
 	void ForceSyncAllBricks();
 	void OptimizeBricks();
+	LightManager* getLightManager() { return lm; };
 	// camera
 	void SetCameraMatrix(const mat4& m) { camMat = m; }
 	float3 GetCameraViewDir() { return make_float3(camMat[2], camMat[6], camMat[10]); }
@@ -243,6 +247,9 @@ public:
 	void ScrollY( const int offset );
 	void ScrollZ( const int offset );
 	aabb& GetBounds() { return bounds; }
+	void UpdateLights(float deltaTime);
+	void SetupLights(vector<Light> &ls);
+	void InitReSTIR();
 private:
 	// internal methods
 	void EraseSprite( const uint idx );
@@ -252,6 +259,7 @@ private:
 	void EraseParticles( const uint set );
 	void DrawParticles( const uint set );
 	void DrawTileVoxels( const uint cellIdx, const PAYLOAD* voxels, const uint zeroes );
+	void SetupReservoirBuffers();
 	// convenient access to 'guaranteed to be instantiated' sprite, particle, tile lists
 	vector<Sprite*>& GetSpriteList() { return SpriteManager::GetSpriteManager()->sprite; }
 	vector<Particles*>& GetParticlesList() { return ParticlesManager::GetParticlesManager()->particles; }
@@ -507,6 +515,7 @@ private:
 	Surface* font;						// bitmap font for print command
 	bool firstFrame = true;				// for doing things in the first frame
 	float4 skyLight[6];					// integrated light for the 6 possible normals
+	LightManager *lm;
 };
 
 } // namespace Tmpl8
