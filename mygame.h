@@ -8,11 +8,8 @@ namespace Tmpl8
 
 		void PrintDebug();
 		void PrintStats();
-		LightManager lightManager;
 		WorldEditor worldEditor;
 	public:
-		LightManager& GetLightManager() { return lightManager; }
-		void SetupReservoirBuffers();
 		// game flow methods
 		void Init();
 		void Tick(float deltaTime);

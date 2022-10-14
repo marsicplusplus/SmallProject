@@ -122,6 +122,8 @@
   <!-- END Custom section -->
   <ItemGroup>
     <ClCompile Include="advanced.cpp" />
+    <ClCompile Include="CAPE.cpp" />
+    <ClCompile Include="light_manager.cpp" />
     <ClCompile Include="template\template.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">precomp.h</PrecompiledHeaderFile>
@@ -134,9 +136,11 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CAPE.h" />
     <ClInclude Include="cl\tools.cl" />
     <ClInclude Include="cl\trace.cl" />
     <ClInclude Include="advanced.h" />
+    <ClInclude Include="light_manager.h" />
     <ClInclude Include="template\bluenoise.h" />
     <ClInclude Include="template\common.h" />
     <ClInclude Include="template\precomp.h" />
@@ -144,7 +148,12 @@
     <ClInclude Include="template\worldapi.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="cl\cape.cl" />
     <None Include="cl\kernels.cl" />
+    <None Include="cl\phat.cl" />
+    <None Include="cl\reservoir.cl" />
+    <None Include="cl\ris.cl" />
+    <None Include="cl\spatialSampling.cl" />
     <None Include="README.md" />
     <None Include="template\LICENSE" />
   </ItemGroup>

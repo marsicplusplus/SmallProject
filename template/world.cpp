@@ -3,6 +3,8 @@
 #define OGT_VOX_IMPLEMENTATION
 #include "lib/ogt_vox.h"
 
+#include "light_manager.h"
+
 // Acknowledgements:
 // B&H'21 = Brian Janssen and Hugo Peters, INFOMOV'21 assignment
 // CO'21  = Christian Oliveros, INFOMOV'21 assignment
@@ -60,6 +62,7 @@ World::World(const uint targetID)
 	brick = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
 #if ONEBRICKBUFFER == 1
 	brickBuffer = new Buffer(CHUNKSIZE * CHUNKCOUNT / 4 /* dwords */, Buffer::DEFAULT, (uchar*)brick);
+	printf("Chunk count: %i, chunk size: %ld", CHUNKCOUNT, CHUNKSIZE);
 	brickBuffer->CopyToDevice();
 #else
 	brick = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
@@ -187,6 +190,47 @@ World::World(const uint targetID)
 	delete[] data32;
 	// load a bitmap font for the print command
 	font = new Surface("assets/font.png");
+
+}
+
+void World::InitReSTIR() {
+	/* ReSTIR initialization */
+	lm = new Tmpl8::LightManager();
+	params.numberOfLights = 0;
+	params.accumulate = false;
+	params.spatial = USESPATIAL;
+	params.temporal = USETEMPORAL;
+	params.spatialTaps = SPATIALTAPS;
+	params.spatialRadius = SPATIALRADIUS;
+	params.numberOfCandidates = NUMBEROFCANDIDATES;
+	params.numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
+	params.skyDomeSampling = true;
+	vector<Light> ls;
+	SetupLights(ls);
+	SetupReservoirBuffers();
+}
+
+void World::SetupReservoirBuffers()
+{
+	Buffer* reservoirbuffer = GetReservoirsBuffer()[0];
+	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT;
+	if (!reservoirbuffer)
+	{
+		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
+		SetReservoirBuffer(reservoirbuffer, 0);
+	}
+
+	Buffer* prevReservoirbuffer = GetReservoirsBuffer()[1];
+	if (!prevReservoirbuffer)
+	{
+		prevReservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
+		SetReservoirBuffer(prevReservoirbuffer, 1);
+	}
+}
+void World::SetupLights(vector<Light>& ls)
+{
+	lm->FindLightsInWorld(ls);
+	lm->SetupBuffer(ls);
 }
 
 // World Destructor
@@ -210,6 +254,7 @@ World::~World()
 	delete sky;
 	delete blueNoise;
 	delete font;
+	delete lm;
 	clReleaseProgram(sharedProgram);
 }
 
@@ -229,32 +274,11 @@ void World::ForceSyncAllBricks()
 #endif
 }
 
-void World::InitCAPE(uint updateRate)
-{
-	cape = new CAPE();
-	cape->Initialise(this, updateRate);
-	cout << "Initialised CAPE" << endl;
-}
-
-void World::CAPEThread(float deltaTime)
-{
-	cape->Tick(deltaTime);
-}
-
-void World::UpdateCAPE(float deltaTime)
-{
-	//start new sim if done with previous update (no currently active)
-	if(!capeThread.valid())
-		capeThread = std::async(&World::CAPEThread, this, deltaTime);
-	if (capeThread.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
-		capeThread = std::async(&World::CAPEThread, this, deltaTime);
-}
-
-
 // World::OptimizeBricks: replace single-color solid bricks
 // ----------------------------------------------------------------------------
 void World::OptimizeBricks()
 {
+	return;
 	Timer t;
 	int replaced = 0;
 	for (int i = 0; i < GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH; i++)
@@ -273,7 +297,7 @@ void World::OptimizeBricks()
 		if (solid)
 		{
 			// this one has 8x8x8 times the same voxel; replace by solid brick in grid
-			grid[i] = firstVoxel << 1;
+			grid[i] = (firstVoxel << 1) | 0;
 			// recycle brick
 			FreeBrick(value >> 1);
 			// statistics
@@ -315,6 +339,19 @@ void World::Clear()
 	memset(trash, 0, BRICKCOUNT * 4);
 	for (uint i = 0; i < BRICKCOUNT; i++) trash[(i * 31 /* prevent false sharing*/) & (BRICKCOUNT - 1)] = i;
 	trashHead = BRICKCOUNT, trashTail = 0;
+	
+	uint bs = CHUNKCOUNT * CHUNKSIZE;
+	memset(brick, 0, bs * sizeof(uchar));
+
+	// TO-DO: This is done in the fluid sim project, but breaks
+	// the ReSTIR project
+	for (int i = 0; i < GRIDSIZE; i++)
+		grid[i] = (i << 1) | 1; //zero identifier
+	for (int i = 0; i < BRICKCOUNT; i++)
+		zeroes[i] = BRICKSIZE;
+
+	zeroesBuffer->CopyToDevice();
+
 	ClearMarks();
 }
 
@@ -1638,6 +1675,17 @@ Intersection* World::TraceBatchToVoid(const uint batchSize)
 	return (Intersection*)rayBatchResult->hostBuffer;
 }
 
+void World::UpdateLights(float deltaTime) {
+	if (lm->lightsAreMoving)
+	{
+		lm->MoveLights();
+	}
+	if (lm->poppingLights)
+	{
+		lm->PopLights(deltaTime);
+	}
+}
+
 /*
 Render flow:
 1. GLFW application loop in template.cpp calls World::Render:
@@ -1776,11 +1824,21 @@ void World::Render()
 
 			currentRenderer->SetArgument(renderer_arg_i++, paramBuffer);
 #if RIS == 1
+
+
 			currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer);
 			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferOutIndex]); //write
 			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferInIndex]); //read
 
 #endif
+// TODO: THIS BLOCK NEEDS TO BE CHECKED. In Waterworld is the following:
+/* 
+* 			renderer->SetArgument( 1, paramBuffer );
+*			renderer->SetArgument( 2, &gridMap );
+*			renderer->SetArgument( 3, sky );
+*			renderer->SetArgument( 4, blueNoise );
+*			renderer->SetArgument( 5, &uberGrid );
+*/ 
 			currentRenderer->SetArgument(renderer_arg_i++, &gridMap);
 			currentRenderer->SetArgument(renderer_arg_i++, sky);
 			currentRenderer->SetArgument(renderer_arg_i++, blueNoise);
@@ -1848,8 +1906,10 @@ void World::Render()
 			accumulatorFinalizer->SetArgument(2, accumulator);
 			accumulatorFinalizer->SetArgument(3, paramBuffer);
 			accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
+
 #elif TAA == 1
 			static int histIn = 0, histOut = 1;
+
 			// renderer->Run( screen, make_int2( 8, 16 ) );
 			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 			finalizer->SetArgument(0, historyTAA[histIn]);
@@ -1922,6 +1982,8 @@ void World::Commit()
 	// asynchroneously copy the CPU data to the GPU via the staging buffer
 	if (tasks > 0 || firstFrame)
 	{
+		zeroesBuffer->CopyToDevice(); //Lazy commit zeroes
+
 		// copy top-level grid to start of pinned buffer in preparation of final transfer
 		StreamCopyMT((__m256i*)pinnedMemPtr, (__m256i*)grid, gridSize);
 		// enqueue (on queue 2) memcopy of pinned buffer to staging buffer on GPU
