@@ -123,6 +123,7 @@
   <ItemGroup>
     <ClCompile Include="light_manager.cpp" />
     <ClCompile Include="template\CAPE.cpp" />
+    <ClCompile Include="fluid_simulator.cpp" />
     <ClCompile Include="waterworld.cpp" />
     <ClCompile Include="template\template.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -146,6 +147,7 @@
     <ClInclude Include="template\precomp.h" />
     <ClInclude Include="template\world.h" />
     <ClInclude Include="template\worldapi.h" />
+    <ClInclude Include="fluid_simulator.h" />
     <ClInclude Include="waterworld.h" />
     <ClInclude Include="world_to_obj.h" />
   </ItemGroup>

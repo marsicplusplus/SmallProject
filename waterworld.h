@@ -1,4 +1,5 @@
 #pragma once
+#include <fluid_simulator.h>
 
 namespace Tmpl8
 {
@@ -8,6 +9,7 @@ namespace Tmpl8
 	class WaterWorld : public Game
 	{
 	public:
+		WaterWorld();
 		void SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint d, uint v);
 		void InitialiseDamHoleScenario();
 		void InitialiseWaterLevelScenario();
@@ -58,6 +60,7 @@ namespace Tmpl8
 		float laserDelay = 10, laserT;
 		int3 laserA, laserB;
 
+		FluidSimulator fluidSimulator;
 		bool runCAPESimulation = false;
 		bool keyPressed[0xFF];
 	};

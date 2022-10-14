@@ -3,6 +3,11 @@
 
 Game* CreateGame() { return new WaterWorld(); }
 
+Tmpl8::WaterWorld::WaterWorld() :
+	fluidSimulator(GetWorld())
+{
+}
+
 void WaterWorld::SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint d, uint v)
 {
 	if (x0 + w > MAPWIDTH || y0 + h > MAPWIDTH || z0 + d > MAPWIDTH)
@@ -42,7 +47,7 @@ void WaterWorld::InitialiseDamHoleScenario()
 	SetStaticBlock(543, 513, 535, 6, 1, 30, WHITE); //hole 3
 
 	//water
-	SetMaterialBlock(500, 500, 500, 40, 80, 100, 1, false);
+	fluidSimulator.SetMaterialBlock(500, 500, 500, 40, 80, 100, 1, false);
 }
 
 //Little dam holding water with a hole in it
@@ -60,7 +65,7 @@ void WaterWorld::InitialiseWaterLevelScenario()
 	SetStaticBlock(540, 510, 500, 150, 1, 100, WHITE);
 
 	//water
-	SetMaterialBlock(500, 500, 500, 40, 80, 100, 1, false);
+	fluidSimulator.SetMaterialBlock(500, 500, 500, 40, 80, 100, 1, false);
 }
 
 //Spawns a wall of water that will collapse
@@ -77,14 +82,14 @@ void WaterWorld::InitialiseDamBreakScenario()
 	SetStaticBlock(660, 500, 540, 20, 20, 20, WHITE);
 
 	//water
-	SetMaterialBlock(500, 500, 500, 40, 30, 100, 1, false);
+	fluidSimulator.SetMaterialBlock(500, 500, 500, 40, 30, 100, 1, false);
 }
 
 //Scenario used for evaluation: Drop a block 40x40x40 water into 100x100x100 cube
 void WaterWorld::InitialiseWaterBlockDropScenario()
 {
 	//water
-	SetMaterialBlock(515, 530, 515, 30, 30, 30, 1, false);
+	fluidSimulator.SetMaterialBlock(515, 530, 515, 30, 30, 30, 1, false);
 
 	//boundary
 	SetStaticBlock(500, 500, 500, 60, 60, 1, RED);
@@ -98,7 +103,7 @@ void WaterWorld::InitialiseWaterBlockDropScenario()
 void WaterWorld::InitialiseBuildingDropScenario()
 {
 	//water
-	SetMaterialBlock(320, 500, 510, 40, 10, 40, 1, false);
+	fluidSimulator.SetMaterialBlock(320, 500, 510, 40, 10, 40, 1, false);
 
 	ship = LoadSprite("assets/flyingapts.vx"), corvette = LoadSprite("assets/corvette.vx");
 	StampSpriteTo(ship, 200, 250, 400);
@@ -118,7 +123,7 @@ void WaterWorld::InitialiseTsunami()
 	SetStaticBlock(00, 0, 700, 1024, 200, 1, WHITE);
 	SetStaticBlock(400, 0, 400, 1, 200, 300, WHITE);
 	//water
-	SetMaterialBlock(20, 0, 400, 100, 200, 300, 1, false);
+	fluidSimulator.SetMaterialBlock(20, 0, 400, 100, 200, 300, 1, false);
 }
 
 static bool shouldDumpBuffer = false;
@@ -140,8 +145,6 @@ void WaterWorld::Init()
 	// default scene is a box; punch a hole in the ceiling
 	Box(256, 240, 256, 768, 260, 768, 0);
 	// add some objects
-
-	InitCAPE(100);
 
 	//A few scenario's to choose from
 	//InitialiseDamHoleScenario();
@@ -165,7 +168,6 @@ void WaterWorld::Init()
 	world.GetDebugInfo().counter = 0;
 
 	world.OptimizeBricks(); //important to recognize bricks
-
 	vector<Light> vls;
 	world.SetupLights(vls);
 }
@@ -197,7 +199,7 @@ void WaterWorld::HandleInput(float deltaTime)
 	if (GetAsyncKeyState(VK_RIGHT)) D = normalize(D + right * 0.025f * speed);
 	if (GetAsyncKeyState(VK_UP)) D = normalize(D - up * 0.025f * speed);
 	if (GetAsyncKeyState(VK_DOWN)) D = normalize(D + up * 0.025f * speed);
-	if (GetAsyncKeyState(VK_SPACE)) UpdateCAPE(deltaTime);
+	if (GetAsyncKeyState(VK_SPACE)) fluidSimulator.Update(deltaTime);
 	if (GetAsyncKeyState(VK_SHIFT) && !keyPressed[VK_SHIFT])
 	{
 		runCAPESimulation = !runCAPESimulation;
@@ -243,5 +245,5 @@ void WaterWorld::Tick(float deltaTime)
 	
 	
 	if (runCAPESimulation)
-		UpdateCAPE(deltaTime);
+		fluidSimulator.Update(deltaTime);
 }

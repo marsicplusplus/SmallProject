@@ -274,28 +274,6 @@ void World::ForceSyncAllBricks()
 #endif
 }
 
-void World::InitCAPE(uint updateRate)
-{
-	cape = new CAPE();
-	cape->Initialise(this, updateRate);
-	cout << "Initialised CAPE" << endl;
-}
-
-void World::CAPEThread(float deltaTime)
-{
-	cape->Tick(deltaTime);
-}
-
-void World::UpdateCAPE(float deltaTime)
-{
-	//start new sim if done with previous update (no currently active)
-	if(!capeThread.valid())
-		capeThread = std::async(&World::CAPEThread, this, deltaTime);
-	if (capeThread.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
-		capeThread = std::async(&World::CAPEThread, this, deltaTime);
-}
-
-
 // World::OptimizeBricks: replace single-color solid bricks
 // ----------------------------------------------------------------------------
 void World::OptimizeBricks()
