@@ -7,6 +7,9 @@ WorldEditor::WorldEditor()
 	tempGrid = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
 	memset(tempBricks, 0, CHUNKCOUNT * CHUNKSIZE);
 	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+
+	loadedTiles.push_back(LoadTile("assets/flower.vox"));
+	tileIdx = loadedTiles.front();
 }
 
 void WorldEditor::MouseMove(int x, int y)
@@ -93,8 +96,7 @@ void WorldEditor::MouseMove(int x, int y)
 
 						if (gesture.mode == GestureMode::GESTURE_ADD)
 						{
-							world.SetBrick(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM, WHITE);
-
+							world.DrawTile(tileIdx, bx, by, bz);
 						}
 
 						if (gesture.mode == GestureMode::GESTURE_SUBTRACT)
@@ -158,7 +160,6 @@ void WorldEditor::MouseDown(int mouseButton)
 	gesture.state = GestureState::GESTURE_START;
 	gesture.button = (GestureButton)mouseButton;
 
-	// For now, add a brick to the face of the selected voxel the cursor is on
 	if (gesture.button == GestureButton::GESTURE_LMB)
 	{
 		World& world = *GetWorld();
@@ -178,7 +179,6 @@ void WorldEditor::MouseDown(int mouseButton)
 		selectedBricks.anchor = selectedBricks.box;
 	}
 
-	// Reset the selected voxel aabb 
 	UpdateSelectedBrick(); 
 }
 
@@ -188,7 +188,7 @@ void WorldEditor::AddBrick()
 	for (int bx = selectedBricks.box.bmin[0]; bx <= selectedBricks.box.bmax[0]; bx++)
 		for (int by = selectedBricks.box.bmin[1]; by <= selectedBricks.box.bmax[1]; by++)
 			for (int bz = selectedBricks.box.bmin[2]; bz <= selectedBricks.box.bmax[2]; bz++)
-				world.SetBrick(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM, WHITE);
+				world.DrawTile(tileIdx, bx, by, bz);
 }
 
 void WorldEditor::RemoveBrick()
@@ -248,13 +248,10 @@ void WorldEditor::UpdateSelectedBrick()
 	if (gesture.state == GestureState::GESTURE_UPDATE || gesture.state == GestureState::GESTURE_START)
 	{
 		intersection = Trace(ray, tempBricks, tempGrid);
-		printf("Temp Trace\n");
 	}
 	else 
 	{
 		intersection = Trace(ray);
-		printf("Normal Trace\n");
-
 	}
 
 	if (intersection.GetVoxel() == 0)
@@ -326,8 +323,6 @@ void WorldEditor::UpdateSelectedBrick()
 
 		float3 brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
 		selectedBricks.box.Grow(brickPos);
-		printf("Hit World Grid - Brick X: %i   Brick Y: %i    Brick Z: %i \n", (int)brickPos.x, (int)brickPos.y, (int)brickPos.z);
-
 	}
 	else
 	{
@@ -349,9 +344,9 @@ void WorldEditor::UpdateSelectedBrick()
 		{
 			selectedBricks.box.Grow(brickPos);
 		}
-		printf("Hit Brick \n");
 	}
 
+	// Update rendering params to trace the selected bricks outline
 	params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM;
 	params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM + make_float3(BRICKDIM, BRICKDIM, BRICKDIM);
 }
