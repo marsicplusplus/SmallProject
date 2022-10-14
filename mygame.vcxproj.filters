@@ -20,6 +20,7 @@
     <ClCompile Include="template\CAPE.cpp">
       <Filter>template</Filter>
     </ClCompile>
+    <ClCompile Include="worldeditor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="template\bluenoise.h">
@@ -52,6 +53,7 @@
     <ClInclude Include="template\CAPE.h">
       <Filter>template</Filter>
     </ClInclude>
+    <ClInclude Include="worldeditor.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="template\LICENSE">

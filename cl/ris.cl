@@ -177,12 +177,26 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 	struct Reservoir res = prevReservoirs[x + y * SCRWIDTH];
 
-	float3 color = (float3)(0.0, 0.0, 0.0);
+	float3 color = (float3)(0.5, 0.4, 1.0);
 	// hit the background/exit the scene
+
+	float distance = dist;
+	if (HitSelectedBrick(params->E, D, params->selectedMin, params->selectedMax, &distance))
+	{
+		color = (float3)(0.2, 0.8, 0.8);
+		return (float4)(color, distance);
+	}
+
 	if (voxel == 0)
 	{
-		dist = 1e20f;
-		if (params->skyDomeSampling) color = SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight);
+		if (HitWorldGrid(params->E, D))
+		{
+			color = (float3)(0.8, 0.8, 0.8);
+		}
+		else if (params->skyDomeSampling)
+		{
+			color = SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight);
+		}
 	}
 	else
 	{

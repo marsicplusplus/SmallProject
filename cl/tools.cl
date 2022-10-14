@@ -143,6 +143,156 @@ float3 SampleSky(const float3 T, __global float4* sky, uint w, uint h)
 	return s.xyz;
 }
 
+bool HitAABB(const float3 O, const float3 D, const float3 boxMin, const float3 boxMax, bool useWinding, float* distance)
+{
+	float3 center = (boxMax + boxMin) / 2;
+	float3 radius = (boxMax - boxMin) / 2;
+
+	// Move to the box's reference frame. This is unavoidable and un-optimizable.
+	float3 rayOrigin = O - center;
+
+
+	// Winding direction: -1 if the ray starts inside of the box (i.e., and is leaving), +1 if it is starting outside of the box
+	float3 res = fabs(rayOrigin) * (1.0 / radius);
+	float max = res.x;
+	if (res.y > max) max = res.y;
+	if (res.z > max) max = res.z;
+	float winding = (max < 1.0) ? -1.0 : 1.0;
+
+
+	// We'll use the negated sign of the ray direction in several places, so precompute it.
+	// The sign() instruction is fast...but surprisingly not so fast that storing the result
+	// temporarily isn't an advantage.
+	float3 sgn = -sign(D);
+
+	// Ray-plane intersection. For each pair of planes, choose the one that is front-facing
+	// to the ray and compute the distance to it.
+	float3 distanceToPlane = radius * (useWinding ? winding : -1.0) * sgn - rayOrigin;
+	distanceToPlane *= (1.0 / D);
+
+	// Perform all three ray-box tests and cast to 0 or 1 on each axis. 
+	// Use a macro to eliminate the redundant code (no efficiency boost from doing so, of course!)
+	// Could be written with 
+#   define TEST(U, VW)\
+         /* Is there a hit on this axis in front of the origin? Use multiplication instead of && for a small speedup */\
+         (distanceToPlane.U >= 0.0) && \
+         /* Is that hit within the face of the box? */\
+         all(isless(fabs(rayOrigin.VW + D.VW * distanceToPlane.U), radius.VW))
+
+	int3 test = (int3)(TEST(x, yz), TEST(y, zx), TEST(z, xy));
+
+	// CMOV chain that guarantees exactly one element of sgn is preserved and that the value has the right sign
+	sgn = test.x ? (float3)(sgn.x, 0.0, 0.0) : (test.y ? (float3)(0.0, sgn.y, 0.0) : (float3)(0.0, 0.0, test.z ? sgn.z : 0.0));
+#   undef TEST
+
+	// At most one element of sgn is non-zero now. That element carries the negative sign of the 
+	// ray direction as well. Notice that we were able to drop storage of the test vector from registers,
+	// because it will never be used again.
+
+
+	// Normal must face back along the ray. If you need
+	// to know whether we're entering or leaving the box, 
+	// then just look at the value of winding. If you need
+	// texture coordinates, then use box.invDirection * hitPoint.
+	float3 normal = sgn;
+
+	// Mask the distance by the non-zero axis
+	// Dot product is faster than this CMOV chain, but doesn't work when distanceToPlane contains nans or infs. 
+	//
+	float dist = (sgn.x != 0.0) ? distanceToPlane.x : ((sgn.y != 0.0) ? distanceToPlane.y : distanceToPlane.z);
+	if (dist > *distance && *distance != 0)
+		return false;
+	//printf(" Distance: %f \n", *distance);
+
+	*distance = dist;
+	bool hit = (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
+	return hit;
+}
+
+bool HitSelectedBrick(const float3 O, const float3 D, const float3 bboxMin, const float3 bboxMax, float* distance)
+{
+	float closeDistance = *distance;
+	float3 wireMin = bboxMin - (float3)(0.1, 0.1, 0.1);
+	float3 wireMax = bboxMax + (float3)(0.1, 0.1, 0.1);
+
+	if (HitAABB(O, D, wireMin, wireMax, true, &closeDistance))
+	{
+		const float3 shadingPoint = D * closeDistance + O;
+		float delta = 0.3;
+		bool hitx = fabs(shadingPoint.x - bboxMin.x) < delta || fabs(bboxMax.x - shadingPoint.x) < delta;
+		bool hity = fabs(shadingPoint.y - bboxMin.y) < delta || fabs(bboxMax.y - shadingPoint.y) < delta;
+		bool hitz = fabs(shadingPoint.z - bboxMin.z) < delta || fabs(bboxMax.z - shadingPoint.z) < delta;
+
+
+		if (((hitx || hity) && hitz) ||
+			((hity || hitz) && hitx) ||
+			((hitx || hitz) && hity))
+		{
+			*distance = closeDistance;
+			return true;
+		}
+	}
+
+	float farDistance = *distance;
+	if (HitAABB(O, D, wireMin, wireMax, false, &farDistance))
+	{
+		const float3 shadingPoint = D * farDistance + O;
+		float delta = 0.3;
+		bool hitx = fabs(shadingPoint.x - bboxMin.x) < delta || fabs(bboxMax.x - shadingPoint.x) < delta;
+		bool hity = fabs(shadingPoint.y - bboxMin.y) < delta || fabs(bboxMax.y - shadingPoint.y) < delta;
+		bool hitz = fabs(shadingPoint.z - bboxMin.z) < delta || fabs(bboxMax.z - shadingPoint.z) < delta;
+
+
+		if (((hitx || hity) && hitz) ||
+			((hity || hitz) && hitx) ||
+			((hitx || hitz) && hity))
+		{
+			*distance = farDistance;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+
+// Check if we've hit the world grid using the Ray-Box Intersection Algorithm from https://jcgt.org/published/0007/03/04/paper-lowres.pdf
+bool HitWorldGrid(const float3 O, const float3 D)
+{
+
+	float3 worldMin = (0, 0, 0);
+	float3 worldMax = (1024, 1024, 1024);
+	float distance = 0;
+	// This allows us to ensure we're always looking inside the world grid
+	bool useWinding = false;
+	if (!HitAABB(O, D, worldMin, worldMax, useWinding, &distance)) return false;
+
+	//printf(/*"Shading Point X: %f, Shading Point Y: %f,  Shading Point Z: %f, */ "Distance: % f", /*shadingPoint.x, shadingPoint.y, shadingPoint.z,*/ distance);
+
+	float3 hitpoint = O + D * distance;
+	float delta = 0.1;
+
+	// Check if we've hit a section of the grid
+	//bool hitx = hitpoint.x - floor(hitpoint.x) < delta || ceil(hitpoint.x) - hitpoint.x < delta;
+	//bool hity = hitpoint.y - floor(hitpoint.y) < delta || ceil(hitpoint.y) - hitpoint.y < delta;
+	//bool hitz = hitpoint.z - floor(hitpoint.z) < delta || ceil(hitpoint.z) - hitpoint.z < delta;
+
+	bool hitx = ((int)floor(hitpoint.x) % 8 == 0 || (int)ceil(hitpoint.x) % 8 == 0) /*&& (hitpoint.x - floor(hitpoint.x) < delta || ceil(hitpoint.x) - hitpoint.x < delta)*/;
+	bool hity = ((int)floor(hitpoint.y) % 8 == 0 || (int)ceil(hitpoint.y) % 8 == 0) /*&& (hitpoint.y - floor(hitpoint.y) < delta || ceil(hitpoint.y) - hitpoint.y < delta)*/;
+	bool hitz = ((int)floor(hitpoint.z) % 8 == 0 || (int)ceil(hitpoint.z) % 8 == 0) /*&& (hitpoint.z - floor(hitpoint.z) < delta || ceil(hitpoint.z) - hitpoint.z < delta)*/;
+
+	if (((hitx || hity) && hitz) ||
+		((hity || hitz) && hitx) ||
+		((hitx || hitz) && hity))
+	{
+		return true;
+	}
+
+	return false;
+
+}
+
 // 4 bits so the value ranges from 0 to 15
 float EmitStrength(const uint v)
 {
@@ -309,7 +459,7 @@ bool Uint3equals(const uint3 v1, const uint3 v2)
 // simply put is v2 in the cube v1 to v1 + size.
 bool Uint3CubeEquals(const uint3 v1, const uint3 v2, const uint size)
 {
-	return v1.x <= v2.x && v1.x + size > v2.x 
+	return v1.x <= v2.x && v1.x + size > v2.x
 		&& v1.y <= v2.y && v1.y + size > v2.y
 		&& v1.z <= v2.z && v1.z + size > v2.z;
 }
@@ -454,11 +604,11 @@ void PointOnVoxelLight(const struct Light* light,
 	//int numberOfOutsideVoxels = sizeOfLight * sizeOfLight * sizeOfLight - innerSizeOfLight * innerSizeOfLight * innerSizeOfLight;
 	// the lights are all cube shaped so voxels that are not on the outside will never contribute and therefore have pdf = 0
 	//*invPositionProbability = max(0.0, convert_float(numberOfOutsideVoxels));
-	*invPositionProbability = 1;
+	* invPositionProbability = 1;
 	*positionOnVoxel = center;
 	*Nlight = (float3)(0);
 #else
-	*positionOnVoxel = RandomPointOnVoxel(center, shadingPoint, sizeOfLight,
+	* positionOnVoxel = RandomPointOnVoxel(center, shadingPoint, sizeOfLight,
 		seedptr, invPositionProbability, Nlight);
 #endif
 }
