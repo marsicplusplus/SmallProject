@@ -11,36 +11,36 @@ namespace Tmpl8
 		};
 
 		// Taking inspiration from Goxel's gesture class
-		enum class GestureButton {
-			GESTURE_DEFAULT = -1,
-			GESTURE_LMB = 0,
-			GESTURE_RMB,
+		enum GestureButton {
+			GESTURE_NO_BUTTONS = 0,
+			GESTURE_LMB = 1,
+			GESTURE_RMB = 2
 		};
 
-		enum class GestureKey {
-			GESTURE_DEFAULT = -1,
-			GESTURE_CTRL = 0
+		enum GestureKey {
+			GESTURE_NO_KEYS = 0,
+			GESTURE_CTRL = 1 << 0,
+			GESTURE_SHIFT = 1 << 1
 		};
 
-		enum class GestureState {
+		enum GestureState {
 			GESTURE_POSSIBLE = 0,
 			GESTURE_START,
-			GESTURE_UPDATE,
-			GESTURE_END
+			GESTURE_UPDATE
 		};
 
-		enum class GestureMode {
-			GESTURE_DEFAULT = -1,
+		enum GestureMode {
 			GESTURE_ADD = 0,
-			GESTURE_SUBTRACT
+			GESTURE_REMOVE = 1 << 0,
+			GESTURE_MULTI = 1 << 1
 		};
 
 		typedef struct Gesture
 		{
-			GestureButton button = GestureButton::GESTURE_DEFAULT;
-			GestureKey key = GestureKey::GESTURE_DEFAULT;
-			GestureState state = GestureState::GESTURE_POSSIBLE;
-			GestureMode mode = GestureMode::GESTURE_ADD;
+			uint buttons = GestureButton::GESTURE_NO_BUTTONS;
+			uint keys = GestureKey::GESTURE_NO_KEYS;
+			uint state = GestureState::GESTURE_POSSIBLE;
+			uint mode = GestureMode::GESTURE_ADD;
 		};
 
 	public:
@@ -56,10 +56,15 @@ namespace Tmpl8
 		void RemoveBrick();
 		void AddBrick();
 		bool HitWorldGrid(const float3 O, const float3 D);
+		void MultiAddRemove();
+		void SetGestureMode();
 
 		Selected selectedBricks;
 		int2 mousePos;
 		Gesture gesture;
+		uint selectedButtons = GestureButton::GESTURE_NO_BUTTONS;
+		uint selectedKeys = GestureKey::GESTURE_NO_KEYS;
+
 		PAYLOAD* tempBricks = 0;
 		uint* tempGrid = 0;
 		std::vector<int> loadedTiles;
