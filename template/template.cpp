@@ -383,9 +383,8 @@ void MouseButtonCallback( GLFWwindow* window, int button, int action, int mods )
 }
 void MousePosCallback( GLFWwindow* window, double x, double y )
 {
-	WorldEditor* worldEditor = world->getWorldEditor();
-	if (worldEditor->IsEnabled()) worldEditor->MouseMove( (int)x, (int)y );
-	else if (game) game->MouseMove( (int)x, (int)y );
+	world->getWorldEditor()->MouseMove( (int)x, (int)y );
+	if (game) game->MouseMove( (int)x, (int)y );
 }
 void ErrorCallback( int error, const char* description )
 {

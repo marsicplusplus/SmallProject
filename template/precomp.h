@@ -678,6 +678,11 @@ inline float4 smoothstep( float4 a, float4 b, float4 x )
 	return (y * y * (make_float4( 3.0f ) - (make_float4( 2.0f ) * y)));
 }
 
+inline bool LessThan( float2 a, float2 b )
+{
+	return (a.x < b.x) && (a.y < b.y);
+}
+
 // axis aligned bounding box class
 class aabb
 {

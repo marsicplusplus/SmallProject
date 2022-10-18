@@ -4,7 +4,7 @@ namespace Tmpl8
 {
 	class WorldEditor
 	{
-		typedef struct Selected
+		struct Selected
 		{
 			aabb box;
 			aabb anchor;
@@ -25,8 +25,7 @@ namespace Tmpl8
 
 		enum GestureState {
 			GESTURE_POSSIBLE = 0,
-			GESTURE_START,
-			GESTURE_UPDATE
+			GESTURE_ACTIVE
 		};
 
 		enum GestureMode {
@@ -35,7 +34,7 @@ namespace Tmpl8
 			GESTURE_MULTI = 1 << 1
 		};
 
-		typedef struct Gesture
+		struct Gesture
 		{
 			uint buttons = GestureButton::GESTURE_NO_BUTTONS;
 			uint keys = GestureKey::GESTURE_NO_KEYS;
@@ -51,13 +50,14 @@ namespace Tmpl8
 		void KeyUp(int key);
 		void KeyDown(int key);
 		bool IsEnabled() { return enabled; }
-		void Enable() { enabled = true; }
-		void Disable() { enabled = false; }
+		void Enable() { UpdateSelectedBrick(); enabled = true; }
+		void Disable() { ResetState(); enabled = false; }
+		void ResetState();
 
 	private:
 		void UpdateSelectedBrick();
-		void RemoveBrick();
-		void AddBrick();
+		void RemoveSelectedBrick();
+		void AddSelectedBrick();
 		void MultiAddRemove();
 		void UpdateGestureMode();
 
