@@ -97,6 +97,7 @@ void MyGame::Init()
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
+	params.editorEnabled = false;
 	params.spatial = useSpatialResampling;
 	params.temporal = useTemporalResampling;
 	params.spatialTaps = SPATIALTAPS;
@@ -142,6 +143,7 @@ KeyHandler rightHandler = { 0, VK_RIGHT };
 KeyHandler upHandler = { 0, VK_UP };
 KeyHandler downHandler = { 0, VK_DOWN };
 KeyHandler cHandler = { 0, 'C' };
+KeyHandler gHandler = { 0, 'G' };
 KeyHandler vHandler = { 0, 'V' };
 KeyHandler nHandler = { 0, 'N' };
 KeyHandler mHandler = { 0, 'M' };
@@ -168,8 +170,10 @@ void MyGame::HandleControls(float deltaTime)
 	}
 	bool dirty = false;
 	RenderParams& renderparams = GetWorld()->GetRenderParams();
-	World& w = *GetWorld();
-	LightManager& lightManager = *w.getLightManager();
+	World& world = *GetWorld();
+	LightManager& lightManager = *world.getLightManager();
+	WorldEditor& worldEditor = *world.getWorldEditor();
+
 	if (inputKeyHandler.IsTyped() && (ConsoleHasFocus() || isFocused))
 	{
 		if (isFocused)
@@ -240,6 +244,7 @@ void MyGame::HandleControls(float deltaTime)
 	if (!isFocused) return; // ignore controls if window doesnt have focus
 	if (qHandler.IsTyped()) { shouldDumpBuffer = true; printf("Dumping screenbuffer queued.\n"); }
 	if (eHandler.IsTyped()) { takeScreenshot = true; printf("Next dump is screenshot.\n"); }
+	
 
 	if (wHandler.isPressed()) { O += speed * D; dirty = true; }
 	else if (sHandler.isPressed()) { O -= speed * D; dirty = true; }
@@ -255,6 +260,13 @@ void MyGame::HandleControls(float deltaTime)
 	else if (downHandler.isPressed()) { D = normalize(D + up * 0.025f * speed); dirty = true; }
 
 	if (zHandler.isPressed()) { D = _D; O = _O; dirty = true; }
+
+	if (gHandler.IsTyped())
+	{
+		if (worldEditor.IsEnabled()) worldEditor.Disable();
+		else worldEditor.Enable();
+		dirty = true;
+	}
 
 	if (uHandler.IsTyped())
 	{

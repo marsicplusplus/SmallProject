@@ -3,8 +3,6 @@
 #define OGT_VOX_IMPLEMENTATION
 #include "lib/ogt_vox.h"
 
-#include "light_manager.h"
-
 // Acknowledgements:
 // B&H'21 = Brian Janssen and Hugo Peters, INFOMOV'21 assignment
 // CO'21  = Christian Oliveros, INFOMOV'21 assignment
@@ -195,9 +193,11 @@ World::World(const uint targetID)
 
 void World::InitReSTIR() {
 	/* ReSTIR initialization */
-	lm = new Tmpl8::LightManager();
+	lightManager = new Tmpl8::LightManager();
+	worldEditor = new Tmpl8::WorldEditor();
 	params.numberOfLights = 0;
 	params.accumulate = false;
+	params.editorEnabled = false;
 	params.spatial = USESPATIAL;
 	params.temporal = USETEMPORAL;
 	params.spatialTaps = SPATIALTAPS;
@@ -229,8 +229,8 @@ void World::SetupReservoirBuffers()
 }
 void World::SetupLights(vector<Light>& ls)
 {
-	lm->FindLightsInWorld(ls);
-	lm->SetupBuffer(ls);
+	lightManager->FindLightsInWorld(ls);
+	lightManager->SetupBuffer(ls);
 }
 
 // World Destructor
@@ -254,7 +254,8 @@ World::~World()
 	delete sky;
 	delete blueNoise;
 	delete font;
-	delete lm;
+	delete lightManager;
+	delete worldEditor;
 	clReleaseProgram(sharedProgram);
 }
 
@@ -1676,13 +1677,13 @@ Intersection* World::TraceBatchToVoid(const uint batchSize)
 }
 
 void World::UpdateLights(float deltaTime) {
-	if (lm->lightsAreMoving)
+	if (lightManager->lightsAreMoving)
 	{
-		lm->MoveLights();
+		lightManager->MoveLights();
 	}
-	if (lm->poppingLights)
+	if (lightManager->poppingLights)
 	{
-		lm->PopLights(deltaTime);
+		lightManager->PopLights(deltaTime);
 	}
 }
 
@@ -1766,6 +1767,8 @@ void World::Render()
 		params.prevP1 = make_float4(prevP1, 0);
 		params.prevP2 = make_float4(prevP2, 0);
 		params.prevP3 = make_float4(prevP3, 0);
+
+		params.editorEnabled = worldEditor->IsEnabled();
 		// finalize params
 		params.R0 = RandomUInt();
 		params.skyWidth = skySize.x;

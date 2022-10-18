@@ -50,14 +50,16 @@ namespace Tmpl8
 		void MouseUp(int button);
 		void KeyUp(int key);
 		void KeyDown(int key);
+		bool IsEnabled() { return enabled; }
+		void Enable() { enabled = true; }
+		void Disable() { enabled = false; }
 
 	private:
 		void UpdateSelectedBrick();
 		void RemoveBrick();
 		void AddBrick();
-		bool HitWorldGrid(const float3 O, const float3 D);
 		void MultiAddRemove();
-		void SetGestureMode();
+		void UpdateGestureMode();
 
 		Selected selectedBricks;
 		int2 mousePos;
@@ -69,6 +71,7 @@ namespace Tmpl8
 		uint* tempGrid = 0;
 		std::vector<int> loadedTiles;
 		int tileIdx;
+		bool enabled = false;
 	};
 }
 

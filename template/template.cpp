@@ -345,9 +345,18 @@ void ReshapeWindowCallback( GLFWwindow* window, int w, int h )
 }
 void KeyEventCallback( GLFWwindow* window, int key, int scancode, int action, int mods )
 {
+	WorldEditor* worldEditor = world->getWorldEditor();
 	if (key == GLFW_KEY_ESCAPE) running = false;
-	if (action == GLFW_PRESS) { if (game) if (key >= 0) game->KeyDown( key ); }
-	else if (action == GLFW_RELEASE) { if (game) if (key >= 0) game->KeyUp( key ); }
+	if (action == GLFW_PRESS)
+	{ 
+		if (worldEditor->IsEnabled()) worldEditor->KeyDown( key );
+		else if (game) if (key >= 0) game->KeyDown( key ); 
+	}
+	else if (action == GLFW_RELEASE) 
+	{ 
+		if (worldEditor->IsEnabled()) worldEditor->KeyUp( key );
+		if (game) if (key >= 0) game->KeyUp( key ); 
+	}
 }
 void CharEventCallback( GLFWwindow* window, uint code ) { /* nothing here yet */ }
 void WindowFocusCallback(GLFWwindow* window, int focused) 
@@ -360,12 +369,23 @@ void WindowFocusCallback(GLFWwindow* window, int focused)
 }
 void MouseButtonCallback( GLFWwindow* window, int button, int action, int mods )
 {
-	if (action == GLFW_PRESS) { if (game) game->MouseDown( button ); }
-	else if (action == GLFW_RELEASE) { if (game) game->MouseUp( button ); }
+	WorldEditor* worldEditor = world->getWorldEditor();
+	if (action == GLFW_PRESS) 
+	{ 
+		if (worldEditor->IsEnabled()) worldEditor->MouseDown( button );
+		else if (game) game->MouseDown( button ); 
+	}
+	else if (action == GLFW_RELEASE) 
+	{
+		if (worldEditor->IsEnabled()) worldEditor->MouseUp( button );
+		else if (game) game->MouseUp( button ); 
+	}
 }
 void MousePosCallback( GLFWwindow* window, double x, double y )
 {
-	if (game) game->MouseMove( (int)x, (int)y );
+	WorldEditor* worldEditor = world->getWorldEditor();
+	if (worldEditor->IsEnabled()) worldEditor->MouseMove( (int)x, (int)y );
+	else if (game) game->MouseMove( (int)x, (int)y );
 }
 void ErrorCallback( int error, const char* description )
 {

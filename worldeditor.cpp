@@ -14,6 +14,8 @@ WorldEditor::WorldEditor()
 
 void WorldEditor::MouseMove(int x, int y)
 {
+	if (!enabled) return;
+
 	mousePos.x = x, mousePos.y = y;
 
 	// just hovering
@@ -105,6 +107,8 @@ void WorldEditor::MultiAddRemove()
 
 void WorldEditor::KeyDown(int key)
 {
+	if (!enabled) return;
+
 	switch (key) {
 		case GLFW_KEY_LEFT_CONTROL:
 			selectedKeys |= GestureKey::GESTURE_CTRL;
@@ -115,10 +119,14 @@ void WorldEditor::KeyDown(int key)
 		default:
 			break;
 	}
+	UpdateGestureMode();
+	UpdateSelectedBrick();
 }
 
 void WorldEditor::KeyUp(int key)
 {
+	if (!enabled) return;
+
 	switch (key) {
 		case GLFW_KEY_LEFT_CONTROL:
 			selectedKeys ^= GestureKey::GESTURE_CTRL;
@@ -129,10 +137,14 @@ void WorldEditor::KeyUp(int key)
 		default:
 			break;
 	}
+	UpdateGestureMode();
+	UpdateSelectedBrick();
 }
 
 void WorldEditor::MouseDown(int mouseButton)
 {
+	if (!enabled) return;
+
 	if (gesture.state != GestureState::GESTURE_POSSIBLE) return;
 
 	switch (mouseButton) {
@@ -146,13 +158,11 @@ void WorldEditor::MouseDown(int mouseButton)
 			break;
 	}
 
-	gesture.buttons = selectedButtons;
-	gesture.keys = selectedKeys;
-	gesture.state = GestureState::GESTURE_START;
+	UpdateGestureMode();
 
 	if (gesture.buttons & GestureButton::GESTURE_LMB)
 	{
-		SetGestureMode();
+		gesture.state = GestureState::GESTURE_START;
 
 		World& world = *GetWorld();
 		memcpy(tempBricks, world.GetBrick(), CHUNKCOUNT * CHUNKSIZE);
@@ -169,6 +179,8 @@ void WorldEditor::MouseDown(int mouseButton)
 
 void WorldEditor::MouseUp(int mouseButton)
 {
+	if (!enabled) return;
+
 	bool gestureFinished = false;
 	switch (mouseButton) {
 		case GLFW_MOUSE_BUTTON_LEFT:
@@ -186,7 +198,7 @@ void WorldEditor::MouseUp(int mouseButton)
 	if (gestureFinished)
 	{
 		gesture.state = GestureState::GESTURE_POSSIBLE;
-		SetGestureMode();
+		UpdateGestureMode();
 
 		// Reset the selected voxel aabb 
 		selectedBricks.box = aabb{};
@@ -195,16 +207,16 @@ void WorldEditor::MouseUp(int mouseButton)
 }
 
 // Sets the current mode based on mouse button and selected keys
-void WorldEditor::SetGestureMode()
+void WorldEditor::UpdateGestureMode()
 {
+	if (gesture.state != GestureState::GESTURE_POSSIBLE) return;
+	gesture.buttons = selectedButtons;
+	gesture.keys = selectedKeys;
+
 	// Set the default state to add
 	gesture.mode = GestureMode::GESTURE_ADD;
-
-	if (gesture.buttons & GestureButton::GESTURE_LMB)
-	{
-		if (gesture.keys & GestureKey::GESTURE_CTRL) gesture.mode |= GestureMode::GESTURE_MULTI;
-		if (gesture.keys & GestureKey::GESTURE_SHIFT) gesture.mode |= GestureMode::GESTURE_REMOVE;
-	}
+	if (gesture.keys & GestureKey::GESTURE_SHIFT) gesture.mode |= GestureMode::GESTURE_REMOVE;
+	if (gesture.keys & GestureKey::GESTURE_CTRL) gesture.mode |= GestureMode::GESTURE_MULTI;
 }
 
 void WorldEditor::AddBrick()

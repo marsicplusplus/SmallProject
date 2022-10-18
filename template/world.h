@@ -13,6 +13,7 @@
 namespace Tmpl8
 {
 class LightManager;
+class WorldEditor;
 
 struct BrickInfo { uint zeroes; /* , location; */ };
 
@@ -182,7 +183,8 @@ public:
 	void UpdateSkylights(); // updates the six skylight colors
 	void ForceSyncAllBricks();
 	void OptimizeBricks();
-	LightManager* getLightManager() { return lm; };
+	LightManager* getLightManager() { return lightManager; };
+	WorldEditor* getWorldEditor() { return worldEditor; };
 	// camera
 	void SetCameraMatrix(const mat4& m) { camMat = m; }
 	float3 GetCameraViewDir() { return make_float3(camMat[2], camMat[6], camMat[10]); }
@@ -530,7 +532,8 @@ private:
 	Surface* font;						// bitmap font for print command
 	bool firstFrame = true;				// for doing things in the first frame
 	float4 skyLight[6];					// integrated light for the 6 possible normals
-	LightManager *lm;
+	LightManager *lightManager;
+	WorldEditor *worldEditor;
 };
 
 } // namespace Tmpl8

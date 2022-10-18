@@ -158,6 +158,7 @@ void WaterWorld::Init()
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
+	params.editorEnabled = false;
 	params.spatial = useSpatialResampling;
 	params.temporal = useTemporalResampling;
 	params.spatialTaps = SPATIALTAPS;
