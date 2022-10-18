@@ -15,6 +15,7 @@ namespace Tmpl8
 		void InitialiseWaterLevelScenario();
 		void InitialiseDamBreakScenario();
 		void InitialiseWaterBlockDropScenario();
+		void InitialiseLighthouseScenario();
 		void InitialiseBuildingDropScenario();
 		void InitialiseTsunami();
 		void InitialiseShallowLakeDropScenario();

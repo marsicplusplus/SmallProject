@@ -99,6 +99,48 @@ void WaterWorld::InitialiseWaterBlockDropScenario()
 	SetStaticBlock(500, 500, 500, 60, 1, 60, RED);
 }
 
+void WaterWorld::InitialiseLighthouseScenario()
+{
+	//water
+	fluidSimulator.SetMaterialBlock(450, 500, 500, 256, 10, 256, 1, false);
+
+	//boundary
+	SetStaticBlock(450, 400, 500, 256, 256, 1, RED);
+	SetStaticBlock(706, 400, 500, 1, 256, 256, RED);
+	SetStaticBlock(450, 656, 756, 256, 256, 1, RED);
+	SetStaticBlock(450, 400, 500, 1, 256, 256, RED);
+	SetStaticBlock(450, 400, 500, 256, 1, 256, RED);
+
+	int eg = LoadSprite("assets/lighthouse.vox");
+	StampSpriteTo(eg, 450, 500, 500);
+
+	World& world = *GetWorld();
+	for (int lx = 38; lx < 50; ++lx) {
+		for (int ly = 122; ly < 139; ++ly) {
+			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
+			world.Set(450 + lx, 500 + ly, 500 + 120, WHITE | (15 << 12));
+		}
+	}
+	for (int lx = 38; lx < 50; ++lx) {
+		for (int ly = 122; ly < 139; ++ly) {
+			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
+			world.Set(450 + lx, 500 + ly, 500 + 137, WHITE | (15 << 12));
+		}
+	}
+	for (int ly = 122; ly < 139; ++ly) {
+		for (int lz = 123; lz < 135; ++lz) {
+			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
+			world.Set(450 + 52, 500 + ly, 500 + lz, WHITE | (15 << 12));
+		}
+	}
+	for (int ly = 122; ly < 139; ++ly) {
+		for (int lz = 123; lz < 135; ++lz) {
+			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
+			world.Set(450 + 35, 500 + ly, 500 + lz, WHITE | (15 << 12));
+		}
+	}
+}
+
 //Scenario used for evaluation: Drop a block 40x40x40 water into 100x100x100 cube
 void WaterWorld::InitialiseBuildingDropScenario()
 {
@@ -132,8 +174,6 @@ static bool useSpatialResampling = USESPATIAL;
 static bool useTemporalResampling = USETEMPORAL;
 static bool skyDomeSampling = true;
 
-static unordered_map<string, void*> commands;
-static unordered_map<string, function<void(WaterWorld&, string)>> functionCommands;
 
 // -----------------------------------------------------------
 // Initialize the application
@@ -144,7 +184,6 @@ void WaterWorld::Init()
 	ShowCursor(false);
 	// default scene is a box; punch a hole in the ceiling
 	Box(256, 240, 256, 768, 260, 768, 0);
-	// add some objects
 
 	//A few scenario's to choose from
 	//InitialiseDamHoleScenario();
@@ -170,6 +209,8 @@ void WaterWorld::Init()
 	world.OptimizeBricks(); //important to recognize bricks
 	vector<Light> vls;
 	world.SetupLights(vls);
+	//skyDomeLightScale = 2.0f;
+	skyDomeImage = "assets/sky_21.hdr";
 }
 void WaterWorld::IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg)
 {
@@ -242,8 +283,7 @@ void WaterWorld::Tick(float deltaTime)
 {
 	// update camera
 	HandleInput(deltaTime);
-	
-	
+
 	if (runCAPESimulation)
 		fluidSimulator.Update(deltaTime);
 }
