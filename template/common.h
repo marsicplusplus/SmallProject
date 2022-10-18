@@ -88,7 +88,7 @@
 #define BLUE		0x00F
 #define RED			0xF00
 #define YELLOW		0xFF0
-#define WHITE		0xFFF
+#define WHITE		0x10FFF
 #define GREY		0x777
 #define ORANGE		0xF70
 #define LIGHTBLUE	0x77F

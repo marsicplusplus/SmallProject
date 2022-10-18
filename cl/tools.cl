@@ -143,6 +143,11 @@ float3 SampleSky(const float3 T, __global float4* sky, uint w, uint h)
 	return s.xyz;
 }
 
+float GetAlpha(uint v)
+{
+	return (float)((v & 0xf0000) >> 16);
+}
+
 // 4 bits so the value ranges from 0 to 15
 float EmitStrength(const uint v)
 {
@@ -162,6 +167,14 @@ float3 ToFloatRGB(const uint v)
 #else
 	return (float3)(((v >> 8) & 15) * (1.0f / 15.0f), ((v >> 4) & 15) * (1.0f / 15.0f), (v & 15) * (1.0f / 15.0f));
 #endif
+}
+
+uint FromFloatRGBA(const float4 rgba)
+{
+	return (convert_uint(rgba.a * 15) << 16) + 
+		(convert_uint(rgba.r * 15) << 8) + 
+		(convert_uint(rgba.g * 15) << 4) + 
+		(convert_uint(rgba.b * 15));
 }
 
 // ACES filmic tonemapping, via https://www.shadertoy.com/view/3sfBWs
