@@ -4,6 +4,25 @@ namespace Tmpl8
 {
 	class WorldEditor
 	{
+
+		typedef struct State;
+		struct State {
+			PAYLOAD* newBricks;
+			PAYLOAD* oldBricks;
+
+			uint* newGridVals;
+			uint* oldGridVals;
+
+			uint* newBrickZeroes;
+			uint* oldBrickZeroes;
+
+			State* prevState;
+			State* nextState;
+
+			int3* updatedBricks;
+			uint numBricks;
+		};
+
 		struct Selected
 		{
 			aabb box;
@@ -11,7 +30,7 @@ namespace Tmpl8
 		};
 
 		// Taking inspiration from Goxel's gesture class
-		enum GestureButton {
+		enum GestureButton {      
 			GESTURE_NO_BUTTONS = 0,
 			GESTURE_LMB = 1,
 			GESTURE_RMB = 2
@@ -51,8 +70,8 @@ namespace Tmpl8
 		void KeyDown(int key);
 		bool IsEnabled() { return enabled; }
 		void Enable() { UpdateSelectedBrick(); enabled = true; }
-		void Disable() { ResetState(); enabled = false; }
-		void ResetState();
+		void Disable() { ResetEditor(); enabled = false; }
+		void ResetEditor();
 
 	private:
 		void UpdateSelectedBrick();
@@ -60,18 +79,34 @@ namespace Tmpl8
 		void AddSelectedBrick();
 		void MultiAddRemove();
 		void UpdateGestureMode();
+		void Redo();
+		void Undo();
+		void SaveState();
+		void DeleteState(State* state);
+		bool CreateNewState();
 
-		Selected selectedBricks;
+		// Input and Gesture 
 		int2 mousePos;
 		Gesture gesture;
 		uint selectedButtons = GestureButton::GESTURE_NO_BUTTONS;
 		uint selectedKeys = GestureKey::GESTURE_NO_KEYS;
+		Selected selectedBricks;
 
+		// Temporary buffers to hold previous state
 		PAYLOAD* tempBricks = 0;
 		uint* tempGrid = 0;
+		BrickInfo* tempBrickInfo = 0;
+
 		std::vector<int> loadedTiles;
 		int tileIdx;
+
+		State* stateHead;
+		State* stateTail;
+		State* stateCurrent;
 		bool enabled = false;
+		bool undoEnabled = true;
+
+		std::vector<int3> updatedBricks;
 	};
 }
 

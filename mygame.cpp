@@ -153,7 +153,7 @@ KeyHandler aHandler = { 0, 'A' };
 KeyHandler dHandler = { 0, 'D' };
 KeyHandler rHandler = { 0, 'R' };
 KeyHandler fHandler = { 0, 'F' };
-KeyHandler zHandler = { 0, 'Z' };
+KeyHandler bHandler = { 0, 'B' };
 KeyHandler lHandler = { 0, 'L' };
 KeyHandler xHandler = { 0, 'X' };
 KeyHandler inputKeyHandler = { 0, 'I' };
@@ -259,7 +259,7 @@ void MyGame::HandleControls(float deltaTime)
 	if (upHandler.isPressed()) { D = normalize(D - up * 0.025f * speed); dirty = true; }
 	else if (downHandler.isPressed()) { D = normalize(D + up * 0.025f * speed); dirty = true; }
 
-	if (zHandler.isPressed()) { D = _D; O = _O; dirty = true; }
+	if (bHandler.isPressed()) { D = _D; O = _O; dirty = true; }
 
 	if (gHandler.IsTyped())
 	{

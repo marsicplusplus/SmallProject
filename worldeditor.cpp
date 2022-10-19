@@ -5,8 +5,13 @@ WorldEditor::WorldEditor()
 {
 	tempBricks = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
 	tempGrid = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
+	tempBrickInfo = (BrickInfo*)_aligned_malloc(BRICKCOUNT * sizeof(BrickInfo), 64);
+	stateHead = (State*)calloc(1, sizeof(State));
+	stateCurrent = stateTail = stateHead;
+
 	memset(tempBricks, 0, CHUNKCOUNT * CHUNKSIZE);
 	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+	memset(tempBrickInfo, BRICKSIZE, BRICKCOUNT * sizeof(BrickInfo));
 
 	loadedTiles.push_back(LoadTile("assets/flower.vox"));
 	tileIdx = loadedTiles.front();
@@ -15,6 +20,8 @@ WorldEditor::WorldEditor()
 #pragma region InputHandling
 void WorldEditor::MouseMove(int x, int y)
 {
+	if (mousePos.x == x && mousePos.y == y) return;
+
 	// Keep track of mouse position so if re-enabled, the selected brick is accurate
 	mousePos.x = x, mousePos.y = y;
 
@@ -35,12 +42,17 @@ void WorldEditor::MouseMove(int x, int y)
 	}
 	else 
 	{
+		auto oldBox = selectedBricks.box;
 		selectedBricks.box = aabb{};
 		UpdateSelectedBrick();
+
+		// Ignore when mouse hovers over the same brick to avoid multiple add/removes
+		if (oldBox == selectedBricks.box) return;
 
 		if (gesture.mode & GestureMode::GESTURE_REMOVE) RemoveSelectedBrick();
 		else AddSelectedBrick();
 	}
+	UpdateSelectedBrick();
 }
 
 void WorldEditor::KeyDown(int key)
@@ -60,10 +72,25 @@ void WorldEditor::KeyDown(int key)
 		selectedBricks.box = aabb{};
 		UpdateSelectedBrick();
 		break;
+	case GLFW_KEY_Z:
+		if (selectedKeys == GestureKey::GESTURE_CTRL)
+		{
+			Undo();
+			selectedBricks.box = aabb{};
+			UpdateSelectedBrick();
+		}
+		break;
+	case GLFW_KEY_Y:
+		if (selectedKeys == GestureKey::GESTURE_CTRL)
+		{
+			Redo();
+			selectedBricks.box = aabb{};
+			UpdateSelectedBrick();
+		}
+		break;
 	default:
 		break;
 	}
-
 }
 
 void WorldEditor::KeyUp(int key)
@@ -109,15 +136,21 @@ void WorldEditor::MouseDown(int mouseButton)
 
 	if (gesture.buttons & GestureButton::GESTURE_LMB)
 	{
+		// Clear the list of updated bricks for the new gesture
+		updatedBricks.clear();
 		gesture.state = GestureState::GESTURE_ACTIVE;
 
+		// Save a backup version of the grid/brick/info 
 		World& world = *GetWorld();
 		memcpy(tempBricks, world.GetBrick(), CHUNKCOUNT * CHUNKSIZE);
 		memcpy(tempGrid, world.GetGrid(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+		memcpy(tempBrickInfo, world.GetBrickInfo(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 
+		// Add or remove the intial brick where the mouse is hovered
 		if (gesture.mode & GestureMode::GESTURE_REMOVE) RemoveSelectedBrick();
 		else AddSelectedBrick();
 
+		// Set our anchor for multi add/remove
 		selectedBricks.anchor = selectedBricks.box;
 	}
 
@@ -135,15 +168,16 @@ void WorldEditor::MouseUp(int mouseButton)
 		selectedButtons ^= GestureButton::GESTURE_LMB;
 		break;
 	case GLFW_MOUSE_BUTTON_RIGHT:
-		if (gesture.buttons & GestureButton::GESTURE_RMB) gestureFinished = true;
 		selectedButtons ^= GestureButton::GESTURE_RMB;
 		break;
 	default:
 		break;
 	}
 
+	// If we've completed a gesture, save the state for undo/redo purposes
 	if (gestureFinished)
 	{
+		SaveState();
 		gesture.state = GestureState::GESTURE_POSSIBLE;
 		UpdateGestureMode();
 
@@ -152,9 +186,7 @@ void WorldEditor::MouseUp(int mouseButton)
 		UpdateSelectedBrick();
 	}
 }
-
 #pragma endregion
-
 
 #pragma region Editing
 void WorldEditor::MultiAddRemove()
@@ -163,6 +195,7 @@ void WorldEditor::MultiAddRemove()
 	selectedBricks.box = selectedBricks.anchor;
 	UpdateSelectedBrick();
 
+	// Check to see if the selected bounding box has changed
 	if (!(oldBox == selectedBricks.box))
 	{
 		World& world = *GetWorld();
@@ -185,19 +218,40 @@ void WorldEditor::MultiAddRemove()
 						continue;
 
 					const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-					const uint value = tempGrid[cellIdx];
-					uint brickOffset = (value >> 1);
+					const uint tempGridVal = tempGrid[cellIdx];
+					const uint curGridVal = grid[cellIdx];
 
-					memcpy(brick + brickOffset * BRICKSIZE, tempBricks + brickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
-					grid[cellIdx] = value;
-					world.Mark(brickOffset);
+					// If we're reintroducing what was an empty brick, just remove the current one
+					if ((tempGridVal & 1) == 0)
+					{
+						world.RemoveBrick(bx, by, bz);
+						continue;
+					}
+
+					// Get current and new brick offsets (g1)
+					uint tempBrickOffset = (tempGridVal >> 1);
+					uint curBrickOffset = (curGridVal >> 1);
+
+					uint brickIdx = tempBrickOffset;
+					uint gridValue = tempGridVal;
+
+					// If the current brick is empty we need to create a NewBrick
+					if ((curGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
+
+					// Copy the brick from the saved temporary brick buffer to our current brick buffer 
+					memcpy(brick + brickIdx * BRICKSIZE, tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+					grid[cellIdx] = gridValue;
+					world.GetBrickInfo()[brickIdx].zeroes = tempBrickInfo[tempBrickOffset].zeroes;
+					world.Mark(brickIdx);
 				}
 
+		updatedBricks.clear();
 		// Either add or remove the bricks in the new selected bricks aabb
 		for (int bx = selectedBricks.box.bmax3.x; bx >= selectedBricks.box.bmin3.x; bx--)
 			for (int by = selectedBricks.box.bmax3.y; by >= selectedBricks.box.bmin3.y; by--)
 				for (int bz = selectedBricks.box.bmax3.z; bz >= selectedBricks.box.bmin3.z; bz--)
 				{
+					updatedBricks.push_back((make_int3)(bx, by, bz));
 					__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
 					if (intersection.Contains(b4))
 						continue;
@@ -221,16 +275,254 @@ void WorldEditor::AddSelectedBrick()
 	for (int bx = selectedBricks.box.bmin[0]; bx <= selectedBricks.box.bmax[0]; bx++)
 		for (int by = selectedBricks.box.bmin[1]; by <= selectedBricks.box.bmax[1]; by++)
 			for (int bz = selectedBricks.box.bmin[2]; bz <= selectedBricks.box.bmax[2]; bz++)
-				world.DrawTile(tileIdx, bx, by, bz);
+			{
+				// Avoid adding the same brick multiple times
+				int3 brickPos = make_int3(bx, by, bz);
+				if (std::find(updatedBricks.begin(), updatedBricks.end(), brickPos) == updatedBricks.end())
+				{
+					// Just draw the tile regardless for now
+					// Potentially should make this return a boolean value to determine if the tile was already there
+					updatedBricks.push_back(brickPos);
+					world.DrawTile(tileIdx, bx, by, bz);
+				}
+			}
 }
 
 void WorldEditor::RemoveSelectedBrick()
 {
 	World& world = *GetWorld();
-	for (int bx = selectedBricks.box.bmin[0]; bx <= selectedBricks.box.bmax[0]; bx++)
-		for (int by = selectedBricks.box.bmin[1]; by <= selectedBricks.box.bmax[1]; by++)
-			for (int bz = selectedBricks.box.bmin[2]; bz <= selectedBricks.box.bmax[2]; bz++)
-				world.RemoveBrick(bx, by, bz);
+	for (int bx = selectedBricks.box.bmin3.x; bx <= selectedBricks.box.bmax3.x; bx++)
+		for (int by = selectedBricks.box.bmin3.y; by <= selectedBricks.box.bmax3.y; by++)
+			for (int bz = selectedBricks.box.bmin3.z; bz <= selectedBricks.box.bmax3.z; bz++)
+			{
+				// Avoid removing the same brick multiple times
+				int3 brickPos = make_int3(bx, by, bz);
+				if (std::find(updatedBricks.begin(), updatedBricks.end(), brickPos) == updatedBricks.end())
+				{
+					const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+					const uint curGridVal = world.GetGrid()[cellIdx];
+					if ((curGridVal & 1) == 0) continue;
+
+					updatedBricks.push_back(brickPos);
+					world.RemoveBrick(bx, by, bz);
+				}
+			}
+}
+#pragma endregion
+
+#pragma region State
+
+// Reset the world editor so when re-enabled we're clean 
+void WorldEditor::ResetEditor()
+{
+	gesture = Gesture{};
+	selectedBricks = Selected{};
+	selectedKeys = GestureKey::GESTURE_NO_KEYS;
+	selectedButtons = GestureButton::GESTURE_NO_BUTTONS;
+}
+
+// For Undo we want to copy the state's old values into the current world
+void WorldEditor::Undo()
+{
+	// At head of state linked list, no more undos
+	if (!stateCurrent->prevState || gesture.state != GestureState::GESTURE_POSSIBLE || !undoEnabled) return;
+
+	World& world = *GetWorld();
+	uint* grid = world.GetGrid();
+	PAYLOAD* bricks = world.GetBrick();
+	BrickInfo* brickInfo = world.GetBrickInfo();
+
+	int numBricks = stateCurrent->numBricks;
+	for (int idx = 0; idx < numBricks; idx++)
+	{
+		int3 b = stateCurrent->updatedBricks[idx];
+		const uint cellIdx = b.x + b.z * GRIDWIDTH + b.y * GRIDWIDTH * GRIDDEPTH;
+
+		const uint oldGridVal = stateCurrent->oldGridVals[idx];
+		const uint newGridVal = stateCurrent->newGridVals[idx];
+
+		// If we're restoring what was an empty brick, just remove the current one
+		if ((oldGridVal & 1) == 0)
+		{
+			world.RemoveBrick(b.x, b.y, b.z);
+			continue;
+		}
+
+		// Get old and new brick offsets (g1)
+		uint oldBrickOffset = (oldGridVal >> 1);
+		uint newBrickOffset = (newGridVal >> 1);
+
+		uint brickIdx = oldBrickOffset;
+		uint gridValue = oldGridVal;
+
+		// If the current brick is empty we need to create a NewBrick
+		if ((newGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
+
+		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
+		memcpy(bricks + (brickIdx * BRICKSIZE), stateCurrent->oldBricks + (idx * BRICKSIZE), BRICKSIZE * PAYLOADSIZE);
+		grid[cellIdx] = gridValue;
+		brickInfo[brickIdx].zeroes = stateCurrent->oldBrickZeroes[idx];
+		world.Mark(brickIdx);
+	}
+
+	stateCurrent = stateCurrent->prevState;
+}
+
+// For Redo we want to copy the state's new values into the current world
+void WorldEditor::Redo()
+{
+	// At tail of state linked list, no more undos
+	if (!stateCurrent->nextState || gesture.state != GestureState::GESTURE_POSSIBLE || !undoEnabled) return;
+	stateCurrent = stateCurrent->nextState;
+
+	World& world = *GetWorld();
+	uint* grid = world.GetGrid();
+	PAYLOAD* bricks = world.GetBrick();
+	BrickInfo* brickInfo = world.GetBrickInfo();
+
+	int numBricks = stateCurrent->numBricks;
+	for (int idx = 0; idx < numBricks; idx++)
+	{
+		int3 b = stateCurrent->updatedBricks[idx];
+		const uint cellIdx = b.x + b.z * GRIDWIDTH + b.y * GRIDWIDTH * GRIDDEPTH;
+
+		const uint oldGridVal = stateCurrent->oldGridVals[idx];
+		const uint newGridVal = stateCurrent->newGridVals[idx];
+
+		// If we're restoring what was an empty brick, just remove the current one
+		if ((newGridVal & 1) == 0)
+		{
+			world.RemoveBrick(b.x, b.y, b.z);
+			continue;
+		}
+
+		// Get old and new brick offsets (g1)
+		uint oldBrickOffset = (oldGridVal >> 1);
+		uint newBrickOffset = (newGridVal >> 1);
+
+		uint brickIdx = newBrickOffset;
+		uint gridValue = newGridVal;
+
+		// If the current brick is empty we need to create a NewBrick
+		if ((oldGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
+
+		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
+		memcpy(bricks + (brickIdx * BRICKSIZE), stateCurrent->newBricks + (idx * BRICKSIZE), BRICKSIZE * PAYLOADSIZE);
+		grid[cellIdx] = gridValue;
+		brickInfo[brickIdx].zeroes = stateCurrent->oldBrickZeroes[idx];
+		world.Mark(brickIdx);
+	}
+
+}
+
+// Called after a gesture has been completed so we can update the history
+void WorldEditor::SaveState()
+{
+	World& world = *GetWorld();
+	uint* grid = world.GetGrid();
+	PAYLOAD* bricks = world.GetBrick();
+	BrickInfo* brickInfo = world.GetBrickInfo();
+
+	if (!CreateNewState())
+	{
+		undoEnabled = false;
+		return;
+	}
+
+	int numBricks = updatedBricks.size();
+	stateCurrent->numBricks = numBricks;
+	stateCurrent->newBricks = (PAYLOAD*)_aligned_malloc(numBricks * BRICKSIZE * PAYLOADSIZE, 64);
+	stateCurrent->oldBricks = (PAYLOAD*)_aligned_malloc(numBricks * BRICKSIZE * PAYLOADSIZE, 64);
+	stateCurrent->newGridVals = (uint*)_aligned_malloc(numBricks * 4, 64);
+	stateCurrent->oldGridVals = (uint*)_aligned_malloc(numBricks * 4, 64);
+	stateCurrent->newBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
+	stateCurrent->oldBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
+	stateCurrent->updatedBricks = (int3*)_aligned_malloc(numBricks * sizeof(int3), 64);
+
+	for (int idx = 0; idx < numBricks; idx++)
+	{
+		int3 brick = updatedBricks[idx];
+		const uint cellIdx = brick.x + brick.z * GRIDWIDTH + brick.y * GRIDWIDTH * GRIDDEPTH;
+
+		const uint tempGridValue = tempGrid[cellIdx];
+		const uint gridValue = grid[cellIdx];
+
+		uint tempBrickOffset = (tempGridValue >> 1);
+		uint brickOffset = (gridValue >> 1);
+
+		// Old brick is empty
+		if ((tempGridValue & 1) == 0)
+		{
+			memset(stateCurrent->oldBricks + (idx * BRICKSIZE), 0, BRICKSIZE * PAYLOADSIZE);
+		}
+		else
+		{
+			memcpy(stateCurrent->oldBricks + (idx * BRICKSIZE), tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+		}
+		
+		// New brick is empty
+		if ((gridValue & 1) == 0)
+		{
+			memset(stateCurrent->newBricks + (idx * BRICKSIZE), 0, BRICKSIZE * PAYLOADSIZE);
+		}
+		else
+		{
+			memcpy(stateCurrent->newBricks + (idx * BRICKSIZE), bricks + brickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+		}
+
+		stateCurrent->oldGridVals[idx] = tempGridValue;
+		stateCurrent->newGridVals[idx] = gridValue;
+
+		stateCurrent->oldBrickZeroes[idx] = tempBrickInfo[tempBrickOffset].zeroes;
+		stateCurrent->newBrickZeroes[idx] = brickInfo[brickOffset].zeroes;
+
+		stateCurrent->updatedBricks[idx] = brick;
+	}
+
+	// Check to see if the state has actually changed....if not don't add it to the history
+	if (memcmp(stateCurrent->oldBricks, stateCurrent->newBricks, numBricks * BRICKSIZE * PAYLOADSIZE) == 0)
+	{
+		stateCurrent = stateCurrent->prevState;
+		DeleteState(stateCurrent->nextState);
+		stateCurrent->nextState = NULL;
+		stateTail = stateCurrent;
+	}
+}
+
+// Called at start of a gesture to establish a new state for the upcoming changes
+bool WorldEditor::CreateNewState()
+{
+	State* newState = (State*)calloc(1, sizeof(State));
+	if (!newState) return false;
+
+	newState->prevState = stateCurrent;
+	newState->nextState = NULL;
+
+	// If we perform an action after many undos, free all undone states
+	while (stateCurrent != stateTail)
+	{
+		stateTail = stateTail->prevState;
+		DeleteState(stateTail->nextState);
+		stateTail->nextState = NULL;
+	}
+
+	stateCurrent->nextState = newState;
+	stateCurrent = stateTail = newState;
+
+	return true;
+}
+
+// Free up all allocated memory for our state
+void WorldEditor::DeleteState(State* state)
+{
+	_aligned_free(state->oldBricks);
+	_aligned_free(state->newBricks);
+	_aligned_free(state->oldGridVals);
+	_aligned_free(state->newGridVals);
+	_aligned_free(state->oldBrickZeroes);
+	_aligned_free(state->newBrickZeroes);
+	_aligned_free(state->updatedBricks);
+	free(state);
 }
 #pragma endregion
 
@@ -334,7 +626,7 @@ void WorldEditor::UpdateSelectedBrick()
 		// Get position inside of the voxel to determine brick location
 		float3 voxelPos = hitPoint - 0.1 * N;
 		float3 brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
-		
+
 		if (gesture.mode & GestureMode::GESTURE_REMOVE)
 		{
 			selectedBricks.box.Grow(brickPos);
@@ -348,15 +640,6 @@ void WorldEditor::UpdateSelectedBrick()
 	// Update rendering params to trace the selected bricks outline
 	params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM;
 	params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM + make_float3(BRICKDIM, BRICKDIM, BRICKDIM);
-}
-
-// Reset the state of the world editor so when re-enabled we're clean 
-void WorldEditor::ResetState()
-{
-	gesture = Gesture{};
-	selectedBricks = Selected{};
-	selectedKeys = GestureKey::GESTURE_NO_KEYS;
-	selectedButtons = GestureButton::GESTURE_NO_BUTTONS;
 }
 
 // Sets the current mode based on mouse button and selected keys

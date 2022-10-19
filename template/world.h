@@ -210,6 +210,7 @@ public:
 	uint GetTextureId() { return targetTextureID; }
 	uint* GetGrid() { return grid; }
 	PAYLOAD* GetBrick() { return brick; }
+	BrickInfo* GetBrickInfo() { return brickInfo; }
 	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
 	void SetReservoirBuffer(Buffer* buffer, int index) { reservoirBuffers[index] = buffer; }
 	void Commit();
@@ -303,6 +304,7 @@ public:
 		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		// obtain current brick identifier from top-level grid
 		uint g = grid[cellIdx], g1 = g >> 1;
+		if (g == 0) return; // Don't remove an already empty brick
 
 		brickInfo[g1].zeroes = BRICKSIZE;
 		grid[cellIdx] = 0;	// brick just became completely zeroed; recycle
@@ -368,29 +370,33 @@ public:
 		modified[idx >> 5] &= 0xffffffffu - (1 << (idx & 31));
 	#endif
 	}
-private:
+
 	uint NewBrick()
 	{
 	#if THREADSAFEWORLD
 		// get a fresh brick from the circular list in a thread-safe manner and without false sharing
-		const uint trashItem = InterlockedAdd( &trashTail, 31 ) - 31;
+		const uint trashItem = InterlockedAdd(&trashTail, 31) - 31;
 		return trash[trashItem & (BRICKCOUNT - 1)];
 	#else
 		// slightly faster to not prevent false sharing if we're doing single core updates only
 		return trash[trashTail++ & (BRICKCOUNT - 1)];
 	#endif
 	}
-	void FreeBrick( const uint idx )
+
+	void FreeBrick(const uint idx)
 	{
 	#if THREADSAFEWORLD
 		// thread-safe access of the circular list
-		const uint trashItem = InterlockedAdd( &trashHead, 31 ) - 31;
+		const uint trashItem = InterlockedAdd(&trashHead, 31) - 31;
 		trash[trashItem & (BRICKCOUNT - 1)] = idx;
 	#else
 		// for single-threaded code, a stepsize of 1 maximizes cache coherence.
 		trash[trashHead++ & (BRICKCOUNT - 1)] = idx;
 	#endif
 	}
+
+private:
+
 
 	bool IsDirty( const uint idx ) { return (modified[idx >> 5] & (1 << (idx & 31))) > 0; }
 	bool IsDirty32( const uint idx ) { return modified[idx] != 0; }
