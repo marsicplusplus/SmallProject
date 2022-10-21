@@ -282,22 +282,22 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	uint voxel = TraceRay((float4)(origin, 0), (float4)(D, 1), &dist, &side, grid,
 		uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 	float3 outputColor = ToFloatRGB(voxel);
-	float currentAlpha = (float)GetAlpha(voxel) / convert_float(0xF);
-	
+	float currentAlpha = (float)GetAlpha(voxel) / (float)0xF;
+	float totalDist = 0.;
+	float firstHitDistance = dist;
 	// Continue until we have a non translucent voxel. 0 is considered solid as well, to avoid users
 	// abusing an alpha of 0 on voxels supposed to be empty as it is much less efficient
-	while (currentAlpha <= 0.99f && currentAlpha >= 0.0001f)
+	while (voxel != 0 && currentAlpha <= 0.99f && currentAlpha >= 0.0001f)
 	{
-		origin = params->E + (dist + 0.1f) * D;
-		float newDist = 0.f;
-		float newSide = 0;
+		// Offset by 1 so that we don't keep hitting the same voxel
+		totalDist += dist + 1.f;
+		origin = params->E + totalDist * D;
+		uint newSide = 0;
 		voxel = TraceRay((float4)(origin, 0), (float4)(D, 1), &dist, &side, grid,
 			uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 		float3 color = ToFloatRGB(voxel);
-		//outputColor = outputColor * currentAlpha + color * (1 - currentAlpha);
-		outputColor = outputColor * 0.5f + color * 0.5f;
-		currentAlpha = (float)GetAlpha(voxel) / convert_float(0xF);
-		break;
+		outputColor = outputColor * currentAlpha + color * (1 - currentAlpha);
+		currentAlpha = (float)GetAlpha(voxel) / (float)0xF;
 	}
 
 	// Assume the final transparency is 1, since we hit a non-translucent object. Emitter value is assumed
