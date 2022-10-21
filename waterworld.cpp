@@ -115,28 +115,28 @@ void WaterWorld::InitialiseLighthouseScenario()
 	StampSpriteTo(eg, 450, 500, 500);
 
 	World& world = *GetWorld();
-	for (int lx = 38; lx < 50; ++lx) {
-		for (int ly = 122; ly < 139; ++ly) {
+	for (int lx = 18; lx < 25; ++lx) {
+		for (int ly = 62; ly < 70; ++ly) {
 			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + lx, 500 + ly, 500 + 120, WHITE | (15 << 12));
+			world.Set(450 + lx, 500 + ly, 500 + 60, WHITE | (15 << 12));
 		}
 	}
-	for (int lx = 38; lx < 50; ++lx) {
-		for (int ly = 122; ly < 139; ++ly) {
+	for (int lx = 18; lx < 25; ++lx) {
+		for (int ly = 62; ly < 70; ++ly) {
 			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + lx, 500 + ly, 500 + 137, WHITE | (15 << 12));
+			world.Set(450 + lx, 500 + ly, 500 + 68, WHITE | (15 << 12));
 		}
 	}
-	for (int ly = 122; ly < 139; ++ly) {
-		for (int lz = 123; lz < 135; ++lz) {
+	for (int ly = 62; ly < 70; ++ly) {
+		for (int lz = 61; lz < 68; ++lz) {
 			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + 52, 500 + ly, 500 + lz, WHITE | (15 << 12));
+			world.Set(450 + 25, 500 + ly, 500 + lz, WHITE | (15 << 12));
 		}
 	}
-	for (int ly = 122; ly < 139; ++ly) {
-		for (int lz = 123; lz < 135; ++lz) {
+	for (int ly = 62; ly < 70; ++ly) {
+		for (int lz = 61; lz < 68; ++lz) {
 			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + 35, 500 + ly, 500 + lz, WHITE | (15 << 12));
+			world.Set(450 + 17, 500 + ly, 500 + lz, WHITE | (15 << 12));
 		}
 	}
 }
@@ -187,11 +187,12 @@ void WaterWorld::Init()
 
 	//A few scenario's to choose from
 	//InitialiseDamHoleScenario();
-	InitialiseWaterBlockDropScenario();
+	//InitialiseWaterBlockDropScenario();
 	//InitialiseDamBreakScenario();
 	//InitialiseWaterLevelScenario();
 	//InitialiseBuildingDropScenario();
 	//InitialiseTsunami();
+	InitialiseLighthouseScenario();
 
 	/* Overwrite defaults for ReSTIR */
 	RenderParams& params = world.GetRenderParams();
@@ -209,7 +210,7 @@ void WaterWorld::Init()
 	world.OptimizeBricks(); //important to recognize bricks
 	vector<Light> vls;
 	world.SetupLights(vls);
-	//skyDomeLightScale = 2.0f;
+	skyDomeLightScale = 0.0f;
 	skyDomeImage = "assets/sky_21.hdr";
 }
 void WaterWorld::IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg)

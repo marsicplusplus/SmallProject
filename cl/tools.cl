@@ -296,7 +296,7 @@ bool HitWorldGrid(const float3 O, const float3 D)
 // 4 bits so the value ranges from 0 to 15
 float EmitStrength(const uint v)
 {
-	return (float)((v & 0xf000) >> 12);
+	return (float)((v & 0xf000) >> 12)*16;
 }
 
 bool IsEmitter(const uint v)
