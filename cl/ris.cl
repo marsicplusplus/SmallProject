@@ -186,6 +186,13 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	}
 	else
 	{
+		float3 skyContribution = (float3)(0.0, 0.0, 0.0);
+		float alpha = GetAlpha(voxel);
+		if (params->skyDomeSampling && alpha < 0.99)
+		{
+			skyContribution = SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight);
+		}
+
 		// hit emitter
 		if (IsEmitter(voxel))
 		{
@@ -228,6 +235,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 			}
 
 		//color = ToFloatRGB(voxel);
+		color += alpha * color + (1 - alpha) * skyContribution;
 	}
 
 	//sample sky
@@ -282,12 +290,12 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	uint voxel = TraceRay((float4)(origin, 0), (float4)(D, 1), &dist, &side, grid,
 		uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 	float3 outputColor = ToFloatRGB(voxel);
-	float currentAlpha = (float)GetAlpha(voxel) / (float)0xF;
+	float currentAlpha = GetAlpha(voxel);
 	float totalDist = 0.;
 	float firstHitDistance = dist;
 	// Continue until we have a non translucent voxel. 0 is considered solid as well, to avoid users
 	// abusing an alpha of 0 on voxels supposed to be empty as it is much less efficient
-	while (voxel != 0 && currentAlpha <= 0.99f && currentAlpha >= 0.0001f)
+	while (voxel != 0 && currentAlpha <= 0.99f)
 	{
 		// Offset by 1 so that we don't keep hitting the same voxel
 		totalDist += dist + 1.f;
@@ -297,12 +305,13 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 			uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 		float3 color = ToFloatRGB(voxel);
 		outputColor = outputColor * currentAlpha + color * (1 - currentAlpha);
-		currentAlpha = (float)GetAlpha(voxel) / (float)0xF;
+		// If we hit nothing, we use the last alpha to blend with the Skydome
+		currentAlpha = voxel == 0 ? currentAlpha : GetAlpha(voxel);
 	}
 
-	// Assume the final transparency is 1, since we hit a non-translucent object. Emitter value is assumed
-	// to be the value of the final hit voxel
-	voxel = FromFloatRGBA((float4)(outputColor, 0.0f));
+	// Any "remaining" translucency, i.e. light not absorbed/reflected, will be passed on for the final
+	// stage for weighing with the sampling of the skydome
+	voxel = FromFloatRGBA((float4)(outputColor, currentAlpha));
 
 	// no need to copy since we swap the current and previous albedo buffer every frame
 	//prevAlbedo[x + y * SCRWIDTH] = albedo[x + y * SCRWIDTH];
