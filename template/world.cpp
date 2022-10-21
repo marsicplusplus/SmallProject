@@ -268,7 +268,7 @@ void World::OptimizeBricks()
 void World::DummyWorld()
 {
 	Clear();
-	for (int y = 0; y < 256; y++) for (int z = 0; z < 1024; z++)
+	for (int y = 0; y < 156; y++) for (int z = 0; z < 1024; z++)
 	{
 		Set(6, y, z, WHITE);
 		Set(1017, y, z, WHITE);
@@ -276,12 +276,28 @@ void World::DummyWorld()
 	for (int x = 0; x < 1024; x++) for (int z = 0; z < 1024; z++)
 	{
 		Set(x, 6, z, WHITE);
-		Set(x, 256, z, WHITE);
+		Set(x, 156, z, WHITE);
 	}
-	for (int x = 0; x < 1024; x++) for (int y = 0; y < 256; y++)
+	for (int x = 0; x < 1024; x++) for (int y = 0; y < 156; y++)
 	{
 		Set(x, y, 6, WHITE);
 		Set(x, y, 1017, WHITE);
+	}
+
+	for (int y = 0; y < 256; y++) for (int z = 0; z < 1024; z++)
+	{
+		Set(6, y + 200, z, WHITE);
+		Set(1017, y + 200, z, WHITE);
+	}
+	for (int x = 0; x < 1024; x++) for (int z = 0; z < 1024; z++)
+	{
+		Set(x, 6 + 200, z, WHITE);
+		Set(x, 256 + 200, z, WHITEHALF);
+	}
+	for (int x = 0; x < 1024; x++) for (int y = 0; y < 256; y++)
+	{
+		Set(x, y + 200, 6, WHITE);
+		Set(x, y + 200, 1017, WHITE);
 	}
 	// performance note: these coords prevent exessive brick traversal.
 }
