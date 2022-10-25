@@ -11,12 +11,12 @@ using namespace Tmpl8;
 
 bool IsEmitter(const uint v)
 {
-	return (v >> 12 & 15) > 0;
+	return (v >> 16 & 255 ) > 0;
 }
 
 float Tmpl8::EmitStrength(const uint v)
 {
-	return (float)((v & 0xf000) >> 12);
+	return (float)((v & 0xff0000) >> 16);
 }
 
 // convert a voxel color to floating point rgb // from tools.cl
@@ -41,7 +41,7 @@ uint Tmpl8::ToUint(float3 c)
 
 int createVertex(unordered_map<int, int>& map, vector<int3>& vertices, int3 v)
 {
-	int hash = v.x + v.z * GRIDWIDTH * BRICKDIM + v.y * GRIDWIDTH * BRICKDIM * GRIDDEPTH * BRICKDIM;
+	int hash = v.x + v.z * GRIDWIDTH * BRICKDIM + v.y * GRIDSIZE * BRICKDIM;
 	auto search = map.find(hash);
 	if (search != map.end())
 	{

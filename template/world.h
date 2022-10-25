@@ -2,7 +2,6 @@
 #include <CAPE.h>
 #include <future>
 
-
 #define THREADSAFEWORLD 1
 #define SQR(x) ((x)*(x))
 #define TILESIZE	8
@@ -218,6 +217,7 @@ public:
 	float GetSpatialTime() { return spatialTime; }
 	float GetShadingTime() { return shadingTime; }
 	float GetFinalizingTime() { return finalizingTime; }
+	bool IsSolidGridCell(uint value) const { return (value & 1) == 0; }
 	// high-level voxel access
 	void Sphere( const float x, const float y, const float z, const float r, const uint c );
 	void HDisc( const float x, const float y, const float z, const float r, const uint c );
@@ -295,6 +295,60 @@ public:
 			}
 		}
 	}
+	__forceinline int SplitSolidBrick(uint brickColor, uint brickIndex)
+	{
+		const uint newBrickBufferOffset = NewBrick();
+
+		#if BRICKDIM == 8 && PAYLOADSIZE == 1
+			// fully unrolled loop for writing the 512 bytes needed for a single brick, faster than memset
+			const __m256i brickColor8 = _mm256_set1_epi8( static_cast<char>(brickColor) );
+			__m256i* d8 = (__m256i*)(brick + newBrickBufferOffset * BRICKSIZE);
+			d8[0] = brickColor8, d8[1] = brickColor8, d8[2] = brickColor8, d8[3] = brickColor8;
+			d8[4] = brickColor8, d8[5] = brickColor8, d8[6] = brickColor8, d8[7] = brickColor8;
+			d8[8] = brickColor8, d8[9] = brickColor8, d8[10] = brickColor8, d8[11] = brickColor8;
+			d8[12] = brickColor8, d8[13] = brickColor8, d8[14] = brickColor8, d8[15] = brickColor8;
+		#elif BRICKDIM == 8 && PAYLOADSIZE == 2
+			// fully unrolled loop for writing 1KB needed for a single brick, faster than memset
+			const __m256i brickColor16 = _mm256_set1_epi16( static_cast<short>(brickColor) );
+			__m256i* d = (__m256i*)(brick + newBrickBufferOffset * BRICKSIZE);
+			d[0] = brickColor16, d[1] = brickColor16, d[2] = brickColor16, d[3] = brickColor16;
+			d[4] = brickColor16, d[5] = brickColor16, d[6] = brickColor16, d[7] = brickColor16;
+			d[8] = brickColor16, d[9] = brickColor16, d[10] = brickColor16, d[11] = brickColor16;
+			d[12] = brickColor16, d[13] = brickColor16, d[14] = brickColor16, d[15] = brickColor16;
+			d[16] = brickColor16, d[17] = brickColor16, d[18] = brickColor16, d[19] = brickColor16;
+			d[20] = brickColor16, d[21] = brickColor16, d[22] = brickColor16, d[23] = brickColor16;
+			d[24] = brickColor16, d[25] = brickColor16, d[26] = brickColor16, d[27] = brickColor16;
+			d[28] = brickColor16, d[29] = brickColor16, d[30] = brickColor16, d[31] = brickColor16;
+		#elif BRICKDIM == 8 && PAYLOADSIZE == 4
+			// fully unrolled loop for writing 2KB needed for a single brick, faster than memset
+			const __m256i brickColor32 = _mm256_set1_epi32( static_cast<uint>(brickColor) );
+			__m256i* d = (__m256i*)(brick + newBrickBufferOffset * BRICKSIZE);
+			d[0] = brickColor32, d[1] = brickColor32, d[2] = brickColor32, d[3] = brickColor32;
+			d[4] = brickColor32, d[5] = brickColor32, d[6] = brickColor32, d[7] = brickColor32;
+			d[8] = brickColor32, d[9] = brickColor32, d[10] = brickColor32, d[11] = brickColor32;
+			d[12] = brickColor32, d[13] = brickColor32, d[14] = brickColor32, d[15] = brickColor32;
+			d[16] = brickColor32, d[17] = brickColor32, d[18] = brickColor32, d[19] = brickColor32;
+			d[20] = brickColor32, d[21] = brickColor32, d[22] = brickColor32, d[23] = brickColor32;
+			d[24] = brickColor32, d[25] = brickColor32, d[26] = brickColor32, d[27] = brickColor32;
+			d[28] = brickColor32, d[29] = brickColor32, d[30] = brickColor32, d[31] = brickColor32;
+			d[32] = brickColor32, d[33] = brickColor32, d[34] = brickColor32, d[35] = brickColor32;
+			d[36] = brickColor32, d[37] = brickColor32, d[38] = brickColor32, d[39] = brickColor32;
+			d[40] = brickColor32, d[41] = brickColor32, d[42] = brickColor32, d[43] = brickColor32;
+			d[44] = brickColor32, d[45] = brickColor32, d[46] = brickColor32, d[47] = brickColor32;
+			d[48] = brickColor32, d[49] = brickColor32, d[50] = brickColor32, d[51] = brickColor32;
+			d[52] = brickColor32, d[53] = brickColor32, d[54] = brickColor32, d[55] = brickColor32;
+			d[56] = brickColor32, d[57] = brickColor32, d[58] = brickColor32, d[59] = brickColor32;
+			d[60] = brickColor32, d[61] = brickColor32, d[62] = brickColor32, d[63] = brickColor32;
+		#else
+			// TODO: Generic case
+		#endif
+
+		zeroes[brickIndex] = (brickColor == 0) * BRICKSIZE;
+		// Update the grid, as the brick inside the grid is now an offset into the brick buffer
+		// rather than a solid color
+		grid[brickIndex] = (newBrickBufferOffset << 1) | 1;
+		return newBrickBufferOffset;
+	}
 	__forceinline void RemoveBrick(const uint bx, const uint by, const uint bz)
 	{
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
@@ -307,6 +361,8 @@ public:
 		Mark(g1);			// no need to send it to GPU anymore
 		FreeBrick(g1);
 	}
+
+
 	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */ )
 	{
 		// calculate brick location in top-level grid
@@ -317,55 +373,46 @@ public:
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH)
 			return;		//Way to prevent this branching?
 
-		//Get the grid index
-		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		const uint brickIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		uint brickValue = grid[brickIndex];
+		uint brickColor = brickValue >> 1;
+		uint brickBufferIndex = brickValue >> 1;
+
+		if (IsSolidGridCell(brickValue))
+		{
+			// No change to the actual brick color, return
+			if (v == brickColor)
+			{
+				return;
+			}
+			brickBufferIndex = SplitSolidBrick(brickColor, brickIndex);
+			brickValue = grid[brickIndex];
+		}
 
 		// calculate the position of the voxel inside the brick
 		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
-		const uint voxelIdx = cellIdx * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM; //Precalculate this?
-		const uint originalValue = brick[voxelIdx];
+		const uint voxelIdx = brickBufferIndex * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM; //Precalculate this?
+		const uint originalVoxel = brick[voxelIdx];
 
-		//Gain or lose a zero
-		int zeroChange = (originalValue != 0 && v == 0) - (originalValue == 0 && v != 0);
-
-		zeroes[cellIdx] += zeroChange;
-		//If not all are zeroes
-		bool nonEmpty = zeroes[cellIdx] < BRICKSIZE;
-
-		//Masking trick to remove branching
-		grid[cellIdx] = (cellIdx << 1) | 1;
-		brick[voxelIdx] = v; //Normally wouldnt do this if zero doesnt change, but doesnt change result and prevents branching
-
-		//This isn't necessary if we port this to the gpu
-		//If brick is not empty and has changed
-		if (nonEmpty)
-			Mark(cellIdx);
+		int zeroChange = (originalVoxel != 0 && v == 0) - (originalVoxel == 0 && v != 0);
+		zeroes[brickIndex] += zeroChange;
+		if (zeroes[brickIndex] < BRICKSIZE)
+		{
+			brick[voxelIdx] = v; 
+			Mark(brickIndex);
+		}
+		else
+		{
+			grid[brickIndex] = 0;
+			UnMark(brickIndex);
+			FreeBrick(brickIndex);
+		}
 	}
 
 	//Temp Getter to allow easy access to world data from CAPE
 	Buffer* GetBrickBuffer() { return brickBuffer; }
 	Buffer* GetZeroesBuffer() { return zeroesBuffer; }
 	cl_mem GetGridMap() { return gridMap; }
-
-	void Mark(const uint idx)
-	{
-	#if THREADSAFEWORLD
-		// be careful, setting a bit in an array is not thread-safe without _interlockedbittestandset
-		_interlockedbittestandset((LONG*)modified + (idx >> 5), idx & 31);
-	#else
-		modified[idx >> 5] |= 1 << (idx & 31);
-	#endif
-	}
-
-	void UnMark(const uint idx)
-	{
-	#if THREADSAFEWORLD
-		// be careful, resetting a bit in an array is not thread-safe without _interlockedbittestandreset
-		_interlockedbittestandreset((LONG*)modified + (idx >> 5), idx & 31);
-	#else
-		modified[idx >> 5] &= 0xffffffffu - (1 << (idx & 31));
-	#endif
-	}
 private:
 	uint NewBrick()
 	{
@@ -389,7 +436,24 @@ private:
 		trash[trashHead++ & (BRICKCOUNT - 1)] = idx;
 	#endif
 	}
-
+	void Mark( const uint idx )
+	{
+	#if THREADSAFEWORLD
+		// be careful, setting a bit in an array is not thread-safe without _interlockedbittestandset
+		_interlockedbittestandset( (LONG*)modified + (idx >> 5), idx & 31 );
+	#else
+		modified[idx >> 5] |= 1 << (idx & 31);
+	#endif
+	}
+	void UnMark( const uint idx )
+	{
+	#if THREADSAFEWORLD
+		// be careful, resetting a bit in an array is not thread-safe without _interlockedbittestandreset
+		_interlockedbittestandreset( (LONG*)modified + (idx >> 5), idx & 31 );
+	#else
+		modified[idx >> 5] &= 0xffffffffu - (1 << (idx & 31));
+	#endif
+	}
 	bool IsDirty( const uint idx ) { return (modified[idx >> 5] & (1 << (idx & 31))) > 0; }
 	bool IsDirty32( const uint idx ) { return modified[idx] != 0; }
 	void ClearMarks32( const uint idx ) { modified[idx] = 0; }

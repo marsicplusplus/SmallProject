@@ -24,11 +24,16 @@
 #define VOXEL8
 #define PAYLOAD unsigned char
 #define PAYLOADSIZE	1
-#else
+#elif 0
 // 16-bit voxels: MRGB4444, where M=emitter strength
 #define VOXEL16
 #define PAYLOAD unsigned short
 #define PAYLOADSIZE 2
+#else
+// 32-bit voxels: MARGB44444, where M=emitter strength. Note: last bit cannot be used!
+#define VOXEL32
+#define PAYLOAD unsigned int
+#define PAYLOADSIZE 4
 #endif
 
 // renderer performance setting: set to 0 for slower devices, up to 8 for fast GPUs
@@ -84,6 +89,7 @@
 #define RED			0xF00
 #define YELLOW		0xFF0
 #define WHITE		0xFFF
+#define WHITEHALF	0x800FF
 #define GREY		0x777
 #define ORANGE		0xF70
 #define LIGHTBLUE	0x77F
@@ -171,14 +177,14 @@ struct DebugInfo
 #define GRIDWIDTH	(MAPWIDTH / BRICKDIM)
 #define GRIDHEIGHT	(MAPHEIGHT / BRICKDIM)
 #define GRIDDEPTH	(MAPDEPTH / BRICKDIM)
-#define GRIDSIZE	(GRIDWIDTH * GRIDHEIGHT * GRIDWIDTH)
+#define GRIDSIZE	(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH)
 #define BRICKSIZE	(BRICKDIM * BRICKDIM * BRICKDIM)
 #define UBERWIDTH	(GRIDWIDTH / 4)
 #define UBERHEIGHT	(GRIDHEIGHT / 4)
 #define UBERDEPTH	(GRIDDEPTH / 4)
 // note: we reserve 50% of the theoretical peak; a normal scene shouldn't come close to
 // using that many unique (non-empty!) bricks.
-#define BRICKCOUNT	((((MAPWIDTH / BRICKDIM) * (MAPHEIGHT / BRICKDIM) * (MAPDEPTH / BRICKDIM))) / 1)
+#define BRICKCOUNT	((((MAPWIDTH / BRICKDIM) * (MAPHEIGHT / BRICKDIM) * (MAPDEPTH / BRICKDIM))) / 2)
 #define BRICKCOMMITSIZE	(MAXCOMMITS * BRICKSIZE * PAYLOADSIZE + MAXCOMMITS * 4 /* bytes */)
 #define CHUNKCOUNT	4
 #define CHUNKSIZE	((BRICKCOUNT * BRICKSIZE * PAYLOADSIZE) / CHUNKCOUNT)
