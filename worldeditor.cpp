@@ -1,6 +1,8 @@
 #include "precomp.h"
 #include "worldeditor.h"
 
+#define MAX_ALLOCATION 512000000 // in bytes
+
 WorldEditor::WorldEditor()
 {
 	tempBricks = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
@@ -479,6 +481,14 @@ void WorldEditor::SaveState()
 		stateCurrent->updatedBricks[idx] = brick;
 	}
 
+
+	// Add the amount of allocated memory 
+	allocatedUndo += 2 * (numBricks * BRICKSIZE * PAYLOADSIZE);
+	allocatedUndo += 2 * (numBricks * 4);
+	allocatedUndo += 2 * (numBricks * sizeof(uint));
+	allocatedUndo += (numBricks * sizeof(int3));
+
+
 	// Check to see if the state has actually changed....if not don't add it to the history
 	if (memcmp(stateCurrent->oldBricks, stateCurrent->newBricks, numBricks * BRICKSIZE * PAYLOADSIZE) == 0)
 	{
@@ -486,7 +496,10 @@ void WorldEditor::SaveState()
 		DeleteState(stateCurrent->nextState);
 		stateCurrent->nextState = NULL;
 		stateTail = stateCurrent;
+		return;
 	}
+
+	CheckMemoryAllowance();
 }
 
 // Called at start of a gesture to establish a new state for the upcoming changes
@@ -506,7 +519,7 @@ bool WorldEditor::CreateNewState()
 		stateTail->nextState = NULL;
 	}
 
-	stateCurrent->nextState = newState;
+	stateCurrent->nextState = newState;	
 	stateCurrent = stateTail = newState;
 
 	return true;
@@ -515,6 +528,8 @@ bool WorldEditor::CreateNewState()
 // Free up all allocated memory for our state
 void WorldEditor::DeleteState(State* state)
 {
+	int numBricks = state->numBricks;
+
 	_aligned_free(state->oldBricks);
 	_aligned_free(state->newBricks);
 	_aligned_free(state->oldGridVals);
@@ -523,6 +538,11 @@ void WorldEditor::DeleteState(State* state)
 	_aligned_free(state->newBrickZeroes);
 	_aligned_free(state->updatedBricks);
 	free(state);
+
+	allocatedUndo -= 2 * (numBricks * BRICKSIZE * PAYLOADSIZE);
+	allocatedUndo -= 2 * (numBricks * 4);
+	allocatedUndo -= 2 * (numBricks * sizeof(uint));
+	allocatedUndo -= (numBricks * sizeof(int3));
 }
 #pragma endregion
 
@@ -653,4 +673,20 @@ void WorldEditor::UpdateGestureMode()
 	gesture.mode = GestureMode::GESTURE_ADD;
 	if (gesture.keys & GestureKey::GESTURE_SHIFT) gesture.mode |= GestureMode::GESTURE_REMOVE;
 	if (gesture.keys & GestureKey::GESTURE_CTRL) gesture.mode |= GestureMode::GESTURE_MULTI;
+}
+
+// Check to see if we've gone above the maximum limit of allocated memory for undo states
+void WorldEditor::CheckMemoryAllowance()
+{
+	while (allocatedUndo > MAX_ALLOCATION && stateHead->nextState)
+	{
+		// Delete the state we just allocated
+		if (stateHead->nextState == stateCurrent)
+			stateCurrent = stateTail = stateHead;
+
+		State* newState = stateHead->nextState->nextState;
+		DeleteState(stateHead->nextState);
+		stateHead->nextState = newState;
+		if (newState) newState->prevState = stateHead;
+	}
 }

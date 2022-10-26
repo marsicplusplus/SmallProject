@@ -16,8 +16,8 @@ namespace Tmpl8
 			uint* newBrickZeroes;
 			uint* oldBrickZeroes;
 
-			State* prevState;
-			State* nextState;
+			State* prevState = NULL;
+			State* nextState = NULL;
 
 			int3* updatedBricks;
 			uint numBricks;
@@ -79,6 +79,7 @@ namespace Tmpl8
 		void AddSelectedBrick();
 		void MultiAddRemove();
 		void UpdateGestureMode();
+		void CheckMemoryAllowance();
 		void Redo();
 		void Undo();
 		void SaveState();
@@ -105,6 +106,7 @@ namespace Tmpl8
 		State* stateCurrent;
 		bool enabled = false;
 		bool undoEnabled = true;
+		uint allocatedUndo = 0;
 
 		std::vector<int3> updatedBricks;
 	};
