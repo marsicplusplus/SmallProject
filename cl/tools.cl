@@ -143,12 +143,14 @@ float3 SampleSky(const float3 T, __global float4* sky, uint w, uint h)
 	return s.xyz;
 }
 
-float GetAlpha(uint v)
+uint GetAlpha(uint v)
 {
-	uint alphaChannel = ((v & 0xf0000) >> 16);
-	// 0 is considered solid as well, to avoid users
-	// abusing an alpha of 0 on voxels supposed to be empty as it is much less efficient
-	alphaChannel = alphaChannel == 0 ? 0xF * (v != 0) : alphaChannel;
+	return (v & 0xf0000) >> 16;
+}
+
+float GetAlphaf(uint v)
+{
+	uint alphaChannel = (v & 0xf0000) >> 16;
 	return alphaChannel / (float)0xF;
 }
 
