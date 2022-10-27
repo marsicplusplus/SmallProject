@@ -18,14 +18,12 @@ namespace Tmpl8
 		void InitialiseLighthouseScenario();
 		void InitialiseBuildingDropScenario();
 		void InitialiseTsunami();
-		void InitialiseShallowLakeDropScenario();
-		void SetupReservoirBuffers();
 
 		static void IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg);
 		// game flow methods
 		void Init();
+		void PreRender();
 		void HandleInput(float deltaTime);
-		void UpdateLasers(float deltaTime);
 		void Tick(float deltaTime);
 		void Shutdown()
 		{
@@ -49,7 +47,7 @@ namespace Tmpl8
 		int2 mousePos;
 		float3 ballPos = make_float3(300, 100, 300);
 		float3 ballVel = make_float3(0.3f, 0, 0.5f);
-		int ship, corvette;
+		int ship, corvette, lighthouseSprite;
 		// spline path data
 		vector<PathPoint> splinePath;
 		int pathPt = 1; // spline path vertex
@@ -57,10 +55,8 @@ namespace Tmpl8
 		// camera
 		float3 D = make_float3(0, 0, 1);
 		float3 O = make_float3(512, 512, 512);
-		// lasers
-		float laserDelay = 10, laserT;
-		int3 laserA, laserB;
 
+		float angle = 0;
 		FluidSimulator fluidSimulator;
 		bool runCAPESimulation = false;
 		bool keyPressed[0xFF];

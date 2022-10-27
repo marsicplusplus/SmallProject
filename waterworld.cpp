@@ -111,8 +111,8 @@ void WaterWorld::InitialiseLighthouseScenario()
 	SetStaticBlock(450, 400, 500, 1, 256, 256, RED);
 	SetStaticBlock(450, 400, 500, 256, 1, 256, RED);
 
-	int eg = LoadSprite("assets/lighthouse.vox");
-	StampSpriteTo(eg, 450, 500, 500);
+	lighthouseSprite = LoadSprite("assets/lighthouse.vox");
+	MoveSpriteTo(lighthouseSprite, 450, 500, 500);
 
 	World& world = *GetWorld();
 	for (int lx = 18; lx < 25; ++lx) {
@@ -210,7 +210,7 @@ void WaterWorld::Init()
 	world.OptimizeBricks(); //important to recognize bricks
 	vector<Light> vls;
 	world.SetupLights(vls);
-	skyDomeLightScale = 0.0f;
+	skyDomeLightScale = 2.0f;
 	skyDomeImage = "assets/sky_21.hdr";
 }
 void WaterWorld::IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg)
@@ -284,7 +284,14 @@ void WaterWorld::Tick(float deltaTime)
 {
 	// update camera
 	HandleInput(deltaTime);
+	angle += 10.0f;
+	RotateSprite(lighthouseSprite, angle * PI / 180);
 
 	if (runCAPESimulation)
 		fluidSimulator.Update(deltaTime);
+}
+
+void WaterWorld::PreRender() 
+{
+	RemoveSprite(lighthouseSprite);
 }
