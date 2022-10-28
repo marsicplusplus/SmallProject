@@ -1516,7 +1516,14 @@ bool Kernel::InitCL()
 	// print device name
 	clGetDeviceInfo( devices[deviceUsed], CL_DEVICE_NAME, 1024, &device_string, NULL );
 	clGetDeviceInfo( devices[deviceUsed], CL_DEVICE_VERSION, 1024, &device_platform, NULL );
-	printf( "Device # %u, %s (%s)\n", deviceUsed, device_string, device_platform );
+
+	cl_ulong maxAllocSize;
+	clGetDeviceInfo( devices[deviceUsed], CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &maxAllocSize, nullptr);
+	printf("Max allocatable size: %lu MB\n", maxAllocSize >> 20);
+
+	cl_ulong totalMemoryAvailable;
+	clGetDeviceInfo( devices[deviceUsed], CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &totalMemoryAvailable, nullptr);
+	printf("Available memory: %lu MB\n", totalMemoryAvailable >> 20);
 	// digest device string
 	char* d = device_string;
 	for (int i = 0; i < strlen( d ); i++) if (d[i] >= 'A' && d[i] <= 'Z') d[i] -= 'A' - 'a';
