@@ -1053,19 +1053,6 @@ void World::DrawSprite(const uint idx)
 		{
 			// draw sprite with specified transform
 			const SpriteFrame* frame = sprite[idx]->frame[sprite[idx]->currFrame];
-			SpriteFrame* backup = sprite[idx]->backup;
-			const uint* localPos = frame->drawPos;
-			const PAYLOAD* val = frame->drawVal;
-			for (uint i = 0; i < frame->drawListSize; i++)
-			{
-				const uint v = localPos[i];
-				const float4 oldPos = make_float4(v & 1023, (v >> 10) & 1023, (v >> 20) & 1023, 1);
-				const float4 newPos = M * oldPos;
-				backup->buffer[i] = Get(newPos.x + pos.x, newPos.y + pos.y, newPos.z + pos.z);
-				Set(newPos.x + pos.x, newPos.y + pos.y, newPos.z + pos.z, val[i]);
-			}
-
-			/*
 			float a = frame->size.x * 0.5f, b = frame->size.y * 0.5f, c = frame->size.z * 0.5f;
 			float3 p[8] = {
 				M.TransformVector(make_float3(-a, -b, -c)), M.TransformVector(make_float3(a, -b, -c)),
@@ -1078,11 +1065,10 @@ void World::DrawSprite(const uint idx)
 			int3 A = make_int3(bounds.bmin3);
 			int3 B = make_int3(bounds.bmax3);
 			mat4 iM = M.Inverted();
-
 			for (int z = A.z; z < B.z; z++) for (int y = A.y; y < B.y; y++) for (int x = A.x; x < B.x; x++)
 			{
-				// TODO: WHAT?? What am I supposed to do with the transformed BBOX to render the sprite??
-			}*/
+				// TODO
+			}
 		}
 	}
 	// store this location so we can remove the sprite later
@@ -1184,11 +1170,6 @@ void World::StampSpriteTo(const uint idx, const uint x, const uint y, const uint
 		const uint vx = v & 1023, vy = (v >> 10) & 1023, vz = (v >> 20) & 1023;
 		Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i]);
 	}
-}
-mat4 World::GetSpriteTransform(const uint idx)
-{
-	auto& sprite = GetSpriteList();
-	return sprite[idx]->transform;
 }
 
 // World::SetSpriteFrame

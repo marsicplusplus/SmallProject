@@ -116,27 +116,27 @@ void WaterWorld::InitialiseLighthouseScenario()
 
 	World& world = *GetWorld();
 	for (int lx = 18; lx < 25; ++lx) {
-		for (int ly = 62; ly < 70; ++ly) {
+		for (int ly = 63; ly < 71; ++ly) {
 			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + lx, 500 + ly, 500 + 60, WHITE | (15 << 12));
+			world.Set(450 + lx, 500 + ly, 500 + 59, WHITE | (15 << 12));
 		}
 	}
 	for (int lx = 18; lx < 25; ++lx) {
-		for (int ly = 62; ly < 70; ++ly) {
+		for (int ly = 63; ly < 71; ++ly) {
 			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
 			world.Set(450 + lx, 500 + ly, 500 + 68, WHITE | (15 << 12));
 		}
 	}
-	for (int ly = 62; ly < 70; ++ly) {
+	for (int ly = 63; ly < 71; ++ly) {
 		for (int lz = 61; lz < 68; ++lz) {
 			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
 			world.Set(450 + 25, 500 + ly, 500 + lz, WHITE | (15 << 12));
 		}
 	}
-	for (int ly = 62; ly < 70; ++ly) {
+	for (int ly = 63; ly < 70; ++ly) {
 		for (int lz = 61; lz < 68; ++lz) {
 			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + 17, 500 + ly, 500 + lz, WHITE | (15 << 12));
+			world.Set(450 + 16, 500 + ly, 500 + lz, WHITE | (15 << 12));
 		}
 	}
 }
@@ -210,7 +210,7 @@ void WaterWorld::Init()
 	world.OptimizeBricks(); //important to recognize bricks
 	vector<Light> vls;
 	world.SetupLights(vls);
-	skyDomeLightScale = 2.0f;
+	skyDomeLightScale = 0.0f;
 	skyDomeImage = "assets/sky_21.hdr";
 }
 void WaterWorld::IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg)
@@ -241,7 +241,10 @@ void WaterWorld::HandleInput(float deltaTime)
 	if (GetAsyncKeyState(VK_RIGHT)) D = normalize(D + right * 0.025f * speed);
 	if (GetAsyncKeyState(VK_UP)) D = normalize(D - up * 0.025f * speed);
 	if (GetAsyncKeyState(VK_DOWN)) D = normalize(D + up * 0.025f * speed);
-	if (GetAsyncKeyState(VK_SPACE)) fluidSimulator.Update(deltaTime);
+	if (GetAsyncKeyState(VK_SPACE)) {
+		//fluidSimulator.Update(deltaTime);
+		SetSpriteFrame( lighthouseSprite, (frame = (frame + 1) % 5));
+	}
 	if (GetAsyncKeyState(VK_SHIFT) && !keyPressed[VK_SHIFT])
 	{
 		runCAPESimulation = !runCAPESimulation;
@@ -282,16 +285,11 @@ void WaterWorld::HandleInput(float deltaTime)
 // -----------------------------------------------------------
 void WaterWorld::Tick(float deltaTime)
 {
+	
 	// update camera
 	HandleInput(deltaTime);
-	angle += 10.0f;
-	RotateSprite(lighthouseSprite, angle * PI / 180);
 
 	if (runCAPESimulation)
 		fluidSimulator.Update(deltaTime);
-}
-
-void WaterWorld::PreRender() 
-{
-	RemoveSprite(lighthouseSprite);
+	frame += (frame + 1) % 5;
 }

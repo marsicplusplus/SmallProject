@@ -22,7 +22,6 @@ namespace Tmpl8
 		static void IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg);
 		// game flow methods
 		void Init();
-		void PreRender();
 		void HandleInput(float deltaTime);
 		void Tick(float deltaTime);
 		void Shutdown()
@@ -56,7 +55,7 @@ namespace Tmpl8
 		float3 D = make_float3(0, 0, 1);
 		float3 O = make_float3(512, 512, 512);
 
-		float angle = 0;
+		int frame = 0;
 		FluidSimulator fluidSimulator;
 		bool runCAPESimulation = false;
 		bool keyPressed[0xFF];

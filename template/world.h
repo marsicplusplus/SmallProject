@@ -225,7 +225,6 @@ public:
 	void PrintZ( const char* text, const uint x, const uint y, const uint z, const uint c );
 	uint CreateSprite( const int3 pos, const int3 size, const int frames );
 	uint SpriteFrameCount( const uint idx );
-	mat4 GetSpriteTransform(const uint idx);
 	void MoveSpriteTo( const uint idx, const uint x, const uint y, const uint z );
 	void TransformSprite( const uint idx, mat4 transform );
 	void RemoveSprite( const uint idx );
