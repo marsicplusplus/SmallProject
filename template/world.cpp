@@ -336,7 +336,7 @@ void World::DummyWorld()
 	for (int x = 0; x < 1024; x++) for (int z = 0; z < 1024; z++)
 	{
 		Set(x, 6 + 200, z, WHITE);
-		Set(x, 256 + 200, z, WHITEHALF);
+		Set(x, 256 + 200, z, WHITE);
 	}
 	for (int x = 0; x < 1024; x++) for (int y = 0; y < 256; y++)
 	{
