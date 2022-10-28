@@ -1,7 +1,49 @@
 #include "precomp.h"
 #include "worldeditor.h"
 
+#include "lib/stb_image_write.h"
+
 #define MAX_ALLOCATION 512000000 // in bytes
+
+#define BIG_TILE_IMAGE_SCALE 8
+#define TILE_IMAGE_SCALE 16
+
+#define TILE_IMAGE_DIM BRICKDIM * TILE_IMAGE_SCALE
+
+// Simple helper function to load an image into a OpenGL texture with common settings
+bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height)
+{
+	// Load from file
+	int image_width = 0;
+	int image_height = 0;
+	unsigned char* image_data = stbi_load(filename, &image_width, &image_height, NULL, 4);
+	if (image_data == NULL)
+		return false;
+
+	// Create a OpenGL texture identifier
+	GLuint image_texture;
+	glGenTextures(1, &image_texture);
+	glBindTexture(GL_TEXTURE_2D, image_texture);
+
+	// Setup filtering parameters for display
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // This is required on WebGL for non power-of-two textures
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Same
+
+	// Upload pixels into texture
+#if defined(GL_UNPACK_ROW_LENGTH) && !defined(__EMSCRIPTEN__)
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+#endif
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+	stbi_image_free(image_data);
+
+	*out_texture = image_texture;
+	*out_width = image_width;
+	*out_height = image_height;
+
+	return true;
+}
 
 WorldEditor::WorldEditor()
 {
@@ -15,8 +57,135 @@ WorldEditor::WorldEditor()
 	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 	memset(tempBrickInfo, BRICKSIZE, BRICKCOUNT * sizeof(BrickInfo));
 
-	loadedTiles.push_back(LoadTile("assets/flower.vox"));
-	tileIdx = loadedTiles.front();
+	LoadTiles();
+}
+
+void WorldEditor::LoadTiles()
+{
+	const std::filesystem::path tiles{ "assets/Tiles" };
+	const std::filesystem::path bigTiles{ "assets/BigTiles" };
+
+	TileManager* tileManager = TileManager::GetTileManager();
+
+	// Load any saved Tiles
+	for (auto const& dir_entry : std::filesystem::directory_iterator{ tiles })
+	{
+		std::filesystem::path p = dir_entry.path();
+		if (p.extension() == ".vox")
+		{
+			// Load the tile
+			uint tileIdx = LoadTile(dir_entry.path().string().c_str());
+
+			// Check to see if the tile has a preview png already
+			std::filesystem::path png = ".png";
+			p.replace_extension(png);
+			if (!std::filesystem::exists(p)) // Construct a preview for the tile
+			{
+				int imageSize = TILE_IMAGE_DIM * TILE_IMAGE_DIM;
+				uint32_t* buffer = new uint32_t[imageSize];
+				memset(buffer, 0, imageSize * sizeof(uint32_t));
+
+				PAYLOAD* voxels = tileManager->tile[tileIdx]->voxels;
+
+				// Find the first non transparent voxel for each x,y position
+				for (int y = 0; y < BRICKDIM; y++)
+				{
+					for (int x = 0; x < BRICKDIM; x++)
+					{
+						for (int z = 0; z < BRICKDIM; z++)
+						{
+							PAYLOAD v = voxels[x + y * BRICKDIM + z * BRICKDIM * BRICKDIM];
+							if (v)
+							{
+								float3 val = ToFloatRGB(v);
+
+								// Fill in a square of pixels (TILE_IMAGE_SCALE * TILE_IMAGE_SCALE) for a given voxel color 
+								for (int _x = x * TILE_IMAGE_SCALE; _x < (x + 1) * TILE_IMAGE_SCALE; _x++)
+									for (int _y = y * TILE_IMAGE_SCALE; _y < (y + 1) * TILE_IMAGE_SCALE; _y++)
+									{
+										uint32_t& dst = buffer[((TILE_IMAGE_DIM - 1) - (_y)) * TILE_IMAGE_DIM + (TILE_IMAGE_DIM - 1) - (_x)];
+										dst = ((std::min<uint32_t>(static_cast<uint32_t>(val.x * 255), 255) << 0) |
+											(std::min<uint32_t>(static_cast<uint32_t>(val.y * 255), 255) << 8) |
+											(std::min<uint32_t>(static_cast<uint32_t>(val.z * 255), 255) << 16) | 255 << 24);
+									}
+
+								break;
+							}
+						}
+
+					}
+				}
+
+				stbi_write_png(p.string().c_str(), TILE_IMAGE_DIM, TILE_IMAGE_DIM, 4, buffer, TILE_IMAGE_DIM * sizeof(uint32_t));
+			}
+
+			int my_image_width = 0;
+			int my_image_height = 0;
+			GLuint my_image_texture = 0;
+
+			bool ret = LoadTextureFromFile(p.string().c_str(), &my_image_texture, &my_image_width, &my_image_height);
+			IM_ASSERT(ret);
+			loadedTiles.push_back(std::make_pair(tileIdx, my_image_texture));
+		}
+	}
+
+	// Load any saved BigTiles
+	for (auto const& dir_entry : std::filesystem::directory_iterator{ bigTiles })
+	{
+		std::filesystem::path p = dir_entry.path();
+		if (p.extension() == ".vox")
+		{
+			// Load the tile
+			uint bigTileIdx = LoadBigTile(dir_entry.path().string().c_str());
+
+			// Check to see if the tile has a preview png already
+			std::filesystem::path png = ".png";
+			p.replace_extension(png);
+			if (!std::filesystem::exists(p)) // Construct a preview for the tile
+			{
+				int imageSize = TILE_IMAGE_DIM * TILE_IMAGE_DIM;
+				uint32_t* buffer = new uint32_t[imageSize];
+				memset(buffer, 0, imageSize * sizeof(uint32_t));
+
+				Tile* tiles = tileManager->bigTile[bigTileIdx]->tile;
+
+				for (int subTile = 0; subTile < 8; subTile++)
+				{
+					int sx = subTile & 1, sy = (subTile >> 1) & 1, sz = (subTile >> 2) & 1;
+
+					for (int z = BRICKDIM - 1; z > 0; z--) for (int y = 0; y < BRICKDIM; y++) for (int x = 0; x < BRICKDIM; x++)
+					{
+						PAYLOAD v = tiles[subTile].voxels[x + y * BRICKDIM + z * BRICKDIM * BRICKDIM];
+						if (v)
+						{
+							float3 val = ToFloatRGB(v);
+
+							int xPos = x * BIG_TILE_IMAGE_SCALE + sx * BIG_TILE_IMAGE_SCALE * BRICKDIM;
+							int yPos = y * BIG_TILE_IMAGE_SCALE + sy * BIG_TILE_IMAGE_SCALE * BRICKDIM;
+							// Fill in a square of pixels (BIG_TILE_IMAGE_SCALE * BIG_TILE_IMAGE_SCALE) for a given voxel color 
+							for (int _x = xPos; _x < xPos + BIG_TILE_IMAGE_SCALE; _x++)
+								for (int _y = yPos; _y < yPos + BIG_TILE_IMAGE_SCALE; _y++)
+								{
+									uint32_t& dst = buffer[((TILE_IMAGE_DIM - 1) - _y) * TILE_IMAGE_DIM + (TILE_IMAGE_DIM - 1) - _x];
+									dst = ((std::min<uint32_t>(static_cast<uint32_t>(val.x * 255), 255) << 0) |
+										(std::min<uint32_t>(static_cast<uint32_t>(val.y * 255), 255) << 8) |
+										(std::min<uint32_t>(static_cast<uint32_t>(val.z * 255), 255) << 16) | 255 << 24);
+								}
+						}
+					}
+				}
+				stbi_write_png(p.string().c_str(), TILE_IMAGE_DIM, TILE_IMAGE_DIM, 4, buffer, TILE_IMAGE_DIM * sizeof(uint32_t));
+			}
+
+			int my_image_width = 0;
+			int my_image_height = 0;
+			GLuint my_image_texture = 0;
+
+			bool ret = LoadTextureFromFile(p.string().c_str(), &my_image_texture, &my_image_width, &my_image_height);
+			IM_ASSERT(ret);
+			loadedBigTiles.push_back(std::make_pair(bigTileIdx, my_image_texture));
+		}
+	}
 }
 
 #pragma region InputHandling
@@ -51,8 +220,9 @@ void WorldEditor::MouseMove(int x, int y)
 		// Ignore when mouse hovers over the same brick to avoid multiple add/removes
 		if (oldBox == selectedBricks.box) return;
 
-		if (gesture.mode & GestureMode::GESTURE_REMOVE) RemoveSelectedBrick();
-		else AddSelectedBrick();
+		float3 brickPos = selectedBricks.box.bmin3;
+		if (gesture.mode & GestureMode::GESTURE_REMOVE) RemoveBrick(brickPos.x, brickPos.y, brickPos.z);
+		else AddBrick(brickPos.x, brickPos.y, brickPos.z);
 	}
 	UpdateSelectedBrick();
 }
@@ -139,7 +309,7 @@ void WorldEditor::MouseDown(int mouseButton)
 	if (gesture.buttons & GestureButton::GESTURE_LMB)
 	{
 		// Clear the list of updated bricks for the new gesture
-		updatedBricks.clear();
+		editedBricks.clear();
 		gesture.state = GestureState::GESTURE_ACTIVE;
 
 		// Save a backup version of the grid/brick/info 
@@ -148,9 +318,10 @@ void WorldEditor::MouseDown(int mouseButton)
 		memcpy(tempGrid, world.GetGrid(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 		memcpy(tempBrickInfo, world.GetBrickInfo(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 
+		float3 brickPos = selectedBricks.box.bmin3;
 		// Add or remove the intial brick where the mouse is hovered
-		if (gesture.mode & GestureMode::GESTURE_REMOVE) RemoveSelectedBrick();
-		else AddSelectedBrick();
+		if (gesture.mode & GestureMode::GESTURE_REMOVE) RemoveBrick(brickPos.x, brickPos.y, brickPos.z);
+		else AddBrick(brickPos.x, brickPos.y, brickPos.z);
 
 		// Set our anchor for multi add/remove
 		selectedBricks.anchor = selectedBricks.box;
@@ -191,124 +362,155 @@ void WorldEditor::MouseUp(int mouseButton)
 #pragma endregion
 
 #pragma region Editing
+
+void WorldEditor::UpdateEditedBricks(int bx, int by, int bz)
+{
+	if (gesture.size == GestureSize::GESTURE_TILE)
+	{
+		editedBricks.push_back((make_int3)(bx, by, bz));
+	}
+	else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+	{
+		for (int x = 0; x < 2; x++)
+			for (int y = 0; y < 2; y++)
+				for (int z = 0; z < 2; z++)
+					editedBricks.push_back(make_int3(bx * 2 + x, by * 2 + y, bz * 2 + z));
+	}
+
+	return;
+}
+
+// Allow the adding/removing of multiple bricks in the seclected box
 void WorldEditor::MultiAddRemove()
 {
 	aabb oldBox = selectedBricks.box;
 	selectedBricks.box = selectedBricks.anchor;
 	UpdateSelectedBrick();
 
-	// Check to see if the selected bounding box has changed
-	if (!(oldBox == selectedBricks.box))
+	World& world = *GetWorld();
+	unsigned short* brick = world.GetBrick();
+	uint* grid = world.GetGrid();
+
+	aabb newBox = selectedBricks.box;
+	// Compute the overlap betweeen the old and new aabbs
+	aabb intersectionLocal = oldBox.Intersection(newBox);
+	aabb intersectionGlobal = intersectionLocal;
+
+	if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+	{
+		// Get the old box to be in normal sized bricks coords
+		oldBox.bmin3 *= 2; oldBox.bmax3 *= 2;
+		// Expand the old box so we take up the whole large brick space
+		oldBox.bmax3 += (1, 1, 1);
+
+		// Get the new box to be in normal sized bricks coords
+		newBox.bmin3 *= 2; newBox.bmax3 *= 2;
+		// Expand the new box so we take up the whole large brick space
+		newBox.bmax3 += (1, 1, 1);
+
+		// Compute the intersection in normal brick coords not Big Bricks (2x2x2)
+		intersectionGlobal = oldBox.Intersection(newBox);
+	}
+
+	// We've updated the selected bricks box so now it doesn't cover the same bricks
+	// For all individual updated bricks, put back the old bricks values
+	for (int bx = oldBox.bmax3.x; bx >= oldBox.bmin3.x; bx--)
+		for (int by = oldBox.bmax3.y; by >= oldBox.bmin3.y; by--)
+			for (int bz = oldBox.bmax3.z; bz >= oldBox.bmin3.z; bz--)
+			{
+				__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
+				if (intersectionGlobal.Contains(b4))
+					continue;
+
+				const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+				const uint tempGridVal = tempGrid[cellIdx];
+				const uint curGridVal = grid[cellIdx];
+
+				// If we're reintroducing what was an empty brick, just remove the current one
+				if ((tempGridVal & 1) == 0)
+				{
+					world.RemoveBrick(bx, by, bz);
+					continue;
+				}
+
+				// Get current and new brick offsets (g1)
+				uint tempBrickOffset = (tempGridVal >> 1);
+				uint curBrickOffset = (curGridVal >> 1);
+
+				uint brickIdx = tempBrickOffset;
+				uint gridValue = tempGridVal;
+
+				// If the current brick is empty we need to create a NewBrick
+				if ((curGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
+
+				// Copy the brick from the saved temporary brick buffer to our current brick buffer 
+				memcpy(brick + brickIdx * BRICKSIZE, tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+				grid[cellIdx] = gridValue;
+				world.GetBrickInfo()[brickIdx].zeroes = tempBrickInfo[tempBrickOffset].zeroes;
+				world.Mark(brickIdx);
+			}
+
+	// Clear all edited bricks and fill it with bricks form the new selected bricks aabb
+	editedBricks.clear();
+	// Either add or remove the bricks in the new selected bricks aabb
+	for (int bx = selectedBricks.box.bmax3.x; bx >= selectedBricks.box.bmin3.x; bx--)
+		for (int by = selectedBricks.box.bmax3.y; by >= selectedBricks.box.bmin3.y; by--)
+			for (int bz = selectedBricks.box.bmax3.z; bz >= selectedBricks.box.bmin3.z; bz--)
+			{
+				__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
+				if (intersectionLocal.Contains(b4))
+				{
+					UpdateEditedBricks(bx, by, bz);
+					continue;
+				}
+
+				if (gesture.mode & GestureMode::GESTURE_REMOVE)
+				{
+					RemoveBrick(bx, by, bz);
+				}
+				else
+				{
+					AddBrick(bx, by, bz);
+				}
+			}
+}
+
+void WorldEditor::AddBrick(int bx, int by, int bz)
+{
+	// Avoid adding a brick already added during this gesture
+	int3 brickPos = make_int3(bx, by, bz);
+	if (std::find(editedBricks.begin(), editedBricks.end(), brickPos) == editedBricks.end())
 	{
 		World& world = *GetWorld();
-		unsigned short* brick = world.GetBrick();
-		uint* grid = world.GetGrid();
-
-		// Calculate the symmetrical difference
-		// Subtract the intersextion from oldbox is voxels to remove
-		// Subtracting intersection from newbox is voxels to add
-		aabb intersection = oldBox.Intersection(selectedBricks.box);
-
-		// We've updated the selected bricks box so now it doesn't cover the same bricks
-		// For all updated bricks, put back the old bricks values
-		for (int bx = oldBox.bmax3.x; bx >= oldBox.bmin3.x; bx--)
-			for (int by = oldBox.bmax3.y; by >= oldBox.bmin3.y; by--)
-				for (int bz = oldBox.bmax3.z; bz >= oldBox.bmin3.z; bz--)
-				{
-					__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
-					if (intersection.Contains(b4))
-						continue;
-
-					const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-					const uint tempGridVal = tempGrid[cellIdx];
-					const uint curGridVal = grid[cellIdx];
-
-					// If we're reintroducing what was an empty brick, just remove the current one
-					if ((tempGridVal & 1) == 0)
-					{
-						world.RemoveBrick(bx, by, bz);
-						continue;
-					}
-
-					// Get current and new brick offsets (g1)
-					uint tempBrickOffset = (tempGridVal >> 1);
-					uint curBrickOffset = (curGridVal >> 1);
-
-					uint brickIdx = tempBrickOffset;
-					uint gridValue = tempGridVal;
-
-					// If the current brick is empty we need to create a NewBrick
-					if ((curGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
-
-					// Copy the brick from the saved temporary brick buffer to our current brick buffer 
-					memcpy(brick + brickIdx * BRICKSIZE, tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
-					grid[cellIdx] = gridValue;
-					world.GetBrickInfo()[brickIdx].zeroes = tempBrickInfo[tempBrickOffset].zeroes;
-					world.Mark(brickIdx);
-				}
-
-		updatedBricks.clear();
-		// Either add or remove the bricks in the new selected bricks aabb
-		for (int bx = selectedBricks.box.bmax3.x; bx >= selectedBricks.box.bmin3.x; bx--)
-			for (int by = selectedBricks.box.bmax3.y; by >= selectedBricks.box.bmin3.y; by--)
-				for (int bz = selectedBricks.box.bmax3.z; bz >= selectedBricks.box.bmin3.z; bz--)
-				{
-					updatedBricks.push_back((make_int3)(bx, by, bz));
-					__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
-					if (intersection.Contains(b4))
-						continue;
-
-					if (gesture.mode & GestureMode::GESTURE_REMOVE)
-					{
-						world.RemoveBrick(bx, by, bz);
-					}
-					else
-					{
-						world.DrawTile(tileIdx, bx, by, bz);
-					}
-				}
-
+		UpdateEditedBricks(bx, by, bz);
+		if (gesture.size == GestureSize::GESTURE_TILE)
+		{
+			world.DrawTile(selectedTileIdx, bx, by, bz);
+		}
+		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+		{
+			world.DrawBigTile(selectedBigTileIdx, bx, by, bz);
+		}
 	}
 }
 
-void WorldEditor::AddSelectedBrick()
+void WorldEditor::RemoveBrick(int bx, int by, int bz)
 {
-	World& world = *GetWorld();
-	for (int bx = selectedBricks.box.bmin[0]; bx <= selectedBricks.box.bmax[0]; bx++)
-		for (int by = selectedBricks.box.bmin[1]; by <= selectedBricks.box.bmax[1]; by++)
-			for (int bz = selectedBricks.box.bmin[2]; bz <= selectedBricks.box.bmax[2]; bz++)
-			{
-				// Avoid adding the same brick multiple times
-				int3 brickPos = make_int3(bx, by, bz);
-				if (std::find(updatedBricks.begin(), updatedBricks.end(), brickPos) == updatedBricks.end())
-				{
-					// Just draw the tile regardless for now
-					// Potentially should make this return a boolean value to determine if the tile was already there
-					updatedBricks.push_back(brickPos);
-					world.DrawTile(tileIdx, bx, by, bz);
-				}
-			}
-}
-
-void WorldEditor::RemoveSelectedBrick()
-{
-	World& world = *GetWorld();
-	for (int bx = selectedBricks.box.bmin3.x; bx <= selectedBricks.box.bmax3.x; bx++)
-		for (int by = selectedBricks.box.bmin3.y; by <= selectedBricks.box.bmax3.y; by++)
-			for (int bz = selectedBricks.box.bmin3.z; bz <= selectedBricks.box.bmax3.z; bz++)
-			{
-				// Avoid removing the same brick multiple times
-				int3 brickPos = make_int3(bx, by, bz);
-				if (std::find(updatedBricks.begin(), updatedBricks.end(), brickPos) == updatedBricks.end())
-				{
-					const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-					const uint curGridVal = world.GetGrid()[cellIdx];
-					if ((curGridVal & 1) == 0) continue;
-
-					updatedBricks.push_back(brickPos);
-					world.RemoveBrick(bx, by, bz);
-				}
-			}
+	// Avoid removing a brick already removed during this gesture
+	int3 brickPos = make_int3(bx, by, bz);
+	if (std::find(editedBricks.begin(), editedBricks.end(), brickPos) == editedBricks.end())
+	{
+		World& world = *GetWorld();
+		UpdateEditedBricks(bx, by, bz);
+		if (gesture.size == GestureSize::GESTURE_TILE)
+		{
+			world.RemoveBrick(bx, by, bz);
+		}
+		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+		{
+			world.RemoveBigTile(bx, by, bz);
+		}
+	}
 }
 #pragma endregion
 
@@ -337,7 +539,7 @@ void WorldEditor::Undo()
 	int numBricks = stateCurrent->numBricks;
 	for (int idx = 0; idx < numBricks; idx++)
 	{
-		int3 b = stateCurrent->updatedBricks[idx];
+		int3 b = stateCurrent->editedBricks[idx];
 		const uint cellIdx = b.x + b.z * GRIDWIDTH + b.y * GRIDWIDTH * GRIDDEPTH;
 
 		const uint oldGridVal = stateCurrent->oldGridVals[idx];
@@ -385,7 +587,7 @@ void WorldEditor::Redo()
 	int numBricks = stateCurrent->numBricks;
 	for (int idx = 0; idx < numBricks; idx++)
 	{
-		int3 b = stateCurrent->updatedBricks[idx];
+		int3 b = stateCurrent->editedBricks[idx];
 		const uint cellIdx = b.x + b.z * GRIDWIDTH + b.y * GRIDWIDTH * GRIDDEPTH;
 
 		const uint oldGridVal = stateCurrent->oldGridVals[idx];
@@ -431,7 +633,7 @@ void WorldEditor::SaveState()
 		return;
 	}
 
-	int numBricks = updatedBricks.size();
+	int numBricks = editedBricks.size();
 	stateCurrent->numBricks = numBricks;
 	stateCurrent->newBricks = (PAYLOAD*)_aligned_malloc(numBricks * BRICKSIZE * PAYLOADSIZE, 64);
 	stateCurrent->oldBricks = (PAYLOAD*)_aligned_malloc(numBricks * BRICKSIZE * PAYLOADSIZE, 64);
@@ -439,11 +641,11 @@ void WorldEditor::SaveState()
 	stateCurrent->oldGridVals = (uint*)_aligned_malloc(numBricks * 4, 64);
 	stateCurrent->newBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
 	stateCurrent->oldBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
-	stateCurrent->updatedBricks = (int3*)_aligned_malloc(numBricks * sizeof(int3), 64);
+	stateCurrent->editedBricks = (int3*)_aligned_malloc(numBricks * sizeof(int3), 64);
 
 	for (int idx = 0; idx < numBricks; idx++)
 	{
-		int3 brick = updatedBricks[idx];
+		int3 brick = editedBricks[idx];
 		const uint cellIdx = brick.x + brick.z * GRIDWIDTH + brick.y * GRIDWIDTH * GRIDDEPTH;
 
 		const uint tempGridValue = tempGrid[cellIdx];
@@ -478,7 +680,7 @@ void WorldEditor::SaveState()
 		stateCurrent->oldBrickZeroes[idx] = tempBrickInfo[tempBrickOffset].zeroes;
 		stateCurrent->newBrickZeroes[idx] = brickInfo[brickOffset].zeroes;
 
-		stateCurrent->updatedBricks[idx] = brick;
+		stateCurrent->editedBricks[idx] = brick;
 	}
 
 
@@ -536,7 +738,7 @@ void WorldEditor::DeleteState(State* state)
 	_aligned_free(state->newGridVals);
 	_aligned_free(state->oldBrickZeroes);
 	_aligned_free(state->newBrickZeroes);
-	_aligned_free(state->updatedBricks);
+	_aligned_free(state->editedBricks);
 	free(state);
 
 	allocatedUndo -= 2 * (numBricks * BRICKSIZE * PAYLOADSIZE);
@@ -629,23 +831,33 @@ void WorldEditor::UpdateSelectedBrick()
 		if (!hit) return;
 
 
-		float3 hitpoint = ray.O + ray.D * distance;
+		float3 hitPoint = ray.O + ray.D * distance;
 
 		// Get position inside of the voxel to determine brick location
-		float3 voxelPos = hitpoint + 0.5 * normal;
+		float3 voxelPos = hitPoint + 0.5 * normal;
+		float3 brickPos;
+		if (gesture.size == GestureSize::GESTURE_TILE)
+			brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
+		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+			brickPos = make_float3((int)voxelPos.x / (BRICKDIM * 2), (int)voxelPos.y / (BRICKDIM * 2), (int)voxelPos.z / (BRICKDIM * 2));
 
-		float3 brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
 		selectedBricks.box.Grow(brickPos);
+
 	}
 	else
 	{
 		float t = intersection.GetDistance();
-		float3 N = intersection.GetNormal();
+		float3 normal = intersection.GetNormal();
 		float3 hitPoint = ray.O + ray.D * t;
 
 		// Get position inside of the voxel to determine brick location
-		float3 voxelPos = hitPoint - 0.1 * N;
-		float3 brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
+		float3 voxelPos = hitPoint - 0.1 * normal;
+		float3 brickPos;
+		// Get position inside of the voxel to determine brick location
+		if (gesture.size == GestureSize::GESTURE_TILE)
+			brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
+		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+			brickPos = make_float3((int)voxelPos.x / (BRICKDIM * 2), (int)voxelPos.y / (BRICKDIM * 2), (int)voxelPos.z / (BRICKDIM * 2));
 
 		if (gesture.mode & GestureMode::GESTURE_REMOVE)
 		{
@@ -653,13 +865,21 @@ void WorldEditor::UpdateSelectedBrick()
 		}
 		else
 		{
-			selectedBricks.box.Grow(brickPos + N);
+			selectedBricks.box.Grow(brickPos + normal);
 		}
 	}
 
 	// Update rendering params to trace the selected bricks outline
-	params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM;
-	params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM + make_float3(BRICKDIM, BRICKDIM, BRICKDIM);
+	if (gesture.size == GestureSize::GESTURE_TILE)
+	{
+		params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM;
+		params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM + make_float3(BRICKDIM, BRICKDIM, BRICKDIM);
+	}
+	else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+	{
+		params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM * 2;
+		params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM * 2 + make_float3(BRICKDIM  * 2, BRICKDIM * 2, BRICKDIM * 2);
+	}
 }
 
 // Sets the current mode based on mouse button and selected keys
@@ -689,4 +909,66 @@ void WorldEditor::CheckMemoryAllowance()
 		stateHead->nextState = newState;
 		if (newState) newState->prevState = stateHead;
 	}
+}
+
+void WorldEditor::RenderGUI()
+{
+	if (!enabled) return;
+
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	// render your GUI
+	ImGui::Begin("Edit Tool");
+
+	auto StyleTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& tiles, int& tileIdx) -> bool
+	{
+		if (ImGui::BeginTabItem(tabName.c_str()))
+		{
+			int numButtons = min(10, (int)tiles.size());
+			for (int buttonIdx = 0; buttonIdx < numButtons; buttonIdx++)
+			{
+				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0, 0.0, 0.0, 1.0));
+				if (buttonIdx == tileIdx)
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 5.0f);
+				else
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+
+
+				if (ImGui::ImageButton((void*)(intptr_t)tiles[buttonIdx].second, ImVec2(TILE_IMAGE_DIM, TILE_IMAGE_DIM), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
+				{
+					tileIdx = buttonIdx;
+				}
+
+				ImGui::PopStyleVar();
+				ImGui::PopStyleColor();
+				ImGui::SameLine();
+			}
+			// switch to the newly selected tab
+			ImGui::EndTabItem();
+			return true;
+		}
+		return false;
+	};
+
+	ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_AutoSelectNewTabs;
+	if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
+	{
+		if (StyleTab("Tiles", loadedTiles, selectedTileIdx))
+		{
+			gesture.size = GestureSize::GESTURE_TILE;
+		}
+		if (StyleTab("Big Tiles", loadedBigTiles, selectedBigTileIdx))
+		{
+			gesture.size = GestureSize::GESTURE_BIG_TILE;
+		}
+		
+		ImGui::EndTabBar();
+	}
+
+	ImGui::End();
+	// Render dear imgui into screen
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }

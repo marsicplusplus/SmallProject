@@ -58,6 +58,10 @@ using namespace std;
 // zlib
 #include "zlib.h"
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 // namespaces
 namespace Tmpl8 { class World; };
 using namespace Tmpl8;

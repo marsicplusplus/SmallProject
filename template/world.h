@@ -255,6 +255,9 @@ public:
 	void UpdateLights(float deltaTime);
 	void SetupLights(vector<Light> &ls);
 	void InitReSTIR();
+
+	vector<Tile*>& GetTileList() { return TileManager::GetTileManager()->tile; }
+	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
 private:
 	// internal methods
 	void EraseSprite( const uint idx );
@@ -268,8 +271,6 @@ private:
 	// convenient access to 'guaranteed to be instantiated' sprite, particle, tile lists
 	vector<Sprite*>& GetSpriteList() { return SpriteManager::GetSpriteManager()->sprite; }
 	vector<Particles*>& GetParticlesList() { return ParticlesManager::GetParticlesManager()->particles; }
-	vector<Tile*>& GetTileList() { return TileManager::GetTileManager()->tile; }
-	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
 public:
 	// low-level voxel access
 	__forceinline uint Get( const uint x, const uint y, const uint z)
@@ -311,6 +312,15 @@ public:
 		Mark(g1);			// no need to send it to GPU anymore
 		FreeBrick(g1);
 	}
+
+	__forceinline void RemoveBigTile(const uint bx, const uint by, const uint bz)
+	{
+		for (int x = 0; x < 2; x++)
+			for (int y = 0; y < 2; y++)
+				for (int z = 0; z < 2; z++)
+					RemoveBrick(bx * 2 + x, by * 2 + y, bz * 2 + z);
+	}
+
 	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */ )
 	{
 		// calculate brick location in top-level grid

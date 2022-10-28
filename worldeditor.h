@@ -19,7 +19,7 @@ namespace Tmpl8
 			State* prevState = NULL;
 			State* nextState = NULL;
 
-			int3* updatedBricks;
+			int3* editedBricks;
 			uint numBricks;
 		};
 
@@ -53,12 +53,19 @@ namespace Tmpl8
 			GESTURE_MULTI = 1 << 1
 		};
 
+		enum GestureSize {
+			GESTURE_VOXEL = 0,
+			GESTURE_TILE = 1,
+			GESTURE_BIG_TILE = 2
+		};
+
 		struct Gesture
 		{
 			uint buttons = GestureButton::GESTURE_NO_BUTTONS;
 			uint keys = GestureKey::GESTURE_NO_KEYS;
 			uint state = GestureState::GESTURE_POSSIBLE;
 			uint mode = GestureMode::GESTURE_ADD;
+			uint size = GestureSize::GESTURE_TILE;
 		};
 
 	public:
@@ -72,11 +79,12 @@ namespace Tmpl8
 		void Enable() { UpdateSelectedBrick(); enabled = true; }
 		void Disable() { ResetEditor(); enabled = false; }
 		void ResetEditor();
+		void RenderGUI();
 
 	private:
 		void UpdateSelectedBrick();
-		void RemoveSelectedBrick();
-		void AddSelectedBrick();
+		void AddBrick(int bx, int by, int bz);
+		void RemoveBrick(int bx, int by, int bz);
 		void MultiAddRemove();
 		void UpdateGestureMode();
 		void CheckMemoryAllowance();
@@ -85,6 +93,8 @@ namespace Tmpl8
 		void SaveState();
 		void DeleteState(State* state);
 		bool CreateNewState();
+		void LoadTiles();
+		void UpdateEditedBricks(int bx, int by, int bz);
 
 		// Input and Gesture 
 		int2 mousePos;
@@ -98,8 +108,10 @@ namespace Tmpl8
 		uint* tempGrid = 0;
 		BrickInfo* tempBrickInfo = 0;
 
-		std::vector<int> loadedTiles;
-		int tileIdx;
+		std::vector<std::pair<int, GLuint>> loadedTiles;
+		std::vector<std::pair<int, GLuint>> loadedBigTiles;
+		int selectedTileIdx = 0;
+		int selectedBigTileIdx = 0;
 
 		State* stateHead;
 		State* stateTail;
@@ -108,7 +120,7 @@ namespace Tmpl8
 		bool undoEnabled = true;
 		uint allocatedUndo = 0;
 
-		std::vector<int3> updatedBricks;
+		std::vector<int3> editedBricks;
 	};
 }
 

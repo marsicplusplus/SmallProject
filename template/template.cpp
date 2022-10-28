@@ -369,26 +369,43 @@ void WindowFocusCallback(GLFWwindow* window, int focused)
 }
 void MouseButtonCallback( GLFWwindow* window, int button, int action, int mods )
 {
-	WorldEditor* worldEditor = world->getWorldEditor();
-	if (action == GLFW_PRESS) 
-	{ 
-		if (worldEditor->IsEnabled()) worldEditor->MouseDown( button );
-		else if (game) game->MouseDown( button ); 
-	}
-	else if (action == GLFW_RELEASE) 
+	ImGuiIO& io = ImGui::GetIO();
+	io.AddMouseButtonEvent(button, action);
+
+	if (!io.WantCaptureMouse)
 	{
-		if (worldEditor->IsEnabled()) worldEditor->MouseUp( button );
-		else if (game) game->MouseUp( button ); 
+		WorldEditor* worldEditor = world->getWorldEditor();
+		if (action == GLFW_PRESS)
+		{
+			if (worldEditor->IsEnabled()) worldEditor->MouseDown(button);
+			else if (game) game->MouseDown(button);
+		}
+		else if (action == GLFW_RELEASE)
+		{
+			if (worldEditor->IsEnabled()) worldEditor->MouseUp(button);
+			else if (game) game->MouseUp(button);
+		}
 	}
 }
 void MousePosCallback( GLFWwindow* window, double x, double y )
 {
-	world->getWorldEditor()->MouseMove( (int)x, (int)y );
-	if (game) game->MouseMove( (int)x, (int)y );
+	ImGuiIO& io = ImGui::GetIO();
+	io.AddMousePosEvent(x, y);
+
+	if (!io.WantCaptureMouse)
+	{
+		world->getWorldEditor()->MouseMove((int)x, (int)y);
+		if (game) game->MouseMove((int)x, (int)y);
+	}
 }
 void ErrorCallback( int error, const char* description )
 {
 	fprintf( stderr, "GLFW Error: %s\n", description );
+}
+
+void RenderGUI()
+{
+	world->getWorldEditor()->RenderGUI();
 }
 
 // Application entry point
@@ -419,6 +436,18 @@ void main()
 	glDisable( GL_CULL_FACE );
 	glDisable( GL_BLEND );
 	CheckGL();
+
+
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	// Setup Platform/Renderer bindings
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init("#version 330");
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+
 	// we want a console window for text output
 #ifdef _MSC_VER
 	CONSOLE_SCREEN_BUFFER_INFO coninfo;
@@ -475,7 +504,7 @@ void main()
 		{
 			game->Render(screen);
 		}
-		// while the GPU traces rays, update the world state using game->Tick
+				// while the GPU traces rays, update the world state using game->Tick
 		game->Tick( deltaTime );
 		world->UpdateLights( deltaTime );
 		if (GetAsyncKeyState( VK_LSHIFT )) for (int i = 0; i < 3; i++) game->Tick( deltaTime );
@@ -489,6 +518,7 @@ void main()
 			shader->SetInputTexture( 0, "c", renderTarget );
 			DrawQuad();
 			shader->Unbind();
+			RenderGUI();
 			glfwSwapBuffers( window );
 			glfwPollEvents();
 		}
