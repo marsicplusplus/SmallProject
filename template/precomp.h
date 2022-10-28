@@ -683,6 +683,17 @@ class aabb
 {
 public:
 	aabb() = default;
+	bool operator==(const aabb& bb) const
+	{
+		return (
+			bmin3.x == bb.bmin3.x && 
+			bmin3.y == bb.bmin3.y && 
+			bmin3.z == bb.bmin3.z &&
+			bmax3.x == bb.bmax3.x && 
+			bmax3.y == bb.bmax3.y && 
+			bmax3.z == bb.bmax3.z
+		);
+	}
 	aabb( __m128 a, __m128 b ) { bmin4 = a, bmax4 = b; bmin[3] = bmax[3] = 0; }
 	aabb( float3 a, float3 b ) { bmin[0] = a.x, bmin[1] = a.y, bmin[2] = a.z, bmin[3] = 0, bmax[0] = b.x, bmax[1] = b.y, bmax[2] = b.z, bmax[3] = 0; }
 	__inline void Reset() { bmin4 = _mm_set_ps1( 1e34f ), bmax4 = _mm_set_ps1( -1e34f ); }
@@ -725,7 +736,7 @@ public:
 			union { __m128 bmin4; float bmin[4]; struct { float3 bmin3; }; };
 			union { __m128 bmax4; float bmax[4]; struct { float3 bmax3; }; };
 		};
-		__m128 bounds[2] = { _mm_set_ps( 1e34f, 1e34f, 1e34f, 0 ), _mm_set_ps( -1e34f, -1e34f, -1e34f, 0 ) };
+		__m128 bounds[2] = { _mm_set_ps(1e34f, 1e34f, 1e34f, 1e34f), _mm_set_ps(-1e34f, -1e34f, -1e34f, -1e34f) };
 	};
 	__inline void SetBounds( const __m128 min4, const __m128 max4 ) { bmin4 = min4; bmax4 = max4; }
 	__inline __m128 Center() const { return _mm_mul_ps( _mm_add_ps( bmin4, bmax4 ), _mm_set_ps1( 0.5f ) ); }
@@ -1274,6 +1285,8 @@ public:
 #include "worldapi.h"
 #include "world_to_obj.h"
 #include "light_manager.h"
+#include "worldeditor.h"
+
 struct KeyHandler
 {
 	SHORT last = 0;

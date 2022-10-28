@@ -15,6 +15,7 @@ namespace Tmpl8
 		void InitialiseWaterLevelScenario();
 		void InitialiseDamBreakScenario();
 		void InitialiseWaterBlockDropScenario();
+		void InitialiseLighthouseScenario();
 		void InitialiseBuildingDropScenario();
 		void InitialiseTsunami();
 		void InitialiseShallowLakeDropScenario();
@@ -60,7 +61,6 @@ namespace Tmpl8
 		float laserDelay = 10, laserT;
 		int3 laserA, laserB;
 
-		LightManager lightManager;
 		FluidSimulator fluidSimulator;
 		bool runCAPESimulation = false;
 		bool keyPressed[0xFF];

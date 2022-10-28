@@ -122,8 +122,8 @@
   <!-- END Custom section -->
   <ItemGroup>
     <ClCompile Include="light_manager.cpp" />
-    <ClCompile Include="template\CAPE.cpp" />
     <ClCompile Include="fluid_simulator.cpp" />
+    <ClCompile Include="template\CAPE.cpp" />
     <ClCompile Include="waterworld.cpp" />
     <ClCompile Include="template\template.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

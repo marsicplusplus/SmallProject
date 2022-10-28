@@ -1,5 +1,4 @@
 #include "precomp.h"
-#include "light_manager.h"
 
 uint3 Tmpl8::LightManager::PositionFromIteration(int3 center, uint& iteration, uint radius)
 {

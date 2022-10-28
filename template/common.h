@@ -100,7 +100,7 @@
 struct RenderParams
 {
 	float2 oneOverRes;
-	float3 E, p0, p1, p2;
+	float3 E, p0, p1, p2, selectedMin, selectedMax;
 	uint R0, frame, framecount, restirtemporalframe;
 	uint skyWidth, skyHeight;
 	float4 skyLight[6];

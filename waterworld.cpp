@@ -21,26 +21,6 @@ void WaterWorld::SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint 
 				Plot(x, y, z, v);
 }
 
-void WaterWorld::SetupReservoirBuffers()
-{
-	World& world = *GetWorld();
-
-	Buffer* reservoirbuffer = world.GetReservoirsBuffer()[0];
-	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT;
-	if (!reservoirbuffer)
-	{
-		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
-		world.SetReservoirBuffer(reservoirbuffer, 0);
-	}
-
-	Buffer* prevReservoirbuffer = world.GetReservoirsBuffer()[1];
-	if (!prevReservoirbuffer)
-	{
-		prevReservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
-		world.SetReservoirBuffer(prevReservoirbuffer, 1);
-	}
-}
-
 //Little dam holding water with a hole in it
 void WaterWorld::InitialiseDamHoleScenario()
 {
@@ -119,6 +99,48 @@ void WaterWorld::InitialiseWaterBlockDropScenario()
 	SetStaticBlock(500, 500, 500, 60, 1, 60, RED);
 }
 
+void WaterWorld::InitialiseLighthouseScenario()
+{
+	//water
+	fluidSimulator.SetMaterialBlock(450, 500, 500, 256, 10, 256, 1, false);
+
+	//boundary
+	SetStaticBlock(450, 400, 500, 256, 256, 1, RED);
+	SetStaticBlock(706, 400, 500, 1, 256, 256, RED);
+	SetStaticBlock(450, 656, 756, 256, 256, 1, RED);
+	SetStaticBlock(450, 400, 500, 1, 256, 256, RED);
+	SetStaticBlock(450, 400, 500, 256, 1, 256, RED);
+
+	int eg = LoadSprite("assets/lighthouse.vox");
+	StampSpriteTo(eg, 450, 500, 500);
+
+	World& world = *GetWorld();
+	for (int lx = 18; lx < 25; ++lx) {
+		for (int ly = 62; ly < 70; ++ly) {
+			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
+			world.Set(450 + lx, 500 + ly, 500 + 60, WHITE | (15 << 12));
+		}
+	}
+	for (int lx = 18; lx < 25; ++lx) {
+		for (int ly = 62; ly < 70; ++ly) {
+			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
+			world.Set(450 + lx, 500 + ly, 500 + 68, WHITE | (15 << 12));
+		}
+	}
+	for (int ly = 62; ly < 70; ++ly) {
+		for (int lz = 61; lz < 68; ++lz) {
+			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
+			world.Set(450 + 25, 500 + ly, 500 + lz, WHITE | (15 << 12));
+		}
+	}
+	for (int ly = 62; ly < 70; ++ly) {
+		for (int lz = 61; lz < 68; ++lz) {
+			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
+			world.Set(450 + 17, 500 + ly, 500 + lz, WHITE | (15 << 12));
+		}
+	}
+}
+
 //Scenario used for evaluation: Drop a block 40x40x40 water into 100x100x100 cube
 void WaterWorld::InitialiseBuildingDropScenario()
 {
@@ -152,8 +174,6 @@ static bool useSpatialResampling = USESPATIAL;
 static bool useTemporalResampling = USETEMPORAL;
 static bool skyDomeSampling = true;
 
-static unordered_map<string, void*> commands;
-static unordered_map<string, function<void(WaterWorld&, string)>> functionCommands;
 
 // -----------------------------------------------------------
 // Initialize the application
@@ -164,17 +184,17 @@ void WaterWorld::Init()
 	ShowCursor(false);
 	// default scene is a box; punch a hole in the ceiling
 	Box(256, 240, 256, 768, 260, 768, 0);
-	// add some objects
 
 	//A few scenario's to choose from
 	//InitialiseDamHoleScenario();
-	InitialiseWaterBlockDropScenario();
+	//InitialiseWaterBlockDropScenario();
 	//InitialiseDamBreakScenario();
 	//InitialiseWaterLevelScenario();
 	//InitialiseBuildingDropScenario();
 	//InitialiseTsunami();
+	InitialiseLighthouseScenario();
 
-	/* Initialization stuff for ReSTIR */
+	/* Overwrite defaults for ReSTIR */
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
@@ -187,22 +207,11 @@ void WaterWorld::Init()
 	params.skyDomeSampling = skyDomeSampling;
 	world.GetDebugInfo().counter = 0;
 
-	commands.insert({ "spatialtaps", &params.spatialTaps });
-	commands.insert({ "spatialradius", &params.spatialRadius });
-	commands.insert({ "numberofcandidates", &params.numberOfCandidates });
-	commands.insert({ "temporalimportance", &params.numberOfMaxTemporalImportance });
-	commands.insert({ "spatial", &params.spatial });
-	commands.insert({ "temporal", &params.temporal });
-	commands.insert({ "skydome", &params.skyDomeSampling });
-	functionCommands.insert({ "addlights", [](WaterWorld& _1, string _2) {IntArgFunction([](WaterWorld& g, int a) {g.lightManager.AddRandomLights(a); }, _1, _2, 2500); }});
-	functionCommands.insert({ "removelights", [](WaterWorld& _1, string _2) {IntArgFunction([](WaterWorld& g, int a) {g.lightManager.RemoveRandomLights(a); }, _1, _2, 2500); } });
-	functionCommands.insert({ "movelightcount", [](WaterWorld& _1, string _2) {IntArgFunction([](WaterWorld& g, int a) {g.lightManager.SetUpMovingLights(a); }, _1, _2, 2500); } });
-
-	vector<Light> ls;
 	world.OptimizeBricks(); //important to recognize bricks
-	lightManager.FindLightsInWorld(ls);
-	lightManager.SetupBuffer(ls);
-	SetupReservoirBuffers();
+	vector<Light> vls;
+	world.SetupLights(vls);
+	skyDomeLightScale = 0.0f;
+	skyDomeImage = "assets/sky_21.hdr";
 }
 void WaterWorld::IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg)
 {
@@ -275,15 +284,7 @@ void WaterWorld::Tick(float deltaTime)
 {
 	// update camera
 	HandleInput(deltaTime);
-	if (lightManager.lightsAreMoving)
-	{
-		lightManager.MoveLights();
-	}
-	if (lightManager.poppingLights)
-	{
-		lightManager.PopLights(deltaTime);
-	}
-	
+
 	if (runCAPESimulation)
 		fluidSimulator.Update(deltaTime);
 }

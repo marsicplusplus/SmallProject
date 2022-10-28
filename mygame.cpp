@@ -37,7 +37,7 @@ static float3 Os[10] = {
 	float3(107.85, 60.81, -48.86), float3(107.85, 60.81, -48.86)
 };
 
-static int world_index = 2;
+static int world_index = 4;
 static int angle_offset_index = 0;
 
 // -----------------------------------------------------------
@@ -48,15 +48,15 @@ void MyGame::Init()
 	string import_filename = "/grid.vx";
 	string export_dir = "/scene";
 
-	string worlds[5] = {"mountain","letters","scattered","cornellbox",""};
+	string worlds[5] = { "mountain","letters","scattered","cornellbox","" };
 	string world_dir = worlds[world_index];
 	string import_path = "scene_export/" + world_dir + import_filename;
 	string export_path = "scene_export/" + world_dir + export_dir;
 
 	World& world = *GetWorld();
 
-	int loadedworld = MyGameScene::LoadWorld(world, import_path);
-	//int loadedworld = -1;
+	//int loadedworld = MyGameScene::LoadWorld(world, import_path);
+	int loadedworld = -1;
 	if (loadedworld < 0)
 	{
 		switch (world_index)
@@ -113,9 +113,9 @@ void MyGame::Init()
 	commands.insert({ "spatial", &params.spatial });
 	commands.insert({ "temporal", &params.temporal });
 	commands.insert({ "skydome", &params.skyDomeSampling });
-	functionCommands.insert({ "addlights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().AddRandomLights(a); }, _1, _2, 2500); }});
-	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().RemoveRandomLights(a); }, _1, _2, 2500); } });
-	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().SetUpMovingLights(a); }, _1, _2, 2500); } });
+	functionCommands.insert({ "addlights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->getLightManager()->AddRandomLights(a); }, _1, _2, 2500); }});
+	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->getLightManager()->RemoveRandomLights(a); }, _1, _2, 2500); } });
+	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->getLightManager()->SetUpMovingLights(a); }, _1, _2, 2500); } });
 
 	//world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
 	//world.SetBrick(8 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
@@ -131,31 +131,7 @@ void MyGame::Init()
 	//world.Set(20 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
 	//world.Set(20 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
 
-	vector<Light> ls;
 	world.OptimizeBricks(); //important to recognize bricks
-	lightManager.FindLightsInWorld(ls);
-	lightManager.SetupBuffer(ls);
-	SetupReservoirBuffers();
-}
-
-void MyGame::SetupReservoirBuffers()
-{
-	World& world = *GetWorld();
-
-	Buffer* reservoirbuffer = world.GetReservoirsBuffer()[0];
-	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT;
-	if (!reservoirbuffer)
-	{
-		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
-		world.SetReservoirBuffer(reservoirbuffer, 0);
-	}
-
-	Buffer* prevReservoirbuffer = world.GetReservoirsBuffer()[1];
-	if (!prevReservoirbuffer)
-	{
-		prevReservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
-		world.SetReservoirBuffer(prevReservoirbuffer, 1);
-	}
 }
 
 KeyHandler qHandler = { 0, 'Q' };
@@ -193,7 +169,7 @@ void MyGame::HandleControls(float deltaTime)
 	bool dirty = false;
 	RenderParams& renderparams = GetWorld()->GetRenderParams();
 	World& w = *GetWorld();
-
+	LightManager& lightManager = *w.getLightManager();
 	if (inputKeyHandler.IsTyped() && (ConsoleHasFocus() || isFocused))
 	{
 		if (isFocused)
@@ -443,6 +419,7 @@ void MyGame::Tick(float deltaTime)
 {
 	HandleControls(deltaTime);
 	World& world = *GetWorld();
+	LightManager& lightManager = *world.getLightManager();
 	RenderParams& renderparams = GetWorld()->GetRenderParams();
 	// clear line
 	//printf("                                                            \r");

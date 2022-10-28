@@ -61,7 +61,6 @@ uint Read( const uint3 pos ) { return world->Get( pos.x, pos.y, pos.z ); }
 
 
 
-
 float2 GetCursorPosition() { 
 	double xpos, ypos;
 	glfwGetCursorPos(window, &xpos, &ypos);
@@ -278,6 +277,28 @@ Intersection Trace( const Ray& r )
 	i.N = (voxel == 0 ? 0 : Nval) + (voxel << 16);
 	return i;
 }
+Intersection Trace(const Ray& r, PAYLOAD* oldBricks, uint* oldGrid)
+{
+	float3 N;
+	float dist;
+	Intersection i;
+	const uint voxel = world->TraceRay(make_float4(r.O, 1), make_float4(r.D, 1), dist, N, 999999, oldBricks, oldGrid);
+	i.t = dist < r.t ? dist : 1e34f;
+	const uint Nval = ((int)N.x + 1) + (((int)N.y + 1) << 2) + (((int)N.z + 1) << 4);
+	i.N = (voxel == 0 ? 0 : Nval) + (voxel << 16);
+	return i;
+}
+Intersection TraceBrick(const Ray& r)
+{
+	float3 N;
+	float dist;
+	Intersection i;
+	const uint brick = world->TraceBrick(make_float4(r.O, 1), make_float4(r.D, 1), dist, N, 999999);
+	i.t = dist < r.t ? dist : 1e34f;
+	const uint Nval = ((int)N.x + 1) + (((int)N.y + 1) << 2) + (((int)N.z + 1) << 4);
+	i.N = (brick == 0 ? 0 : Nval) + (brick << 16);
+	return i;
+}
 Intersection TraceToVoid( const Ray& r )
 {
 	float3 N;
@@ -405,6 +426,7 @@ void main()
 	InitRenderTarget( SCRWIDTH, SCRHEIGHT );
 	Surface* screen = new Surface( SCRWIDTH, SCRHEIGHT );
 	world = new World( renderTarget->ID );
+	world->InitReSTIR();
 	game = CreateGame();
 	game->screen = screen;
 	game->Init();
@@ -436,6 +458,7 @@ void main()
 		}
 		// while the GPU traces rays, update the world state using game->Tick
 		game->Tick( deltaTime );
+		world->UpdateLights( deltaTime );
 		if (GetAsyncKeyState( VK_LSHIFT )) for (int i = 0; i < 3; i++) game->Tick( deltaTime );
 		// while the GPU still traces rays, send world changes to a staging buffer on the GPU
 		if (Game::autoRendering) world->Commit(); // also waits for GPU to complete tracing rays
