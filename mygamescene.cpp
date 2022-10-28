@@ -107,7 +107,7 @@ void DummyWorld(World& world)
 #endif
 }
 
-void MyGameScene::SaveWorld(std::string filename, uint sizeX, uint sizeY, uint sizeZ)
+void MyGameScene::SaveWorld(const std::string& filename, uint sizeX, uint sizeY, uint sizeZ)
 {
 	filesystem::path path = filename;
 	if (path.has_parent_path())
@@ -119,7 +119,7 @@ void MyGameScene::SaveWorld(std::string filename, uint sizeX, uint sizeY, uint s
 	SaveSprite(idx, path.string().c_str());
 }
 
-int MyGameScene::LoadWorld(World& world, std::string filename)
+int MyGameScene::LoadWorld(World& world, const std::string& filename)
 {
 	filesystem::path path = filename;
 	if (!filesystem::exists(path))
