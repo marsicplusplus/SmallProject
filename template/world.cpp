@@ -1273,7 +1273,14 @@ void World::EraseParticles(const uint set)
 // ----------------------------------------------------------------------------
 uint TileManager::LoadTile(const char* voxFile)
 {
-	tile.push_back(new Tile(voxFile));
+	Tile* addedTile = new Tile(voxFile);
+	for (int i = 0; i < BRICKSIZE; i++)
+	{
+		// Set to fully opaque if it is a non-zero voxel; transparency is not data set directly from magica voxel at the moment
+		// TO-DO: Remove if magica voxel materials (specifically, translucency) is supported
+		addedTile->voxels[i] |= 0xB0000 * (addedTile->voxels[i] > 0);
+	}
+	tile.push_back(addedTile);
 	return (uint)tile.size() - 1;
 }
 
