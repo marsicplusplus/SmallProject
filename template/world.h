@@ -269,7 +269,7 @@ private:
 	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
 public:
 	// low-level voxel access
-	__forceinline uint Get( const uint x, const uint y, const uint z)
+	__forceinline PAYLOAD Get( const uint x, const uint y, const uint z)
 	{
 		// calculate brick location in top-level grid
 		const uint bx = (x / BRICKDIM) & (GRIDWIDTH - 1);
@@ -363,7 +363,7 @@ public:
 	}
 
 
-	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */ )
+	__forceinline void Set( const uint x, const uint y, const uint z, const PAYLOAD v /* actually an 8-bit value */ )
 	{
 		// calculate brick location in top-level grid
 		uint bx = x / BRICKDIM;
@@ -404,7 +404,6 @@ public:
 		else
 		{
 			grid[brickIndex] = 0;
-			UnMark(brickIndex);
 			FreeBrick(brickIndex);
 		}
 	}
@@ -589,7 +588,7 @@ private:
 	uint tasks = 0;						// number of changed bricks, to be passed to commit kernel
 	bool copyInFlight = false;			// flag for skipping async copy on first iteration
 	bool commitInFlight = false;		// flag to make next commit wait for previous to complete
-	cl_mem devmem = 0;					// device-side commit buffer
+	//cl_mem devmem = 0;					// device-side commit buffer
 	cl_mem gridMap;						// device-side 3D image or buffer for top-level
 	Surface* font;						// bitmap font for print command
 	bool firstFrame = true;				// for doing things in the first frame

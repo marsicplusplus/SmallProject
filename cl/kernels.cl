@@ -301,7 +301,10 @@ __kernel void renderNoTAA( write_only image2d_t outimg, __constant struct Render
 	write_imagef( outimg, (int2)(x, y), (float4)(LinearToSRGB( ToneMapFilmic_Hejl2015( pixel.xyz, 1 ) ), 1) );
 }
 
-__kernel void accumulatorFinalizer(write_only image2d_t outimg, __global float4* pixels, __global float4* accumulator, __constant struct RenderParams* params)
+__kernel void accumulatorFinalizer(write_only image2d_t outimg)
+{}
+
+__kernel void accumulatorFinalizerLOL(write_only image2d_t outimg, __global float4* pixels, __global float4* accumulator, __constant struct RenderParams* params)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);

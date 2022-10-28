@@ -47,7 +47,7 @@ World::World(const uint targetID)
 {
 	// create the staging buffer, used to sync CPU-side changes to the GPU
 	if (!Kernel::InitCL()) FATALERROR("Failed to initialize OpenCL");
-	devmem = clCreateBuffer(Kernel::GetContext(), CL_MEM_READ_ONLY, commitSize, 0, 0);
+	//devmem = clCreateBuffer(Kernel::GetContext(), CL_MEM_READ_ONLY, commitSize, 0, 0);
 	modified = new uint[BRICKCOUNT / 32]; // 1 bit per brick, to track 'dirty' bricks
 	// store top-level grid in a 3D texture
 	cl_image_format fmt;
@@ -63,7 +63,7 @@ World::World(const uint targetID)
 #if ONEBRICKBUFFER == 1
 	brickBuffer = new Buffer(CHUNKSIZE * CHUNKCOUNT / 4 /* dwords */, Buffer::DEFAULT, (uchar*)brick);
 	printf("Chunk count: %i, chunk size: %ld", CHUNKCOUNT, CHUNKSIZE);
-	brickBuffer->CopyToDevice();
+	//brickBuffer->CopyToDevice();
 #else
 	brick = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
 	for (int i = 0; i < CHUNKCOUNT; i++)
@@ -134,16 +134,16 @@ World::World(const uint targetID)
 #endif
 	uberGrid = clCreateBuffer(Kernel::GetContext(), CL_MEM_READ_WRITE, UBERWIDTH * UBERHEIGHT * UBERDEPTH, 0, 0);
 	uberGridUpdater = new Kernel(kernelfile, "updateUberGrid");
-	uberGridUpdater->SetArgument(0, &devmem);
-	uberGridUpdater->SetArgument(1, &uberGrid);
+	//uberGridUpdater->SetArgument(0, &devmem);
+	//uberGridUpdater->SetArgument(1, &uberGrid);
 	targetTextureID = targetID;
-	committer->SetArgument(1, &devmem);
+	//committer->SetArgument(1, &devmem);
 #if ONEBRICKBUFFER == 1
-	committer->SetArgument(2, brickBuffer);
-	committer->SetArgument(3, brickBuffer);
-	committer->SetArgument(4, brickBuffer);
-	committer->SetArgument(5, brickBuffer);
-	committer->SetArgument(6, zeroesBuffer);
+	//committer->SetArgument(2, brickBuffer);
+	//committer->SetArgument(3, brickBuffer);
+	//committer->SetArgument(4, brickBuffer);
+	//committer->SetArgument(5, brickBuffer);
+	//committer->SetArgument(6, zeroesBuffer);
 #else
 	committer->SetArgument(2, brickBuffer[0]);
 	committer->SetArgument(3, brickBuffer[1]);
@@ -155,10 +155,10 @@ World::World(const uint targetID)
 #endif
 	batchTracer->SetArgument(0, &gridMap);
 #if ONEBRICKBUFFER == 1
-	batchTracer->SetArgument(1, brickBuffer);
-	batchTracer->SetArgument(2, brickBuffer);
-	batchTracer->SetArgument(3, brickBuffer);
-	batchTracer->SetArgument(4, brickBuffer);
+	//batchTracer->SetArgument(1, brickBuffer);
+	//batchTracer->SetArgument(2, brickBuffer);
+	//batchTracer->SetArgument(3, brickBuffer);
+	//batchTracer->SetArgument(4, brickBuffer);
 #else
 	batchTracer->SetArgument(1, brickBuffer[0]);
 	batchTracer->SetArgument(2, brickBuffer[1]);
@@ -167,10 +167,10 @@ World::World(const uint targetID)
 #endif
 	batchToVoidTracer->SetArgument(0, &gridMap);
 #if ONEBRICKBUFFER == 1
-	batchToVoidTracer->SetArgument(1, brickBuffer);
-	batchToVoidTracer->SetArgument(2, brickBuffer);
-	batchToVoidTracer->SetArgument(3, brickBuffer);
-	batchToVoidTracer->SetArgument(4, brickBuffer);
+	//batchToVoidTracer->SetArgument(1, brickBuffer);
+	//batchToVoidTracer->SetArgument(2, brickBuffer);
+	//batchToVoidTracer->SetArgument(3, brickBuffer);
+	//batchToVoidTracer->SetArgument(4, brickBuffer);
 #else
 	batchToVoidTracer->SetArgument(1, brickBuffer[0]);
 	batchToVoidTracer->SetArgument(2, brickBuffer[1]);
@@ -263,7 +263,7 @@ World::~World()
 void World::ForceSyncAllBricks()
 {
 #if ONEBRICKBUFFER == 1
-	brickBuffer->CopyToDevice();
+	//brickBuffer->CopyToDevice();
 #if MORTONBRICKS == 1
 	encodeBricks->SetArgument(0, BRICKCOUNT);
 	encodeBricks->SetArgument(1, brickBuffer);
@@ -1840,7 +1840,7 @@ void World::Render()
 			currentRenderer->SetArgument(renderer_arg_i++, &uberGrid);
 
 #if ONEBRICKBUFFER == 1
-			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer);
+			//currentRenderer->SetArgument(renderer_arg_i++, brickBuffer);
 #else
 			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[0]);
 			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[1]);
@@ -1857,7 +1857,7 @@ void World::Render()
 			albedoRender->SetArgument(albedoargi++, &gridMap);
 			albedoRender->SetArgument(albedoargi++, &uberGrid);
 			albedoRender->SetArgument(albedoargi++, brickBuffer);
-			albedoRender->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &albedoRenderDone);
+			//albedoRender->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &albedoRenderDone);
 
 			int perpixellighti = 0;
 			perPixelLightSampling->SetArgument(perpixellighti++, debugBuffer);
@@ -1870,7 +1870,7 @@ void World::Render()
 			perPixelLightSampling->SetArgument(perpixellighti++, &gridMap);
 			perPixelLightSampling->SetArgument(perpixellighti++, &uberGrid);
 			perPixelLightSampling->SetArgument(perpixellighti++, brickBuffer);
-			perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &candidateAndTemporalResamplingDone);
+			//perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &candidateAndTemporalResamplingDone);
 
 			int spatialRisi = 0;
 			spatialResampling->SetArgument(spatialRisi++, debugBuffer);
@@ -1884,15 +1884,17 @@ void World::Render()
 			spatialResampling->SetArgument(spatialRisi++, &gridMap);
 			spatialResampling->SetArgument(spatialRisi++, &uberGrid);
 			spatialResampling->SetArgument(spatialRisi++, brickBuffer);
-			spatialResampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &spatialResamplingDone);
+			//spatialResampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &spatialResamplingDone);
 
-			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &shadingDone);
+			//currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &shadingDone);
 
 			int finalizerargi = 0;
 			accumulatorFinalizer->SetArgument(finalizerargi++, screen);
+			/*
 			accumulatorFinalizer->SetArgument(finalizerargi++, tmpFrame);
 			accumulatorFinalizer->SetArgument(finalizerargi++, accumulator);
 			accumulatorFinalizer->SetArgument(finalizerargi++, paramBuffer);
+			*/
 			accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
 #elif ACCUMULATOR == 1
 			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
@@ -1944,7 +1946,7 @@ void World::Commit()
 	// make sure the previous commit completed
 	if (commitInFlight)
 	{
-		clWaitForEvents(1, &commitDone);
+		//clWaitForEvents(1, &commitDone);
 		commitInFlight = false;
 	}
 	// replace the initial staging buffer by a double-sized buffer in pinned memory
@@ -1983,14 +1985,14 @@ void World::Commit()
 		StreamCopyMT((__m256i*)pinnedMemPtr, (__m256i*)grid, numBytesGrid);
 		// enqueue (on queue 2) memcopy of pinned buffer to staging buffer on GPU
 		const uint copySize = firstFrame ? commitSize : (numBytesGrid + MAXCOMMITS * 4 + tasks * BRICKSIZE * PAYLOADSIZE);
-		clEnqueueWriteBuffer(Kernel::GetQueue2(), devmem, 0, 0, copySize, pinnedMemPtr, 0, 0, 0);
+		//clEnqueueWriteBuffer(Kernel::GetQueue2(), devmem, 0, 0, copySize, pinnedMemPtr, 0, 0, 0);
 		const size_t ws = UBERWIDTH * UBERHEIGHT * UBERDEPTH;
 		const size_t ls = 16;
 		clEnqueueNDRangeKernel(Kernel::GetQueue2(), uberGridUpdater->GetKernel(), 1, 0, &ws, &ls, 0, 0, &ubergridDone);
 		// enqueue (on queue 2) vram-to-vram copy of the top-level grid to a 3D OpenCL image buffer
 		size_t origin[3] = { 0, 0, 0 };
 		size_t region[3] = { GRIDWIDTH, GRIDDEPTH, GRIDHEIGHT };
-		clEnqueueCopyBufferToImage(Kernel::GetQueue2(), devmem, gridMap, 0, origin, region, 0, 0, &copyDone);
+		//clEnqueueCopyBufferToImage(Kernel::GetQueue2(), devmem, gridMap, 0, origin, region, 0, 0, &copyDone);
 		copyInFlight = true;	// next render should wait for this commit to complete
 		firstFrame = false;		// next frame is not the first frame
 	}
@@ -2005,12 +2007,12 @@ void World::Commit()
 	// at this point, rendering *must* be done; let's make sure
 	if (Game::autoRendering && !viewer)
 	{
-		clWaitForEvents(1, &renderDone);
+		//clWaitForEvents(1, &renderDone);
 #if RIS == 1
-		clWaitForEvents(1, &albedoRenderDone);
-		clWaitForEvents(1, &candidateAndTemporalResamplingDone);
-		clWaitForEvents(1, &spatialResamplingDone);
-		clWaitForEvents(1, &shadingDone);
+		//clWaitForEvents(1, &albedoRenderDone);
+		//clWaitForEvents(1, &candidateAndTemporalResamplingDone);
+		//clWaitForEvents(1, &spatialResamplingDone);
+		//clWaitForEvents(1, &shadingDone);
 #endif
 		//// profiling: https://stackoverflow.com/questions/23272170/opencl-measure-kernels-time
 #if RIS == 1
@@ -2035,8 +2037,8 @@ void World::Commit()
 		{
 			cl_ulong renderStart = 0;
 			cl_ulong renderEnd = 0;
-			clGetEventProfilingInfo(eventArr[i], CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &renderStart, 0);
-			clGetEventProfilingInfo(eventArr[i], CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &renderEnd, 0);
+			//clGetEventProfilingInfo(eventArr[i], CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &renderStart, 0);
+			//clGetEventProfilingInfo(eventArr[i], CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &renderEnd, 0);
 			unsigned long duration = (unsigned long)(renderEnd - renderStart); // in nanoseconds
 			*durationArr[i] = duration / 1000000000.0f;
 			totalTime += *durationArr[i];
