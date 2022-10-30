@@ -10,6 +10,172 @@
 
 #define TILE_IMAGE_DIM BRICKDIM * TILE_IMAGE_SCALE
 
+#pragma region NBTHelper
+void NBTHelper::WriteTag(std::ofstream& wf, Tag& tag)
+{
+	WriteTagType(wf, tag.type);
+
+	if (tag.type == TAG_End) return;
+
+	WriteTagName(wf, tag.name);
+	if (tag.type == TAG_List)
+	{
+		WriteTagList(wf, tag);
+	}
+	if (tag.type == TAG_Compound)
+	{
+		WriteTagCompound(wf, tag);
+	}
+	if (tag.type == TAG_Int)
+	{
+		WriteTagInt(wf, tag);
+	}
+	if (tag.type == TAG_Byte_Array)
+	{
+		WriteTagByteArray(wf, tag);
+	}
+	if (tag.type == TAG_End)
+	{
+		int end = TAG_End;
+		wf.write((char*)&end, 1);
+	}
+}
+
+void NBTHelper::WriteTagList(std::ofstream& wf, Tag& tag)
+{
+	WriteTagType(wf, (int)tag.payload[0]);  // Write the type of tag in the list
+	int numElems = tag.tags.size();
+	wf.write((char*)&numElems, sizeof(int)); // Write the number of elements in the list
+	for (auto tag : tag.tags)
+	{
+		WriteTag(wf, tag);
+	}
+}
+
+void NBTHelper::WriteTagCompound(std::ofstream& wf, Tag& tag)
+{
+	for (auto tag : tag.tags)
+	{
+		WriteTag(wf, tag);
+	}
+}
+
+void NBTHelper::WriteTagType(std::ofstream& wf, int tagType)
+{
+	wf.write((char*)&tagType, 1);
+}
+
+void NBTHelper::WriteTagInt(std::ofstream& wf, Tag& tag)
+{
+	wf.write((char*)&tag.payload[0], sizeof(int));
+}
+
+void NBTHelper::WriteTagName(std::ofstream& wf, std::string value)
+{
+	int stringLength = value.size();
+	if (stringLength == 0) return;
+
+	wf.write((char*)&stringLength, sizeof(short));
+	wf.write((char*)&value[0], stringLength);
+}
+
+void NBTHelper::WriteTagByteArray(std::ofstream& wf, Tag& tag)
+{
+	int numBytes = tag.payload.size();
+	wf.write((char*)&numBytes, sizeof(int));
+	wf.write((char*)&tag.payload[0], numBytes);
+}
+
+void NBTHelper::ReadTag(std::ifstream& rf, Tag& tag, bool readTagName)
+{
+	ReadTagType(rf, tag.type);
+
+	if (tag.type == TAG_End)
+	{
+		return;
+	}
+
+	if (readTagName) ReadTagName(rf, tag.name);
+
+	if (tag.type == TAG_List)
+	{
+		ReadTagList(rf, tag);
+	}
+	if (tag.type == TAG_Compound)
+	{
+		ReadTagCompound(rf, tag);
+	}
+	if (tag.type == TAG_Int)
+	{
+		ReadTagInt(rf, tag);
+	}
+	if (tag.type == TAG_Byte_Array)
+	{
+		ReadTagByteArray(rf, tag);
+	}
+}
+
+void NBTHelper::ReadTagName(std::ifstream& rf, string& tagName)
+{
+	int nameLength = 0;
+	rf.read((char*)&nameLength, sizeof(short));
+	tagName.resize(nameLength);
+	rf.read((char*)&tagName[0], nameLength);
+}
+
+void NBTHelper::ReadTagType(std::ifstream& rf, int& tagType)
+{
+	rf.read((char*)&tagType, 1);
+}
+
+void NBTHelper::ReadTagInt(std::ifstream& rf, Tag& tag) 
+{
+	tag.payload.resize(sizeof(int));
+	rf.read((char*)&tag.payload[0], sizeof(int));
+}
+
+void NBTHelper::ReadTagList(std::ifstream& rf, Tag& tag) 
+{
+	int nestedTagType = 0;
+	ReadTagType(rf, nestedTagType);
+	tag.payload.push_back((byte)nestedTagType);
+
+	int numElems = 0;
+	rf.read((char*)&numElems, sizeof(int)); // Write the number of elements in the list
+
+	for (int i = 0; i < numElems; i++)
+	{
+		NBTHelper::Tag nestedTag;
+		ReadTag(rf, nestedTag, false); // List contains unnamed tags so don't try to read name
+		tag.tags.push_back(nestedTag);
+	}
+
+
+}
+
+void NBTHelper::ReadTagByteArray(std::ifstream& rf, Tag& tag) 
+{
+	int numBytes = 0;
+	rf.read((char*)&numBytes, sizeof(int));
+	tag.payload.resize(numBytes);
+	rf.read((char*)&tag.payload[0], numBytes);
+};
+
+void NBTHelper::ReadTagCompound(std::ifstream& rf, Tag& tag) 
+{
+	while (true)
+	{
+		NBTHelper::Tag nestedTag;
+		ReadTag(rf, nestedTag);
+		tag.tags.push_back(nestedTag);
+		if (nestedTag.type == TAG_End)
+			return;
+	}
+};
+#pragma endregion
+
+
+
 // Simple helper function to load an image into a OpenGL texture with common settings
 bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height)
 {
@@ -43,21 +209,6 @@ bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_wid
 	*out_height = image_height;
 
 	return true;
-}
-
-WorldEditor::WorldEditor()
-{
-	tempBricks = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
-	tempGrid = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
-	tempBrickInfo = (BrickInfo*)_aligned_malloc(BRICKCOUNT * sizeof(BrickInfo), 64);
-	stateHead = (State*)calloc(1, sizeof(State));
-	stateCurrent = stateTail = stateHead;
-
-	memset(tempBricks, 0, CHUNKCOUNT * CHUNKSIZE);
-	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-	memset(tempBrickInfo, BRICKSIZE, BRICKCOUNT * sizeof(BrickInfo));
-
-	LoadTiles();
 }
 
 void WorldEditor::LoadTiles()
@@ -187,6 +338,23 @@ void WorldEditor::LoadTiles()
 		}
 	}
 }
+
+WorldEditor::WorldEditor()
+{
+	tempBricks = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
+	tempGrid = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
+	tempBrickInfo = (BrickInfo*)_aligned_malloc(BRICKCOUNT * sizeof(BrickInfo), 64);
+	stateHead = (State*)calloc(1, sizeof(State));
+	stateCurrent = stateTail = stateHead;
+
+	memset(tempBricks, 0, CHUNKCOUNT * CHUNKSIZE);
+	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+	memset(tempBrickInfo, BRICKSIZE, BRICKCOUNT * sizeof(BrickInfo));
+
+	LoadTiles();
+}
+
+
 
 #pragma region InputHandling
 void WorldEditor::MouseMove(int x, int y)
@@ -361,11 +529,13 @@ void WorldEditor::MouseUp(int mouseButton)
 }
 #pragma endregion
 
-#pragma region Editing
 
+
+
+#pragma region Editing
 void WorldEditor::UpdateEditedBricks(int bx, int by, int bz)
 {
-	if (gesture.size == GestureSize::GESTURE_TILE)
+	if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
 	{
 		editedBricks.push_back((make_int3)(bx, by, bz));
 	}
@@ -426,10 +596,11 @@ void WorldEditor::MultiAddRemove()
 				const uint tempGridVal = tempGrid[cellIdx];
 				const uint curGridVal = grid[cellIdx];
 
-				// If we're reintroducing what was an empty brick, just remove the current one
+				// If we're reintroducing what was an empty/solid brick, just remove the current one
 				if ((tempGridVal & 1) == 0)
 				{
 					world.RemoveBrick(bx, by, bz);
+					grid[cellIdx] = tempGridVal;
 					continue;
 				}
 
@@ -440,7 +611,7 @@ void WorldEditor::MultiAddRemove()
 				uint brickIdx = tempBrickOffset;
 				uint gridValue = tempGridVal;
 
-				// If the current brick is empty we need to create a NewBrick
+				// If the current brick is empty/solid we need to create a NewBrick
 				if ((curGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
 
 				// Copy the brick from the saved temporary brick buffer to our current brick buffer 
@@ -491,6 +662,10 @@ void WorldEditor::AddBrick(int bx, int by, int bz)
 		{
 			world.DrawBigTile(selectedBigTileIdx, bx, by, bz);
 		}
+		else if (gesture.size == GestureSize::GESTURE_BRICK)
+		{
+			world.SetBrick(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM, userDefinedBrick);
+		}
 	}
 }
 
@@ -502,7 +677,7 @@ void WorldEditor::RemoveBrick(int bx, int by, int bz)
 	{
 		World& world = *GetWorld();
 		UpdateEditedBricks(bx, by, bz);
-		if (gesture.size == GestureSize::GESTURE_TILE)
+		if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
 		{
 			world.RemoveBrick(bx, by, bz);
 		}
@@ -514,8 +689,10 @@ void WorldEditor::RemoveBrick(int bx, int by, int bz)
 }
 #pragma endregion
 
-#pragma region State
 
+
+
+#pragma region State
 // Reset the world editor so when re-enabled we're clean 
 void WorldEditor::ResetEditor()
 {
@@ -545,10 +722,11 @@ void WorldEditor::Undo()
 		const uint oldGridVal = stateCurrent->oldGridVals[idx];
 		const uint newGridVal = stateCurrent->newGridVals[idx];
 
-		// If we're restoring what was an empty brick, just remove the current one
+		// If we're restoring what was an empty/solid brick, just remove the current one
 		if ((oldGridVal & 1) == 0)
 		{
 			world.RemoveBrick(b.x, b.y, b.z);
+			grid[cellIdx] = oldGridVal;
 			continue;
 		}
 
@@ -559,7 +737,7 @@ void WorldEditor::Undo()
 		uint brickIdx = oldBrickOffset;
 		uint gridValue = oldGridVal;
 
-		// If the current brick is empty we need to create a NewBrick
+		// If the current brick is empty/solid we need to create a NewBrick
 		if ((newGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
 
 		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
@@ -593,10 +771,11 @@ void WorldEditor::Redo()
 		const uint oldGridVal = stateCurrent->oldGridVals[idx];
 		const uint newGridVal = stateCurrent->newGridVals[idx];
 
-		// If we're restoring what was an empty brick, just remove the current one
+		// If we're restoring what was an empty/solid brick, just remove the current one
 		if ((newGridVal & 1) == 0)
 		{
 			world.RemoveBrick(b.x, b.y, b.z);
+			grid[cellIdx] = newGridVal;
 			continue;
 		}
 
@@ -607,7 +786,7 @@ void WorldEditor::Redo()
 		uint brickIdx = newBrickOffset;
 		uint gridValue = newGridVal;
 
-		// If the current brick is empty we need to create a NewBrick
+		// If the current brick is empty/solid we need to create a NewBrick
 		if ((oldGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
 
 		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
@@ -626,6 +805,7 @@ void WorldEditor::SaveState()
 	uint* grid = world.GetGrid();
 	PAYLOAD* bricks = world.GetBrick();
 	BrickInfo* brickInfo = world.GetBrickInfo();
+	uint* trash = world.GetTrash();
 
 	if (!CreateNewState())
 	{
@@ -746,7 +926,268 @@ void WorldEditor::DeleteState(State* state)
 	allocatedUndo -= 2 * (numBricks * sizeof(uint));
 	allocatedUndo -= (numBricks * sizeof(int3));
 }
+
+void WorldEditor::LoadWorld()
+{
+	using namespace NBTHelper;
+
+	World& world = *GetWorld();
+	world.Clear();
+
+	unsigned short* brick = world.GetBrick();
+	uint* grid = world.GetGrid();
+	BrickInfo* brickInfo = world.GetBrickInfo();
+
+	ifstream rf("worlddata.nbt", ios::in | ios::binary);
+	if (!rf)
+	{
+		printf("Error opening file worlddata.nbt\n");
+		return;
+	}
+
+	// Populate our tags from the worlddata.nbt file
+	std::vector<Tag> topLevelTags;
+	while (rf.good())
+	{
+		Tag tag;
+		ReadTag(rf, tag);
+		topLevelTags.push_back(tag);
+	}
+	rf.close();
+
+	// Iterate through read tags and populate the world data
+	for (auto tag : topLevelTags)
+	{
+		if (tag.name == "grid list")
+		{
+			for (auto compoundTag : tag.tags)
+			{
+				uint value = 0;
+				uint index = 0;
+
+				for (auto namedTag : compoundTag.tags)
+				{
+					if (namedTag.type == TAG_End) continue;
+
+					if (namedTag.type == TAG_Int)
+					{
+						uint p1 = (uint)namedTag.payload[0];
+						uint p2 = (uint)namedTag.payload[1] << 8;
+						uint p3 = (uint)namedTag.payload[2] << 16;
+						uint p4 = (uint)namedTag.payload[3] << 24;
+
+						int pVal = p1 | p2 | p3 | p4;
+						if (namedTag.name == "grid value") value = pVal;
+						if (namedTag.name == "grid index") index = pVal;
+					}
+				}
+
+				grid[index] = value;
+			}
+		}
+
+		if (tag.name == "brick list")
+		{
+			for (auto compoundTag : tag.tags)
+			{
+				int brickIndex = 0;
+
+				for (auto namedTag : compoundTag.tags)
+				{
+					if (namedTag.type == TAG_Int)
+					{
+						uint payloadValue = (uint)namedTag.payload[0] | (uint)namedTag.payload[1] << 8 | (uint)namedTag.payload[2] << 16 | (uint)namedTag.payload[3] << 24;
+						if (namedTag.name == "brick index") brickIndex = payloadValue;
+						if (namedTag.name == "brick zeroes") brickInfo[brickIndex].zeroes = payloadValue;
+					}
+
+					if (namedTag.type == TAG_Byte_Array)
+					{
+						if (namedTag.name == "brick value")
+						{
+							memcpy(brick + brickIndex * BRICKSIZE, &namedTag.payload[0], BRICKSIZE * PAYLOADSIZE);
+						}
+					}
+				}
+				world.Mark(brickIndex); // Mark to send to GPU
+				world.NewBrick(); // Call New Brick to ensure trash buffer is initialised correctly
+			}
+		}
+	}
+
+	// Remove all states for a fresh Undo/Redo
+	stateCurrent = stateHead;
+	while (stateCurrent != stateTail)
+	{
+		stateTail = stateTail->prevState;
+		DeleteState(stateTail->nextState);
+		stateTail->nextState = NULL;
+	}
+}
+
+void WorldEditor::SaveWorld()
+{
+	using namespace NBTHelper;
+
+	World& world = *GetWorld();
+
+	unsigned short* brick = world.GetBrick();
+	uint* grid = world.GetGrid();
+	BrickInfo* brickInfo = world.GetBrickInfo();
+
+	// NBT File format 
+	//	Tag_List("grid list") : x entries of type Tag_Compound (Note: Elements in list are unnamed) 
+	//	{
+	//		TAG_Compound : 2 entries
+	//		{
+	//			TAG_Int("grid index") : index
+	//			TAG_Int("grid value") : value
+	//			TAG_End
+	//		}	
+	//		....
+	//	}
+	//  Tag_List("brick list") : x entries of type Tag_Compound 
+	//	{
+	//		TAG_Compound : 2 entries
+	//		{
+	//			TAG_Int("brick index") : index
+	//			TAG_Byte_Array("brick value") : [PAYLOADSIZE * BRICKSIZE bytes]
+	// 			TAG_Int("brick zeroes") : zeroes
+	//			TAG_End
+	//		}	
+	//		....
+	//	}
+	//   
+
+	ofstream wf("worlddata.nbt", ios::out | ios::binary);
+	if (!wf)
+	{
+		printf("Error opening file worlddata.nbt\n");
+		return;
+	}
+
+	Tag listTag;
+	listTag.type = TAG_List;
+	listTag.name = "grid list";
+	listTag.payload.push_back((byte)TAG_Compound);
+
+	std::set<uint> oldBrickIdxs;
+	std::unordered_map<uint, uint> oldToNew;
+	uint newBrickIdx = 0;
+
+	//	Loop through the world grid and see which indices/values need to be saved to file
+	for (uint idx = 0; idx < GRIDHEIGHT * GRIDWIDTH * GRIDDEPTH; idx++)
+	{
+		if (grid[idx] == 0) continue;
+
+		Tag compoundTag;
+		compoundTag.type = TAG_Compound;
+		compoundTag.name = "";
+
+		Tag indexTag;
+		indexTag.type = TAG_Int;
+		indexTag.name = "grid index";
+		union { byte bVal[4]; uint uVal; };
+		uVal = idx;
+		indexTag.payload.assign(bVal, bVal + 4);
+
+		Tag valueTag;
+		valueTag.type = TAG_Int;
+		valueTag.name = "grid value";
+
+		// Rewire the brick indices so they start at 0 and go to Num Unique Bricks
+		if (grid[idx] & 1)
+		{
+			int oldBrickIdx = grid[idx] >> 1;
+			oldBrickIdxs.insert(oldBrickIdx);
+			auto newBrickVal = oldToNew.find(oldBrickIdx);
+			if (newBrickVal == oldToNew.end())
+			{
+				oldToNew.insert(std::make_pair(oldBrickIdx, newBrickIdx));
+				uVal = newBrickIdx++ << 1 | 1;
+			}
+			else
+			{
+				uVal = newBrickVal->second << 1 | 1;
+			}
+
+			valueTag.payload.assign(bVal, bVal + 4);
+		}
+
+		Tag endTag;
+		endTag.type = TAG_End;
+
+		compoundTag.tags.push_back(indexTag);
+		compoundTag.tags.push_back(valueTag);
+		compoundTag.tags.push_back(endTag);
+
+		listTag.tags.push_back(compoundTag);
+	}
+
+	WriteTag(wf, listTag);
+
+	listTag.tags.clear();
+	listTag.name = "brick list";
+
+	//	Loop through the unique set of bricks and save data to file
+	for (auto oldBrickIdx : oldBrickIdxs)
+	{
+		Tag compoundTag;
+		compoundTag.type = TAG_Compound;
+		compoundTag.name = "";
+
+		Tag indexTag;
+		indexTag.type = TAG_Int;
+		indexTag.name = "brick index";
+		union { byte bVal[4]; uint uVal; };
+		uVal = oldToNew.find(oldBrickIdx)->second;
+		indexTag.payload.assign(bVal, bVal + 4);
+
+		Tag valueTag;
+		valueTag.type = TAG_Byte_Array;
+		valueTag.name = "brick value";
+		valueTag.payload.resize(PAYLOADSIZE * BRICKSIZE);
+		memcpy(&valueTag.payload[0], brick + oldBrickIdx * BRICKSIZE, PAYLOADSIZE * BRICKSIZE);
+
+		Tag zeroesTag;
+		zeroesTag.type = TAG_Int;
+		zeroesTag.name = "brick zeroes";
+		uVal = brickInfo[oldBrickIdx].zeroes;
+		zeroesTag.payload.assign(bVal, bVal + 4);
+
+		NBTHelper::Tag endTag;
+		endTag.type = TAG_End;
+
+		compoundTag.tags.push_back(indexTag);
+		compoundTag.tags.push_back(valueTag);
+		compoundTag.tags.push_back(zeroesTag);
+		compoundTag.tags.push_back(endTag);
+
+		listTag.tags.push_back(compoundTag);
+	}
+	NBTHelper::WriteTag(wf, listTag);
+
+	wf.close();
+}
+
+// Check to see if we've gone above the maximum limit of allocated memory for undo states
+void WorldEditor::CheckMemoryAllowance()
+{
+	while (allocatedUndo > MAX_ALLOCATION && stateHead->nextState)
+	{
+		// Delete the state we just allocated
+		if (stateHead->nextState == stateCurrent)
+			stateCurrent = stateTail = stateHead;
+
+		State* newState = stateHead->nextState->nextState;
+		DeleteState(stateHead->nextState);
+		stateHead->nextState = newState;
+		if (newState) newState->prevState = stateHead;
+	}
+}
 #pragma endregion
+
+
 
 // Update which brick is currently selected by the mouse cursor 
 void WorldEditor::UpdateSelectedBrick()
@@ -836,7 +1277,7 @@ void WorldEditor::UpdateSelectedBrick()
 		// Get position inside of the voxel to determine brick location
 		float3 voxelPos = hitPoint + 0.5 * normal;
 		float3 brickPos;
-		if (gesture.size == GestureSize::GESTURE_TILE)
+		if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
 			brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
 		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
 			brickPos = make_float3((int)voxelPos.x / (BRICKDIM * 2), (int)voxelPos.y / (BRICKDIM * 2), (int)voxelPos.z / (BRICKDIM * 2));
@@ -854,7 +1295,7 @@ void WorldEditor::UpdateSelectedBrick()
 		float3 voxelPos = hitPoint - 0.1 * normal;
 		float3 brickPos;
 		// Get position inside of the voxel to determine brick location
-		if (gesture.size == GestureSize::GESTURE_TILE)
+		if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
 			brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
 		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
 			brickPos = make_float3((int)voxelPos.x / (BRICKDIM * 2), (int)voxelPos.y / (BRICKDIM * 2), (int)voxelPos.z / (BRICKDIM * 2));
@@ -870,7 +1311,7 @@ void WorldEditor::UpdateSelectedBrick()
 	}
 
 	// Update rendering params to trace the selected bricks outline
-	if (gesture.size == GestureSize::GESTURE_TILE)
+	if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
 	{
 		params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM;
 		params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM + make_float3(BRICKDIM, BRICKDIM, BRICKDIM);
@@ -895,19 +1336,18 @@ void WorldEditor::UpdateGestureMode()
 	if (gesture.keys & GestureKey::GESTURE_CTRL) gesture.mode |= GestureMode::GESTURE_MULTI;
 }
 
-// Check to see if we've gone above the maximum limit of allocated memory for undo states
-void WorldEditor::CheckMemoryAllowance()
-{
-	while (allocatedUndo > MAX_ALLOCATION && stateHead->nextState)
-	{
-		// Delete the state we just allocated
-		if (stateHead->nextState == stateCurrent)
-			stateCurrent = stateTail = stateHead;
 
-		State* newState = stateHead->nextState->nextState;
-		DeleteState(stateHead->nextState);
-		stateHead->nextState = newState;
-		if (newState) newState->prevState = stateHead;
+#pragma region GUI
+static void HelpMarker(const char* desc)
+{
+	ImGui::TextDisabled("(?)");
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+	{
+		ImGui::BeginTooltip();
+		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+		ImGui::TextUnformatted(desc);
+		ImGui::PopTextWrapPos();
+		ImGui::EndTooltip();
 	}
 }
 
@@ -919,10 +1359,29 @@ void WorldEditor::RenderGUI()
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
+	if (ImGui::BeginMainMenuBar())
+	{
+		if (ImGui::BeginMenu("File"))
+		{
+			if (ImGui::MenuItem("Save World")) { SaveWorld(); }
+			if (ImGui::MenuItem("Load World")) { LoadWorld(); } 
+
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Edit"))
+		{
+
+			if (ImGui::MenuItem("Undo", "CTRL+Z", false, stateCurrent->prevState != NULL)) { Undo(); }
+			if (ImGui::MenuItem("Redo", "CTRL+Y", false, stateCurrent->nextState != NULL)) { Redo(); }
+			ImGui::EndMenu();
+		}
+		ImGui::EndMainMenuBar();
+	}
+
 	// render your GUI
 	ImGui::Begin("Edit Tool");
 
-	auto StyleTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& tiles, int& tileIdx) -> bool
+	auto StyleTileTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& tiles, int& tileIdx) -> bool
 	{
 		if (ImGui::BeginTabItem(tabName.c_str()))
 		{
@@ -953,17 +1412,117 @@ void WorldEditor::RenderGUI()
 	};
 
 	ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_AutoSelectNewTabs;
-	if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
+	if (ImGui::BeginTabBar("EditingTabBar", tab_bar_flags))
 	{
-		if (StyleTab("Tiles", loadedTiles, selectedTileIdx))
+		if (StyleTileTab("Tile", loadedTiles, selectedTileIdx))
 		{
 			gesture.size = GestureSize::GESTURE_TILE;
 		}
-		if (StyleTab("Big Tiles", loadedBigTiles, selectedBigTileIdx))
+		if (StyleTileTab("Big Tile", loadedBigTiles, selectedBigTileIdx))
 		{
 			gesture.size = GestureSize::GESTURE_BIG_TILE;
 		}
-		
+
+		if (ImGui::BeginTabItem("Brick"))
+		{
+			gesture.size = GestureSize::GESTURE_BRICK;
+
+			static ImVec4 color = { 1.0f, 1.0f, 1.0f, 1.0f};
+
+			static bool emmisive = false;
+			static bool ref_color = false;
+			static int display_mode = 0;
+			static int picker_mode = 0;
+
+
+			ImGuiColorEditFlags flags = ImGuiColorEditFlags_None;
+
+			// Generate a default palette. The palette will persist and can be edited.
+			static bool saved_palette_init = true;
+			static ImVec4 saved_palette[32] = {};
+			if (saved_palette_init)
+			{
+				for (int n = 0; n < IM_ARRAYSIZE(saved_palette); n++)
+				{
+					ImGui::ColorConvertHSVtoRGB(n / 31.0f, 0.8f, 0.8f,
+						saved_palette[n].x, saved_palette[n].y, saved_palette[n].z);
+					saved_palette[n].w = 1.0f; // Alpha
+				}
+				saved_palette_init = false;
+			}
+
+			static ImVec4 backup_color;
+			ImGui::Text("Brick Color:");
+			bool picker = ImGui::ColorButton("##brickcolor", color, flags, ImVec2(128, 128));
+			ImGui::SameLine();
+
+			ImGui::Checkbox("Emmisive", &emmisive);
+			if (picker)
+			{
+				ImGui::OpenPopup("Popup Picker");
+				backup_color = color;
+			}
+
+			if (ImGui::BeginPopup("Popup Picker"))
+			{
+				ImGui::Text("Brick Color Picker");
+				ImGui::Separator();
+				ImGui::ColorPicker4("##picker", (float*)&color, flags | ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_NoSmallPreview);
+				ImGui::SameLine(); HelpMarker("Right-click on the individual color widget to show options.");
+				ImGui::SameLine();
+
+				ImGui::BeginGroup(); // Lock X position
+				ImGui::Text("Current");
+				ImGui::ColorButton("##current", color, ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_AlphaPreviewHalf, ImVec2(60, 40));
+				ImGui::Text("Previous");
+				if (ImGui::ColorButton("##previous", backup_color, ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_AlphaPreviewHalf, ImVec2(60, 40)))
+					color = backup_color;
+				ImGui::Separator();
+				ImGui::Text("Palette"); ImGui::SameLine(); HelpMarker("Drag and drop colors from the picker to update the palette.");
+				for (int n = 0; n < IM_ARRAYSIZE(saved_palette); n++)
+				{
+					ImGui::PushID(n);
+					if ((n % 8) != 0)
+						ImGui::SameLine(0.0f, ImGui::GetStyle().ItemSpacing.y);
+
+					ImGuiColorEditFlags palette_button_flags = ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip;
+					if (ImGui::ColorButton("##palette", saved_palette[n], palette_button_flags, ImVec2(20, 20)))
+						color = ImVec4(saved_palette[n].x, saved_palette[n].y, saved_palette[n].z, color.w); // Preserve alpha!
+
+					// Allow user to drop colors into each palette entry. Note that ColorButton() is already a
+					// drag source by default, unless specifying the ImGuiColorEditFlags_NoDragDrop flag.
+					if (ImGui::BeginDragDropTarget())
+					{
+						if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(IMGUI_PAYLOAD_TYPE_COLOR_3F))
+							memcpy((float*)&saved_palette[n], payload->Data, sizeof(float) * 3);
+						if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(IMGUI_PAYLOAD_TYPE_COLOR_4F))
+							memcpy((float*)&saved_palette[n], payload->Data, sizeof(float) * 4);
+						ImGui::EndDragDropTarget();
+					}
+
+					ImGui::PopID();
+				}
+				ImGui::EndGroup();
+				ImGui::EndPopup();
+			}
+
+			const uint red = min(15u, (uint)(color.x * 15.0f));
+			const uint green = min(15u, (uint)(color.y * 15.0f));
+			const uint blue = min(15u, (uint)(color.z * 15.0f));
+			const uint alpha = min(15u, (uint)(color.w * 15.0f));
+
+			color.x = (red * (1.0f / 15.0f));
+			color.y = (green * (1.0f / 15.0f));
+			color.z = (blue * (1.0f / 15.0f));
+			color.w = (alpha * (1.0f / 15.0f));
+
+			const uint p = (red << 8) + (green << 4) + blue;
+			userDefinedBrick = (p == 0) ? 1 : p;
+
+			if (emmisive) userDefinedBrick |= 1 << 15;
+			ImGui::EndTabItem();
+		}
+
 		ImGui::EndTabBar();
 	}
 
@@ -972,3 +1531,4 @@ void WorldEditor::RenderGUI()
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
+#pragma endregion

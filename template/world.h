@@ -211,6 +211,7 @@ public:
 	uint* GetGrid() { return grid; }
 	PAYLOAD* GetBrick() { return brick; }
 	BrickInfo* GetBrickInfo() { return brickInfo; }
+	uint* GetTrash() { return trash; }
 	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
 	void SetReservoirBuffer(Buffer* buffer, int index) { reservoirBuffers[index] = buffer; }
 	void Commit();
@@ -386,7 +387,8 @@ public:
 	#if THREADSAFEWORLD
 		// get a fresh brick from the circular list in a thread-safe manner and without false sharing
 		const uint trashItem = InterlockedAdd(&trashTail, 31) - 31;
-		return trash[trashItem & (BRICKCOUNT - 1)];
+		const uint trashIdx = trashItem & (BRICKCOUNT - 1);
+		return trash[trashIdx];
 	#else
 		// slightly faster to not prevent false sharing if we're doing single core updates only
 		return trash[trashTail++ & (BRICKCOUNT - 1)];
@@ -398,7 +400,8 @@ public:
 	#if THREADSAFEWORLD
 		// thread-safe access of the circular list
 		const uint trashItem = InterlockedAdd(&trashHead, 31) - 31;
-		trash[trashItem & (BRICKCOUNT - 1)] = idx;
+		const uint trashIdx = trashItem & (BRICKCOUNT - 1);
+		trash[trashIdx] = idx;
 	#else
 		// for single-threaded code, a stepsize of 1 maximizes cache coherence.
 		trash[trashHead++ & (BRICKCOUNT - 1)] = idx;

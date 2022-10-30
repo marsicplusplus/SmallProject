@@ -2,6 +2,48 @@
 
 namespace Tmpl8
 {
+
+	namespace NBTHelper
+	{
+		enum TagType {
+			TAG_End = 0,
+			TAG_Byte = 1,
+			TAG_Short = 2,
+			TAG_Int = 3,
+			TAG_Long = 4,
+			TAG_Float = 5,
+			TAG_Double = 6,
+			TAG_Byte_Array = 7,
+			TAG_String = 8,
+			TAG_List = 9,
+			TAG_Compound = 10
+		};
+
+		struct Tag {
+			int type = TAG_End;
+			std::string name;
+			std::vector<Tag> tags;
+			std::vector<byte> payload;
+		};
+
+		void WriteTag(std::ofstream& wf, NBTHelper::Tag& tag);
+		void WriteTagList(std::ofstream& wf, NBTHelper::Tag& tag);
+		void WriteTagCompound(std::ofstream& wf, Tag& tag);
+		void WriteTagType(std::ofstream& wf, int tagType);
+		void WriteTagInt(std::ofstream& wf, NBTHelper::Tag& tag);
+		void WriteTagName(std::ofstream& wf, std::string value);
+		void WriteTagByteArray(std::ofstream& wf, Tag& tag);
+		void ReadTagName(std::ifstream& rf, string& tagName);
+		void ReadTagType(std::ifstream& rf, int& tagType);
+		void ReadTag(std::ifstream& wf, Tag& tag, bool readTagName = true);
+		void ReadTagInt(std::ifstream& rf, Tag& tag);
+		void ReadTagList(std::ifstream& rf, Tag& tag);
+		void ReadTagByteArray(std::ifstream& rf, Tag& tag);
+		void ReadTagCompound(std::ifstream& rf, Tag& tag);
+
+
+	}
+
 	class WorldEditor
 	{
 
@@ -55,8 +97,9 @@ namespace Tmpl8
 
 		enum GestureSize {
 			GESTURE_VOXEL = 0,
-			GESTURE_TILE = 1,
-			GESTURE_BIG_TILE = 2
+			GESTURE_BRICK = 1,
+			GESTURE_TILE = 2,
+			GESTURE_BIG_TILE = 3
 		};
 
 		struct Gesture
@@ -81,6 +124,7 @@ namespace Tmpl8
 		void ResetEditor();
 		void RenderGUI();
 
+
 	private:
 		void UpdateSelectedBrick();
 		void AddBrick(int bx, int by, int bz);
@@ -95,6 +139,9 @@ namespace Tmpl8
 		bool CreateNewState();
 		void LoadTiles();
 		void UpdateEditedBricks(int bx, int by, int bz);
+		void SaveWorld();
+		void LoadWorld();
+
 
 		// Input and Gesture 
 		int2 mousePos;
@@ -112,10 +159,12 @@ namespace Tmpl8
 		std::vector<std::pair<int, GLuint>> loadedBigTiles;
 		int selectedTileIdx = 0;
 		int selectedBigTileIdx = 0;
+		uint userDefinedBrick;
 
 		State* stateHead;
 		State* stateTail;
 		State* stateCurrent;
+
 		bool enabled = false;
 		bool undoEnabled = true;
 		uint allocatedUndo = 0;

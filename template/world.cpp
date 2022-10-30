@@ -338,6 +338,8 @@ void World::Clear()
 	// easiest top just clear the top-level grid and recycle all bricks
 	memset(grid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 	memset(trash, 0, BRICKCOUNT * 4);
+	memset(brickInfo, BRICKSIZE, BRICKCOUNT * sizeof(BrickInfo));
+
 	for (uint i = 0; i < BRICKCOUNT; i++) trash[(i * 31 /* prevent false sharing*/) & (BRICKCOUNT - 1)] = i;
 	trashHead = BRICKCOUNT, trashTail = 0;
 	
