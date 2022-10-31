@@ -270,7 +270,7 @@ private:
 	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
 public:
 	// low-level voxel access
-	__forceinline uint Get( const uint x, const uint y, const uint z)
+	__forceinline PAYLOAD Get( const uint x, const uint y, const uint z)
 	{
 		// calculate brick location in top-level grid
 		const uint bx = (x / BRICKDIM) & (GRIDWIDTH - 1);
