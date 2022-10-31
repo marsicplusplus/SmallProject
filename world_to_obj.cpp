@@ -11,9 +11,12 @@ using namespace Tmpl8;
 
 bool IsEmitter(const uint v)
 {
-	return (v >> 16 & 255 ) > 0;
+	return ((v >> 16) & 15 ) > 0;
 }
-
+bool Tmpl8::IsEmissive(const uint v)
+{
+	return ((v >> 16) & 255 ) > 0;
+}
 float Tmpl8::EmitStrength(const uint v)
 {
 	return (float)((v & 0xff0000) >> 16);
@@ -67,16 +70,16 @@ void worldToMesh(Tmpl8::World* world, Mesh& mesh)
 		{
 			for (uint x = 0; x < sizex; x++)
 			{
-				ushort cv = world->Get(x, y, z);
+				PAYLOAD cv = world->Get(x, y, z);
 				if (cv > 0)
 				{
 #ifdef CULL_DUPE_VERTICES
-					ushort cv1 = world->Get(x, y, z - 1);
-					ushort cv2 = world->Get(x, y, z + 1);
-					ushort cv3 = world->Get(x - 1, y, z);
-					ushort cv4 = world->Get(x + 1, y, z);
-					ushort cv5 = world->Get(x, y - 1, z);
-					ushort cv6 = world->Get(x, y + 1, z);
+					PAYLOAD cv1 = world->Get(x, y, z - 1);
+					PAYLOAD cv2 = world->Get(x, y, z + 1);
+					PAYLOAD cv3 = world->Get(x - 1, y, z);
+					PAYLOAD cv4 = world->Get(x + 1, y, z);
+					PAYLOAD cv5 = world->Get(x, y - 1, z);
+					PAYLOAD cv6 = world->Get(x, y + 1, z);
 					bool front_occluded = cv1 > 0;
 					bool back_occluded = cv2 > 0;
 					bool left_occluded = cv3 > 0;
