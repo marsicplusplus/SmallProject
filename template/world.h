@@ -403,7 +403,7 @@ public:
 		if (zeroes[brickIndex] < BRICKSIZE)
 		{
 			brick[voxelIdx] = v; 
-			Mark(brickIndex);
+			//Mark(brickIndex);
 		}
 		else
 		{
