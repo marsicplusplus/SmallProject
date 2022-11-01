@@ -375,6 +375,7 @@ void ErrorCallback( int error, const char* description )
 // Application entry point
 void main()
 {
+	_CrtSetDbgFlag(_CRTDBG_CHECK_ALWAYS_DF);
 	// open a window
 	if (!glfwInit()) FatalError( "glfwInit failed." );
 	glfwSetErrorCallback( ErrorCallback );

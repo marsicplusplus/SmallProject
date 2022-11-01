@@ -13,6 +13,7 @@ uint3 Tmpl8::LightManager::PositionFromIteration(int3 center, uint& iteration, u
 
 void Tmpl8::LightManager::FindLightsInWorld(vector<Light>& ls)
 {
+	return;
 	World& world = *GetWorld();
 
 	uint sizex = MAPWIDTH;

@@ -311,9 +311,11 @@ public:
 
 	__forceinline int SplitSolidBrick(uint brickColor, uint brickIndex)
 	{
-		const uint newBrickBufferOffset = NewBrick();
+		uint newBrickBufferOffset = NewBrick();
 
-		#if BRICKDIM == 8 && PAYLOADSIZE == 1
+		#if 1
+		memset(brick + newBrickBufferOffset, brickColor, PAYLOADSIZE);
+		#elif BRICKDIM == 8 && PAYLOADSIZE == 1
 			// fully unrolled loop for writing the 512 bytes needed for a single brick, faster than memset
 			const __m256i brickColor8 = _mm256_set1_epi8( static_cast<char>(brickColor) );
 			__m256i* d8 = (__m256i*)(brick + newBrickBufferOffset * BRICKSIZE);
