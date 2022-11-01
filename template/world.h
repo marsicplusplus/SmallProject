@@ -182,7 +182,6 @@ public:
 	void UpdateSkylights(); // updates the six skylight colors
 	void ForceSyncAllBricks();
 	void OptimizeBricks();
-	LightManager* getLightManager() { return lm; };
 	// camera
 	void SetCameraMatrix(const mat4& m) { camMat = m; }
 	float3 GetCameraViewDir() { return make_float3(camMat[2], camMat[6], camMat[10]); }
@@ -249,8 +248,21 @@ public:
 	void ScrollY( const int offset );
 	void ScrollZ( const int offset );
 	aabb& GetBounds() { return bounds; }
+
+	// Lights
 	void UpdateLights(float deltaTime);
-	void SetupLights(vector<Light> &ls);
+	void FindLightsInWord(vector<Light> &ls);
+	void SetupLightBuffer() { vector<Light> empty; SetupLightBuffer(empty); }
+	void SetupLightBuffer(const vector<Light>& ls);
+
+	void AddRandomLights(int numberOfLights);
+	void RemoveRandomLights(int numberOfLights);
+
+	void SetUpMovingLights(int numberOfLights);
+	void MoveLights();
+	void PopLights(float deltaTime);
+	uint MovingLightCount() { return movinglights.size(); }
+
 	void InitReSTIR();
 private:
 	// internal methods
@@ -530,7 +542,11 @@ private:
 	Surface* font;						// bitmap font for print command
 	bool firstFrame = true;				// for doing things in the first frame
 	float4 skyLight[6];					// integrated light for the 6 possible normals
-	LightManager *lm;
+	unordered_map<uint, uint> defaultVoxel;
+	unordered_map<uint, uint4> movinglights;
+	public:
+	bool lightsAreMoving = false;
+	bool poppingLights = false;
 };
 
 } // namespace Tmpl8

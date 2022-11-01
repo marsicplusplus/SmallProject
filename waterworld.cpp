@@ -209,7 +209,8 @@ void WaterWorld::Init()
 
 	world.OptimizeBricks(); //important to recognize bricks
 	vector<Light> vls;
-	world.SetupLights(vls);
+	world.FindLightsInWord(vls);
+	world.SetupLightBuffer(vls);
 	skyDomeLightScale = 0.0f;
 	skyDomeImage = "assets/sky_21.hdr";
 }

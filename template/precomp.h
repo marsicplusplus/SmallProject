@@ -1284,7 +1284,6 @@ public:
 #include "world.h"
 #include "worldapi.h"
 #include "world_to_obj.h"
-#include "light_manager.h"
 #include "worldeditor.h"
 
 struct KeyHandler

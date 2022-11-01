@@ -113,9 +113,9 @@ void MyGame::Init()
 	commands.insert({ "spatial", &params.spatial });
 	commands.insert({ "temporal", &params.temporal });
 	commands.insert({ "skydome", &params.skyDomeSampling });
-	functionCommands.insert({ "addlights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->getLightManager()->AddRandomLights(a); }, _1, _2, 2500); }});
-	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->getLightManager()->RemoveRandomLights(a); }, _1, _2, 2500); } });
-	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->getLightManager()->SetUpMovingLights(a); }, _1, _2, 2500); } });
+	functionCommands.insert({ "addlights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->AddRandomLights(a); }, _1, _2, 2500); }});
+	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->RemoveRandomLights(a); }, _1, _2, 2500); } });
+	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->SetUpMovingLights(a); }, _1, _2, 2500); } });
 
 	//world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
 	//world.SetBrick(8 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
@@ -169,7 +169,6 @@ void MyGame::HandleControls(float deltaTime)
 	bool dirty = false;
 	RenderParams& renderparams = GetWorld()->GetRenderParams();
 	World& w = *GetWorld();
-	LightManager& lightManager = *w.getLightManager();
 	if (inputKeyHandler.IsTyped() && (ConsoleHasFocus() || isFocused))
 	{
 		if (isFocused)
@@ -258,15 +257,15 @@ void MyGame::HandleControls(float deltaTime)
 
 	if (uHandler.IsTyped())
 	{
-		lightManager.lightsAreMoving = !lightManager.lightsAreMoving;
-		if (lightManager.MovingLightCount() < 1)
+		w.lightsAreMoving = !w.lightsAreMoving;
+		if (w.MovingLightCount() < 1)
 		{
-			lightManager.SetUpMovingLights(100);
+			w.SetUpMovingLights(100);
 		}
 	}
 	if (oHandler.IsTyped())
 	{
-		lightManager.poppingLights = !lightManager.poppingLights;
+		w.poppingLights = !w.poppingLights;
 	}
 
 	if (lHandler.isPressed()) { PrintStats(); };
@@ -419,7 +418,6 @@ void MyGame::Tick(float deltaTime)
 {
 	HandleControls(deltaTime);
 	World& world = *GetWorld();
-	LightManager& lightManager = *world.getLightManager();
 	RenderParams& renderparams = GetWorld()->GetRenderParams();
 	// clear line
 	//printf("                                                            \r");
@@ -429,13 +427,13 @@ void MyGame::Tick(float deltaTime)
 	//PrintDebug();
 	//PrintStats();
 	DumpScreenBuffer();
-	if (lightManager.lightsAreMoving)
+	if (world.lightsAreMoving)
 	{
-		lightManager.MoveLights();
+		world.MoveLights();
 	}
-	if (lightManager.poppingLights)
+	if (world.poppingLights)
 	{
-		lightManager.PopLights(deltaTime);
+		world.PopLights(deltaTime);
 	}
 }
 
