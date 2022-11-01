@@ -119,16 +119,16 @@ namespace Tmpl8
 		void KeyUp(int key);
 		void KeyDown(int key);
 		bool IsEnabled() { return enabled; }
-		void Enable() { UpdateSelectedBrick(); enabled = true; }
+		void Enable() { UpdateSelectedBox(); enabled = true; }
 		void Disable() { ResetEditor(); enabled = false; }
 		void ResetEditor();
 		void RenderGUI();
 
 
 	private:
-		void UpdateSelectedBrick();
-		void AddBrick(int bx, int by, int bz);
-		void RemoveBrick(int bx, int by, int bz);
+		void UpdateSelectedBox();
+		void Add(int x, int y, int z);
+		void Remove(int x, int y, int z);
 		void MultiAddRemove();
 		void UpdateGestureMode();
 		void CheckMemoryAllowance();
@@ -142,13 +142,12 @@ namespace Tmpl8
 		void SaveWorld();
 		void LoadWorld();
 
-
 		// Input and Gesture 
 		int2 mousePos;
 		Gesture gesture;
 		uint selectedButtons = GestureButton::GESTURE_NO_BUTTONS;
 		uint selectedKeys = GestureKey::GESTURE_NO_KEYS;
-		Selected selectedBricks;
+		Selected selected;
 
 		// Temporary buffers to hold previous state
 		PAYLOAD* tempBricks = 0;
@@ -159,7 +158,7 @@ namespace Tmpl8
 		std::vector<std::pair<int, GLuint>> loadedBigTiles;
 		int selectedTileIdx = 0;
 		int selectedBigTileIdx = 0;
-		uint userDefinedBrick;
+		uint voxelValue;
 
 		State* stateHead;
 		State* stateTail;
@@ -169,7 +168,7 @@ namespace Tmpl8
 		bool undoEnabled = true;
 		uint allocatedUndo = 0;
 
-		std::vector<int3> editedBricks;
+		std::set<int3, std::less<>> editedBricks;
 	};
 }
 

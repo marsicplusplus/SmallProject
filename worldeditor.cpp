@@ -3,7 +3,7 @@
 
 #include "lib/stb_image_write.h"
 
-#define MAX_ALLOCATION 512000000 // in bytes
+#define MAX_ALLOCATION 512000000 // max bytes allowed for undo/redo states
 
 #define BIG_TILE_IMAGE_SCALE 8
 #define TILE_IMAGE_SCALE 16
@@ -176,6 +176,7 @@ void NBTHelper::ReadTagCompound(std::ifstream& rf, Tag& tag)
 
 
 
+#pragma region Initialization
 // Simple helper function to load an image into a OpenGL texture with common settings
 bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_width, int* out_height)
 {
@@ -353,6 +354,7 @@ WorldEditor::WorldEditor()
 
 	LoadTiles();
 }
+#pragma endregion 
 
 
 
@@ -370,8 +372,8 @@ void WorldEditor::MouseMove(int x, int y)
 	if (gesture.state == GestureState::GESTURE_POSSIBLE)
 	{
 		// Reset the selected voxel aabb 
-		selectedBricks.box = aabb{};
-		UpdateSelectedBrick();
+		selected.box = aabb{};
+		UpdateSelectedBox();
 		return;
 	}
 
@@ -381,18 +383,18 @@ void WorldEditor::MouseMove(int x, int y)
 	}
 	else 
 	{
-		auto oldBox = selectedBricks.box;
-		selectedBricks.box = aabb{};
-		UpdateSelectedBrick();
+		auto oldBox = selected.box;
+		selected.box = aabb{};
+		UpdateSelectedBox();
 
 		// Ignore when mouse hovers over the same brick to avoid multiple add/removes
-		if (oldBox == selectedBricks.box) return;
+		if (oldBox == selected.box) return;
 
-		float3 brickPos = selectedBricks.box.bmin3;
-		if (gesture.mode & GestureMode::GESTURE_REMOVE) RemoveBrick(brickPos.x, brickPos.y, brickPos.z);
-		else AddBrick(brickPos.x, brickPos.y, brickPos.z);
+		float3 boxPos = selected.box.bmin3;
+		if (gesture.mode & GestureMode::GESTURE_REMOVE) Remove(boxPos.x, boxPos.y, boxPos.z);
+		else Add(boxPos.x, boxPos.y, boxPos.z);
 	}
-	UpdateSelectedBrick();
+	UpdateSelectedBox();
 }
 
 void WorldEditor::KeyDown(int key)
@@ -403,29 +405,29 @@ void WorldEditor::KeyDown(int key)
 	case GLFW_KEY_LEFT_CONTROL:
 		selectedKeys |= GestureKey::GESTURE_CTRL;
 		UpdateGestureMode();
-		selectedBricks.box = aabb{};
-		UpdateSelectedBrick();
+		selected.box = aabb{};
+		UpdateSelectedBox();
 		break;
 	case GLFW_KEY_LEFT_SHIFT:
 		selectedKeys |= GestureKey::GESTURE_SHIFT;
 		UpdateGestureMode();
-		selectedBricks.box = aabb{};
-		UpdateSelectedBrick();
+		selected.box = aabb{};
+		UpdateSelectedBox();
 		break;
 	case GLFW_KEY_Z:
 		if (selectedKeys == GestureKey::GESTURE_CTRL)
 		{
 			Undo();
-			selectedBricks.box = aabb{};
-			UpdateSelectedBrick();
+			selected.box = aabb{};
+			UpdateSelectedBox();
 		}
 		break;
 	case GLFW_KEY_Y:
 		if (selectedKeys == GestureKey::GESTURE_CTRL)
 		{
 			Redo();
-			selectedBricks.box = aabb{};
-			UpdateSelectedBrick();
+			selected.box = aabb{};
+			UpdateSelectedBox();
 		}
 		break;
 	default:
@@ -441,14 +443,14 @@ void WorldEditor::KeyUp(int key)
 	case GLFW_KEY_LEFT_CONTROL:
 		selectedKeys ^= GestureKey::GESTURE_CTRL;
 		UpdateGestureMode();
-		selectedBricks.box = aabb{};
-		UpdateSelectedBrick();
+		selected.box = aabb{};
+		UpdateSelectedBox();
 		break;
 	case GLFW_KEY_LEFT_SHIFT:
 		selectedKeys ^= GestureKey::GESTURE_SHIFT;
 		UpdateGestureMode();
-		selectedBricks.box = aabb{};
-		UpdateSelectedBrick();
+		selected.box = aabb{};
+		UpdateSelectedBox();
 		break;
 	default:
 		break;
@@ -486,16 +488,16 @@ void WorldEditor::MouseDown(int mouseButton)
 		memcpy(tempGrid, world.GetGrid(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 		memcpy(tempBrickInfo, world.GetBrickInfo(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 
-		float3 brickPos = selectedBricks.box.bmin3;
+		float3 brickPos = selected.box.bmin3;
 		// Add or remove the intial brick where the mouse is hovered
-		if (gesture.mode & GestureMode::GESTURE_REMOVE) RemoveBrick(brickPos.x, brickPos.y, brickPos.z);
-		else AddBrick(brickPos.x, brickPos.y, brickPos.z);
+		if (gesture.mode & GestureMode::GESTURE_REMOVE) Remove(brickPos.x, brickPos.y, brickPos.z);
+		else Add(brickPos.x, brickPos.y, brickPos.z);
 
 		// Set our anchor for multi add/remove
-		selectedBricks.anchor = selectedBricks.box;
+		selected.anchor = selected.box;
 	}
 
-	UpdateSelectedBrick();
+	UpdateSelectedBox();
 }
 
 void WorldEditor::MouseUp(int mouseButton)
@@ -523,28 +525,27 @@ void WorldEditor::MouseUp(int mouseButton)
 		UpdateGestureMode();
 
 		// Reset the selected voxel aabb 
-		selectedBricks.box = aabb{};
-		UpdateSelectedBrick();
+		selected.box = aabb{};
+		UpdateSelectedBox();
 	}
 }
 #pragma endregion
 
 
 
-
 #pragma region Editing
 void WorldEditor::UpdateEditedBricks(int bx, int by, int bz)
 {
-	if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
-	{
-		editedBricks.push_back((make_int3)(bx, by, bz));
-	}
-	else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+	if (gesture.size == GestureSize::GESTURE_BIG_TILE)
 	{
 		for (int x = 0; x < 2; x++)
 			for (int y = 0; y < 2; y++)
 				for (int z = 0; z < 2; z++)
-					editedBricks.push_back(make_int3(bx * 2 + x, by * 2 + y, bz * 2 + z));
+					editedBricks.insert(make_int3(bx * 2 + x, by * 2 + y, bz * 2 + z));
+	}
+	else
+	{
+		editedBricks.insert((make_int3)(bx, by, bz));
 	}
 
 	return;
@@ -553,83 +554,118 @@ void WorldEditor::UpdateEditedBricks(int bx, int by, int bz)
 // Allow the adding/removing of multiple bricks in the seclected box
 void WorldEditor::MultiAddRemove()
 {
-	aabb oldBox = selectedBricks.box;
-	selectedBricks.box = selectedBricks.anchor;
-	UpdateSelectedBrick();
+	aabb oldBox = selected.box;
+	selected.box = selected.anchor;
+	UpdateSelectedBox();
+
+	if (oldBox == selected.box) return;
 
 	World& world = *GetWorld();
 	unsigned short* brick = world.GetBrick();
 	uint* grid = world.GetGrid();
 
-	aabb newBox = selectedBricks.box;
+	aabb newBox = selected.box;
 	// Compute the overlap betweeen the old and new aabbs
-	aabb intersectionLocal = oldBox.Intersection(newBox);
-	aabb intersectionGlobal = intersectionLocal;
 
-	if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+	int boxScale = 1;
+	switch (gesture.size)
 	{
-		// Get the old box to be in normal sized bricks coords
-		oldBox.bmin3 *= 2; oldBox.bmax3 *= 2;
-		// Expand the old box so we take up the whole large brick space
-		oldBox.bmax3 += (1, 1, 1);
-
-		// Get the new box to be in normal sized bricks coords
-		newBox.bmin3 *= 2; newBox.bmax3 *= 2;
-		// Expand the new box so we take up the whole large brick space
-		newBox.bmax3 += (1, 1, 1);
-
-		// Compute the intersection in normal brick coords not Big Bricks (2x2x2)
-		intersectionGlobal = oldBox.Intersection(newBox);
+	case GestureSize::GESTURE_VOXEL:
+		boxScale = 1;
+		break;
+	case GestureSize::GESTURE_TILE:
+	case GestureSize::GESTURE_BRICK:
+		boxScale = BRICKDIM;
+		break;
+	case GestureSize::GESTURE_BIG_TILE:
+		boxScale = BRICKDIM * 2;
+		break;
+	default:
+		break;
 	}
 
-	// We've updated the selected bricks box so now it doesn't cover the same bricks
-	// For all individual updated bricks, put back the old bricks values
-	for (int bx = oldBox.bmax3.x; bx >= oldBox.bmin3.x; bx--)
-		for (int by = oldBox.bmax3.y; by >= oldBox.bmin3.y; by--)
-			for (int bz = oldBox.bmax3.z; bz >= oldBox.bmin3.z; bz--)
-			{
-				__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
-				if (intersectionGlobal.Contains(b4))
-					continue;
 
-				const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-				const uint tempGridVal = tempGrid[cellIdx];
-				const uint curGridVal = grid[cellIdx];
+	oldBox.bmin3 = make_float3((int)oldBox.bmin3.x / boxScale, (int)oldBox.bmin3.y / boxScale, (int)oldBox.bmin3.z / boxScale);
+	oldBox.bmax3 = make_float3((int)oldBox.bmax3.x / boxScale, (int)oldBox.bmax3.y / boxScale, (int)oldBox.bmax3.z / boxScale);
+	newBox.bmin3 = make_float3((int)newBox.bmin3.x / boxScale, (int)newBox.bmin3.y / boxScale, (int)newBox.bmin3.z / boxScale);
+	newBox.bmax3 = make_float3((int)newBox.bmax3.x / boxScale, (int)newBox.bmax3.y / boxScale, (int)newBox.bmax3.z / boxScale);
+	aabb intersection = oldBox.Intersection(newBox);
 
-				// If we're reintroducing what was an empty/solid brick, just remove the current one
-				if ((tempGridVal & 1) == 0)
+	auto RestoreTempBrickVal = [&](int x, int y, int z) {
+		const uint cellIdx = x + z * GRIDWIDTH + y * GRIDWIDTH * GRIDDEPTH;
+		const uint tempGridVal = tempGrid[cellIdx];
+		const uint curGridVal = grid[cellIdx];
+
+		// If we're reintroducing what was an empty/solid brick, just remove the current one
+		if ((tempGridVal & 1) == 0)
+		{
+			world.RemoveBrick(x, y, z);
+			grid[cellIdx] = tempGridVal;
+			return;
+		}
+
+		// Get current and new brick offsets (g1)
+		uint tempBrickOffset = (tempGridVal >> 1);
+		uint curBrickOffset = (curGridVal >> 1);
+
+		uint brickIdx = tempBrickOffset;
+		uint gridValue = tempGridVal;
+
+		// If the current brick is empty/solid we need to create a NewBrick
+		if ((curGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
+
+		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
+		memcpy(brick + brickIdx * BRICKSIZE, tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+		grid[cellIdx] = gridValue;
+		world.GetBrickInfo()[brickIdx].zeroes = tempBrickInfo[tempBrickOffset].zeroes;
+		world.Mark(brickIdx);
+	};
+
+	if (gesture.size == GestureSize::GESTURE_BRICK || gesture.size == GestureSize::GESTURE_TILE)
+	{
+		// We've updated the selected box so now it doesn't cover the same area
+		// For all individual updated values, put back the old ones
+		for (int x = oldBox.bmin3.x; x <= oldBox.bmax3.x; x++)
+			for (int y = oldBox.bmin3.y; y <= oldBox.bmax3.y; y++)
+				for (int z = oldBox.bmin3.z; z <= oldBox.bmax3.z; z++)
 				{
-					world.RemoveBrick(bx, by, bz);
-					grid[cellIdx] = tempGridVal;
-					continue;
+					__m128 b4 = _mm_setr_ps(x, y, z, 0);
+					if (intersection.Contains(b4))
+						continue;
+
+					RestoreTempBrickVal(x, y, z);
 				}
+	}
 
-				// Get current and new brick offsets (g1)
-				uint tempBrickOffset = (tempGridVal >> 1);
-				uint curBrickOffset = (curGridVal >> 1);
+	if (gesture.size == GESTURE_BIG_TILE)
+	{
+		// We've updated the selected box so now it doesn't cover the same area
+		// For all individual updated values, put back the old ones
+		for (int x = oldBox.bmin3.x; x <= oldBox.bmax3.x; x++)
+			for (int y = oldBox.bmin3.y; y <= oldBox.bmax3.y; y++)
+				for (int z = oldBox.bmin3.z; z <= oldBox.bmax3.z; z++)
+				{
+					__m128 b4 = _mm_setr_ps(x, y, z, 0);
+					if (intersection.Contains(b4))
+						continue;
 
-				uint brickIdx = tempBrickOffset;
-				uint gridValue = tempGridVal;
+					for (int _x = 0; _x < 2; _x++)
+						for (int _y = 0; _y < 2; _y++)
+							for (int _z = 0; _z < 2; _z++)
+								RestoreTempBrickVal(x * 2 + _x, y * 2 + _y, z * 2 + _z);
+				}
+	}
 
-				// If the current brick is empty/solid we need to create a NewBrick
-				if ((curGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
-
-				// Copy the brick from the saved temporary brick buffer to our current brick buffer 
-				memcpy(brick + brickIdx * BRICKSIZE, tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
-				grid[cellIdx] = gridValue;
-				world.GetBrickInfo()[brickIdx].zeroes = tempBrickInfo[tempBrickOffset].zeroes;
-				world.Mark(brickIdx);
-			}
 
 	// Clear all edited bricks and fill it with bricks form the new selected bricks aabb
 	editedBricks.clear();
 	// Either add or remove the bricks in the new selected bricks aabb
-	for (int bx = selectedBricks.box.bmax3.x; bx >= selectedBricks.box.bmin3.x; bx--)
-		for (int by = selectedBricks.box.bmax3.y; by >= selectedBricks.box.bmin3.y; by--)
-			for (int bz = selectedBricks.box.bmax3.z; bz >= selectedBricks.box.bmin3.z; bz--)
+	for (int bx = newBox.bmin3.x; bx <= newBox.bmax3.x; bx++)
+		for (int by = newBox.bmin3.y; by <= newBox.bmax3.y; by++)
+			for (int bz = newBox.bmin3.z; bz <= newBox.bmax3.z; bz++)
 			{
 				__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
-				if (intersectionLocal.Contains(b4))
+				if (intersection.Contains(b4))
 				{
 					UpdateEditedBricks(bx, by, bz);
 					continue;
@@ -637,22 +673,35 @@ void WorldEditor::MultiAddRemove()
 
 				if (gesture.mode & GestureMode::GESTURE_REMOVE)
 				{
-					RemoveBrick(bx, by, bz);
+					Remove(bx * boxScale, by * boxScale, bz * boxScale);
 				}
 				else
 				{
-					AddBrick(bx, by, bz);
+					Add(bx * boxScale, by * boxScale, bz * boxScale);
 				}
 			}
 }
 
-void WorldEditor::AddBrick(int bx, int by, int bz)
+void WorldEditor::Add(int x, int y, int z)
 {
+	World& world = *GetWorld();
+
+	// Convert voxel xyz to brick coords
+	int bx = x / BRICKDIM;
+	int by = y / BRICKDIM;
+	int bz = z / BRICKDIM;
+
+	if (gesture.size == GestureSize::GESTURE_VOXEL)
+	{
+		world.Set(x, y, z, voxelValue);
+		UpdateEditedBricks(bx, by, bz);
+		return;
+	}
+
 	// Avoid adding a brick already added during this gesture
 	int3 brickPos = make_int3(bx, by, bz);
-	if (std::find(editedBricks.begin(), editedBricks.end(), brickPos) == editedBricks.end())
+	if (!editedBricks.count(brickPos))
 	{
-		World& world = *GetWorld();
 		UpdateEditedBricks(bx, by, bz);
 		if (gesture.size == GestureSize::GESTURE_TILE)
 		{
@@ -660,22 +709,34 @@ void WorldEditor::AddBrick(int bx, int by, int bz)
 		}
 		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
 		{
-			world.DrawBigTile(selectedBigTileIdx, bx, by, bz);
+			world.DrawBigTile(selectedBigTileIdx, bx / 2, by / 2, bz / 2);
 		}
 		else if (gesture.size == GestureSize::GESTURE_BRICK)
 		{
-			world.SetBrick(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM, userDefinedBrick);
+			world.SetBrick(x, y, z, voxelValue);
 		}
 	}
 }
 
-void WorldEditor::RemoveBrick(int bx, int by, int bz)
+void WorldEditor::Remove(int x, int y, int z)
 {
+	World& world = *GetWorld();
+
+	int bx = x / BRICKDIM;
+	int by = y / BRICKDIM;
+	int bz = z / BRICKDIM;
+
+	if (gesture.size == GestureSize::GESTURE_VOXEL)
+	{
+		world.Set(x, y, z, 0);
+		UpdateEditedBricks(bx, by, bz);
+		return;
+	}
+
 	// Avoid removing a brick already removed during this gesture
 	int3 brickPos = make_int3(bx, by, bz);
-	if (std::find(editedBricks.begin(), editedBricks.end(), brickPos) == editedBricks.end())
+	if (!editedBricks.count(brickPos))
 	{
-		World& world = *GetWorld();
 		UpdateEditedBricks(bx, by, bz);
 		if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
 		{
@@ -687,8 +748,181 @@ void WorldEditor::RemoveBrick(int bx, int by, int bz)
 		}
 	}
 }
-#pragma endregion
 
+// Update which brick is currently selected by the mouse cursor 
+void WorldEditor::UpdateSelectedBox()
+{
+	World& world = *GetWorld();
+	RenderParams& params = world.GetRenderParams();
+
+	int boxScale = 1;
+	switch (gesture.size)
+	{
+	case GestureSize::GESTURE_VOXEL:
+		boxScale = 1;
+		break;
+	case GestureSize::GESTURE_TILE:
+	case GestureSize::GESTURE_BRICK:
+		boxScale = BRICKDIM;
+		break;
+	case GestureSize::GESTURE_BIG_TILE:
+		boxScale = BRICKDIM * 2;
+		break;
+	default:
+		break;
+	}
+
+	// setup primary ray for pixel [x,y] 
+	float u = (float)mousePos.x / SCRWIDTH;
+	float v = (float)mousePos.y / SCRHEIGHT;
+
+	const float2 uv = make_float2(mousePos.x * params.oneOverRes.x, mousePos.y * params.oneOverRes.y);
+	const float3 P = params.p0 + (params.p1 - params.p0) * uv.x + (params.p2 - params.p0) * uv.y;
+
+	Ray ray;
+	ray.O = params.E;
+	ray.D = normalize(P - params.E);
+	ray.t = 1e34f;
+
+	// Trace the ray using the previous grid/brick state if gesture is active
+	Intersection intersection = (gesture.state == GestureState::GESTURE_ACTIVE) ? Trace(ray, tempBricks, tempGrid) : Trace(ray);
+
+	// Check to see if we hit the world grid
+	if (intersection.GetVoxel() == 0)
+	{
+		float3 radius = make_float3(512, 512, 512);
+
+		// Move to the box's reference frame. This is unavoidable and un-optimizable.
+		float3 rayOrigin = ray.O - radius;
+
+
+		// Winding direction: -1 if the ray starts inside of the box (i.e., and is leaving), +1 if it is starting outside of the box
+		float3 res = fabs(rayOrigin) * (1.0 / radius);
+		float max = res.x;
+		if (res.y > max) max = res.y;
+		if (res.z > max) max = res.z;
+		float winding = (max < 1.0) ? -1.0 : 1.0;
+
+
+		// We'll use the negated sign of the ray direction in several places, so precompute it.
+		// The sign() instruction is fast...but surprisingly not so fast that storing the result
+		// temporarily isn't an advantage.
+		float3 sgn;
+		sgn.x = signbit(ray.D.x) ? 1 : -1;
+		sgn.y = signbit(ray.D.y) ? 1 : -1;
+		sgn.z = signbit(ray.D.z) ? 1 : -1;
+
+		// Ray-plane intersection. For each pair of planes, choose the one that is front-facing
+		// to the ray and compute the distance to it.
+		float3 distanceToPlane = radius * -1.0 * sgn - rayOrigin;
+		distanceToPlane *= (1.0 / ray.D);
+
+		// Perform all three ray-box tests and cast to 0 or 1 on each axis. 
+		// Use a macro to eliminate the redundant code (no efficiency boost from doing so, of course!)
+		// Could be written with 
+		int3 test;
+
+
+		test.x = (distanceToPlane.x >= 0.0) && LessThan(fabs(make_float2(rayOrigin.y, rayOrigin.z) + make_float2(ray.D.y, ray.D.z) * distanceToPlane.x), make_float2(radius.y, radius.z));
+		test.y = (distanceToPlane.y >= 0.0) && LessThan(fabs(make_float2(rayOrigin.z, rayOrigin.x) + make_float2(ray.D.z, ray.D.x) * distanceToPlane.y), make_float2(radius.z, radius.x));
+		test.z = (distanceToPlane.z >= 0.0) && LessThan(fabs(make_float2(rayOrigin.x, rayOrigin.y) + make_float2(ray.D.x, ray.D.y) * distanceToPlane.z), make_float2(radius.x, radius.y));
+
+		// CMOV chain that guarantees exactly one element of sgn is preserved and that the value has the right sign
+		sgn = test.x ? make_float3(sgn.x, 0.0, 0.0) : (test.y ? make_float3(0.0, sgn.y, 0.0) : make_float3(0.0, 0.0, test.z ? sgn.z : 0.0));
+
+		// At most one element of sgn is non-zero now. That element carries the negative sign of the 
+		// ray direction as well. Notice that we were able to drop storage of the test vector from registers,
+		// because it will never be used again.
+
+		// Mask the distance by the non-zero axis
+		// Dot product is faster than this CMOV chain, but doesn't work when distanceToPlane contains nans or infs. 
+		//
+		float distance = (sgn.x != 0.0) ? distanceToPlane.x : ((sgn.y != 0.0) ? distanceToPlane.y : distanceToPlane.z);
+
+		// Normal must face back along the ray. If you need
+		// to know whether we're entering or leaving the box, 
+		// then just look at the value of winding. If you need
+		// texture coordinates, then use box.invDirection * hitPoint.
+		float3 normal = sgn;
+
+		bool hit = (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
+		if (!hit) return;
+
+
+		float3 hitPoint = ray.O + ray.D * distance;
+		// Get position inside of the grid to determine brick location
+		float3 gridPos = hitPoint + 0.5 * normal;
+
+		if (gridPos.x < 0 || gridPos.y < 0 || gridPos.z < 0 || gridPos.x > MAPWIDTH || gridPos.y > MAPHEIGHT || gridPos.z > MAPDEPTH)
+			return;
+
+		float3 boxPos;
+		boxPos = make_float3(
+			(int)(gridPos.x / boxScale) * boxScale,
+			(int)(gridPos.y / boxScale) * boxScale,
+			(int)(gridPos.z / boxScale) * boxScale
+		);
+		selected.box.Grow(boxPos);
+		selected.box.Grow(boxPos + make_float3(boxScale - 1, boxScale - 1, boxScale - 1));
+	}
+	else
+	{
+		float t = intersection.GetDistance();
+		float3 normal = intersection.GetNormal();
+		float3 hitPoint = ray.O + ray.D * t;
+
+		// Get position inside of the voxel to determine brick location
+		float3 voxelPos = hitPoint - 0.1 * normal;
+		float3 boxPos;
+		boxPos = make_float3(
+			(int)(voxelPos.x / boxScale) * boxScale,
+			(int)(voxelPos.y / boxScale) * boxScale,
+			(int)(voxelPos.z / boxScale) * boxScale
+		);
+
+		if (gesture.mode & GestureMode::GESTURE_REMOVE)
+		{
+			selected.box.Grow(boxPos);
+			selected.box.Grow(boxPos + make_float3(boxScale - 1, boxScale - 1, boxScale - 1));
+
+		}
+		else
+		{
+			float3 newBoxPos = boxPos + normal * boxScale;
+
+			// If the normal puts us outside of the grid, just use the original intersection
+			if (newBoxPos.x < 0 || newBoxPos.y < 0 || newBoxPos.z < 0 || newBoxPos.x > MAPWIDTH || newBoxPos.y > MAPHEIGHT || newBoxPos.z > MAPDEPTH)
+				selected.box.Grow(boxPos);
+			else
+			{
+				selected.box.Grow(newBoxPos);
+				selected.box.Grow(newBoxPos + make_float3(boxScale - 1, boxScale - 1, boxScale - 1));
+			}
+		}
+	}
+
+	// Update rendering params to trace the selected box outline
+	params.selectedMin = selected.box.bmin3;
+	params.selectedMax = selected.box.bmax3;
+	if (gesture.size == GestureSize::GESTURE_BIG_TILE) params.wireBoxWidth = 0.5f;
+	if (gesture.size == GestureSize::GESTURE_TILE || GESTURE_BRICK) params.wireBoxWidth = 0.3f;
+	if (gesture.size == GestureSize::GESTURE_VOXEL) params.wireBoxWidth = 0.1f;
+
+}
+
+// Sets the current mode based on mouse button and selected keys
+void WorldEditor::UpdateGestureMode()
+{
+	if (gesture.state != GestureState::GESTURE_POSSIBLE) return;
+	gesture.buttons = selectedButtons;
+	gesture.keys = selectedKeys;
+
+	// Set the default state to add
+	gesture.mode = GestureMode::GESTURE_ADD;
+	if (gesture.keys & GestureKey::GESTURE_SHIFT) gesture.mode |= GestureMode::GESTURE_REMOVE;
+	if (gesture.keys & GestureKey::GESTURE_CTRL) gesture.mode |= GestureMode::GESTURE_MULTI;
+}
+#pragma endregion
 
 
 
@@ -697,7 +931,7 @@ void WorldEditor::RemoveBrick(int bx, int by, int bz)
 void WorldEditor::ResetEditor()
 {
 	gesture = Gesture{};
-	selectedBricks = Selected{};
+	selected = Selected{};
 	selectedKeys = GestureKey::GESTURE_NO_KEYS;
 	selectedButtons = GestureButton::GESTURE_NO_BUTTONS;
 }
@@ -823,9 +1057,10 @@ void WorldEditor::SaveState()
 	stateCurrent->oldBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
 	stateCurrent->editedBricks = (int3*)_aligned_malloc(numBricks * sizeof(int3), 64);
 
-	for (int idx = 0; idx < numBricks; idx++)
+	int idx = 0;
+	for (auto itr = editedBricks.begin(); itr != editedBricks.end(); itr++)
 	{
-		int3 brick = editedBricks[idx];
+		int3 brick = *itr;
 		const uint cellIdx = brick.x + brick.z * GRIDWIDTH + brick.y * GRIDWIDTH * GRIDDEPTH;
 
 		const uint tempGridValue = tempGrid[cellIdx];
@@ -861,6 +1096,7 @@ void WorldEditor::SaveState()
 		stateCurrent->newBrickZeroes[idx] = brickInfo[brickOffset].zeroes;
 
 		stateCurrent->editedBricks[idx] = brick;
+		idx++;
 	}
 
 
@@ -1189,163 +1425,6 @@ void WorldEditor::CheckMemoryAllowance()
 
 
 
-// Update which brick is currently selected by the mouse cursor 
-void WorldEditor::UpdateSelectedBrick()
-{
-	World& world = *GetWorld();
-	RenderParams& params = world.GetRenderParams();
-
-	// setup primary ray for pixel [x,y] 
-	float u = (float)mousePos.x / SCRWIDTH;
-	float v = (float)mousePos.y / SCRHEIGHT;
-
-	const float2 uv = make_float2(mousePos.x * params.oneOverRes.x, mousePos.y * params.oneOverRes.y);
-	const float3 P = params.p0 + (params.p1 - params.p0) * uv.x + (params.p2 - params.p0) * uv.y;
-
-	Ray ray;
-	ray.O = params.E;
-	ray.D = normalize(P - params.E);
-	ray.t = 1e34f;
-
-	// Trace the ray using the previous grid/brick state if gesture is active
-	Intersection intersection = (gesture.state == GestureState::GESTURE_ACTIVE) ? Trace(ray, tempBricks, tempGrid) : Trace(ray);
-
-	// Check to see if we hit the world grid
-	if (intersection.GetVoxel() == 0)
-	{
-		float3 radius = make_float3(512, 512, 512);
-
-		// Move to the box's reference frame. This is unavoidable and un-optimizable.
-		float3 rayOrigin = ray.O - radius;
-
-
-		// Winding direction: -1 if the ray starts inside of the box (i.e., and is leaving), +1 if it is starting outside of the box
-		float3 res = fabs(rayOrigin) * (1.0 / radius);
-		float max = res.x;
-		if (res.y > max) max = res.y;
-		if (res.z > max) max = res.z;
-		float winding = (max < 1.0) ? -1.0 : 1.0;
-
-
-		// We'll use the negated sign of the ray direction in several places, so precompute it.
-		// The sign() instruction is fast...but surprisingly not so fast that storing the result
-		// temporarily isn't an advantage.
-		float3 sgn;
-		sgn.x = signbit(ray.D.x) ? 1 : -1;
-		sgn.y = signbit(ray.D.y) ? 1 : -1;
-		sgn.z = signbit(ray.D.z) ? 1 : -1;
-
-		// Ray-plane intersection. For each pair of planes, choose the one that is front-facing
-		// to the ray and compute the distance to it.
-		float3 distanceToPlane = radius * -1.0 * sgn - rayOrigin;
-		distanceToPlane *= (1.0 / ray.D);
-
-		// Perform all three ray-box tests and cast to 0 or 1 on each axis. 
-		// Use a macro to eliminate the redundant code (no efficiency boost from doing so, of course!)
-		// Could be written with 
-		int3 test;
-
-
-		test.x = (distanceToPlane.x >= 0.0) && LessThan(fabs(make_float2(rayOrigin.y, rayOrigin.z) + make_float2(ray.D.y, ray.D.z) * distanceToPlane.x), make_float2(radius.y, radius.z));
-		test.y = (distanceToPlane.y >= 0.0) && LessThan(fabs(make_float2(rayOrigin.z, rayOrigin.x) + make_float2(ray.D.z, ray.D.x) * distanceToPlane.y), make_float2(radius.z, radius.x));
-		test.z = (distanceToPlane.z >= 0.0) && LessThan(fabs(make_float2(rayOrigin.x, rayOrigin.y) + make_float2(ray.D.x, ray.D.y) * distanceToPlane.z), make_float2(radius.x, radius.y));
-
-		// CMOV chain that guarantees exactly one element of sgn is preserved and that the value has the right sign
-		sgn = test.x ? make_float3(sgn.x, 0.0, 0.0) : (test.y ? make_float3(0.0, sgn.y, 0.0) : make_float3(0.0, 0.0, test.z ? sgn.z : 0.0));
-
-		// At most one element of sgn is non-zero now. That element carries the negative sign of the 
-		// ray direction as well. Notice that we were able to drop storage of the test vector from registers,
-		// because it will never be used again.
-
-		// Mask the distance by the non-zero axis
-		// Dot product is faster than this CMOV chain, but doesn't work when distanceToPlane contains nans or infs. 
-		//
-		float distance = (sgn.x != 0.0) ? distanceToPlane.x : ((sgn.y != 0.0) ? distanceToPlane.y : distanceToPlane.z);
-
-		// Normal must face back along the ray. If you need
-		// to know whether we're entering or leaving the box, 
-		// then just look at the value of winding. If you need
-		// texture coordinates, then use box.invDirection * hitPoint.
-		float3 normal = sgn;
-
-		bool hit = (sgn.x != 0) || (sgn.y != 0) || (sgn.z != 0);
-		if (!hit) return;
-
-
-		float3 hitPoint = ray.O + ray.D * distance;
-		// Get position inside of the grid to determine brick location
-		float3 gridPos = hitPoint + 0.5 * normal;
-
-		if (gridPos.x < 0 || gridPos.y < 0 || gridPos.z < 0 || gridPos.x > MAPWIDTH || gridPos.y > MAPHEIGHT || gridPos.z > MAPDEPTH)
-			return;
-
-		float3 brickPos;
-		if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
-			brickPos = make_float3((int)gridPos.x / BRICKDIM, (int)gridPos.y / BRICKDIM, (int)gridPos.z / BRICKDIM);
-		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
-			brickPos = make_float3((int)gridPos.x / (BRICKDIM * 2), (int)gridPos.y / (BRICKDIM * 2), (int)gridPos.z / (BRICKDIM * 2));
-
-		selectedBricks.box.Grow(brickPos);
-
-	}
-	else
-	{
-		float t = intersection.GetDistance();
-		float3 normal = intersection.GetNormal();
-		float3 hitPoint = ray.O + ray.D * t;
-
-		// Get position inside of the voxel to determine brick location
-		float3 voxelPos = hitPoint - 0.1 * normal;
-		float3 brickPos;
-		// Get position inside of the voxel to determine brick location
-		if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
-			brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
-		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
-			brickPos = make_float3((int)voxelPos.x / (BRICKDIM * 2), (int)voxelPos.y / (BRICKDIM * 2), (int)voxelPos.z / (BRICKDIM * 2));
-
-		if (gesture.mode & GestureMode::GESTURE_REMOVE)
-		{
-			selectedBricks.box.Grow(brickPos);
-		}
-		else
-		{
-			float3 newBrickPos = brickPos + normal;
-
-			// If the normal puts us outside of the grid, just use the original intersected brick
-			if (newBrickPos.x < 0 || newBrickPos.y < 0 || newBrickPos.z < 0 || newBrickPos.x > MAPWIDTH || newBrickPos.y > MAPHEIGHT || newBrickPos.z > MAPDEPTH)
-				selectedBricks.box.Grow(brickPos);
-			else
-				selectedBricks.box.Grow(newBrickPos);
-		}
-	}
-
-	// Update rendering params to trace the selected bricks outline
-	if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
-	{
-		params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM;
-		params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM + make_float3(BRICKDIM, BRICKDIM, BRICKDIM);
-	}
-	else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
-	{
-		params.selectedMin = selectedBricks.box.bmin3 * BRICKDIM * 2;
-		params.selectedMax = selectedBricks.box.bmax3 * BRICKDIM * 2 + make_float3(BRICKDIM  * 2, BRICKDIM * 2, BRICKDIM * 2);
-	}
-}
-
-// Sets the current mode based on mouse button and selected keys
-void WorldEditor::UpdateGestureMode()
-{
-	if (gesture.state != GestureState::GESTURE_POSSIBLE) return;
-	gesture.buttons = selectedButtons;
-	gesture.keys = selectedKeys;
-
-	// Set the default state to add
-	gesture.mode = GestureMode::GESTURE_ADD;
-	if (gesture.keys & GestureKey::GESTURE_SHIFT) gesture.mode |= GestureMode::GESTURE_REMOVE;
-	if (gesture.keys & GestureKey::GESTURE_CTRL) gesture.mode |= GestureMode::GESTURE_MULTI;
-}
-
-
 #pragma region GUI
 static void HelpMarker(const char* desc)
 {
@@ -1432,13 +1511,13 @@ void WorldEditor::RenderGUI()
 			gesture.size = GestureSize::GESTURE_BIG_TILE;
 		}
 
-		if (ImGui::BeginTabItem("Brick"))
+		if (ImGui::BeginTabItem("Brick/Voxel"))
 		{
-			gesture.size = GestureSize::GESTURE_BRICK;
 
 			static ImVec4 color = { 1.0f, 1.0f, 1.0f, 1.0f};
 
 			static bool emmisive = false;
+			static bool voxel = false;
 			static bool ref_color = false;
 			static int display_mode = 0;
 			static int picker_mode = 0;
@@ -1461,11 +1540,16 @@ void WorldEditor::RenderGUI()
 			}
 
 			static ImVec4 backup_color;
-			ImGui::Text("Brick Color:");
-			bool picker = ImGui::ColorButton("##brickcolor", color, flags, ImVec2(128, 128));
+			ImGui::Text("Voxel Color:");
+			bool picker = ImGui::ColorButton("##voxelcolor", color, flags, ImVec2(128, 128));
 			ImGui::SameLine();
 
 			ImGui::Checkbox("Emmisive", &emmisive);
+			ImGui::Checkbox("Edit Voxel", &voxel);
+
+			if (voxel) gesture.size = GestureSize::GESTURE_VOXEL;
+			else gesture.size = GestureSize::GESTURE_BRICK;
+			
 			if (picker)
 			{
 				ImGui::OpenPopup("Popup Picker");
@@ -1526,9 +1610,9 @@ void WorldEditor::RenderGUI()
 			color.w = (alpha * (1.0f / 15.0f));
 
 			const uint p = (red << 8) + (green << 4) + blue;
-			userDefinedBrick = (p == 0) ? 1 : p;
+			voxelValue = (p == 0) ? 1 : p;
 
-			if (emmisive) userDefinedBrick |= 1 << 15;
+			if (emmisive) voxelValue |= 1 << 15;
 			ImGui::EndTabItem();
 		}
 

@@ -99,7 +99,7 @@ struct RenderParams
 	uint R0, frame, framecount, restirtemporalframe;
 	uint skyWidth, skyHeight;
 	float4 skyLight[6];
-	float skyLightScale, dummy1, dummy2, dummy3;
+	float skyLightScale, wireBoxWidth, dummy1, dummy2;
 	// reprojection data
 	float4 Nleft, Nright, Ntop, Nbottom;
 	float4 prevRight, prevDown;

@@ -209,19 +209,19 @@ bool HitAABB(const float3 O, const float3 D, const float3 boxMin, const float3 b
 	return hit;
 }
 
-bool HitSelectedBrick(const float3 O, const float3 D, const float3 bboxMin, const float3 bboxMax, float* distance)
+bool HitSelectedBrick(const float3 O, const float3 D, const float3 bboxMin, const float3 bboxMax, const float wireBoxWidth, float* distance)
 {
 	float closeDistance = *distance;
-	float3 wireMin = bboxMin - (float3)(0.1, 0.1, 0.1);
-	float3 wireMax = bboxMax + (float3)(0.1, 0.1, 0.1);
+	float3 wireMin = bboxMin;
+	float3 wireMax = bboxMax + (float3)(1.0, 1.0, 1.0);
 
 	if (HitAABB(O, D, wireMin, wireMax, true, &closeDistance))
 	{
 		const float3 shadingPoint = D * closeDistance + O;
-		float delta = 0.3;
-		bool hitx = fabs(shadingPoint.x - bboxMin.x) < delta || fabs(bboxMax.x - shadingPoint.x) < delta;
-		bool hity = fabs(shadingPoint.y - bboxMin.y) < delta || fabs(bboxMax.y - shadingPoint.y) < delta;
-		bool hitz = fabs(shadingPoint.z - bboxMin.z) < delta || fabs(bboxMax.z - shadingPoint.z) < delta;
+		float delta = wireBoxWidth;
+		bool hitx = fabs(shadingPoint.x - wireMin.x) < delta || fabs(wireMax.x - shadingPoint.x) < delta;
+		bool hity = fabs(shadingPoint.y - wireMin.y) < delta || fabs(wireMax.y - shadingPoint.y) < delta;
+		bool hitz = fabs(shadingPoint.z - wireMin.z) < delta || fabs(wireMax.z - shadingPoint.z) < delta;
 
 
 		if (((hitx || hity) && hitz) ||
@@ -237,10 +237,10 @@ bool HitSelectedBrick(const float3 O, const float3 D, const float3 bboxMin, cons
 	if (HitAABB(O, D, wireMin, wireMax, false, &farDistance))
 	{
 		const float3 shadingPoint = D * farDistance + O;
-		float delta = 0.3;
-		bool hitx = fabs(shadingPoint.x - bboxMin.x) < delta || fabs(bboxMax.x - shadingPoint.x) < delta;
-		bool hity = fabs(shadingPoint.y - bboxMin.y) < delta || fabs(bboxMax.y - shadingPoint.y) < delta;
-		bool hitz = fabs(shadingPoint.z - bboxMin.z) < delta || fabs(bboxMax.z - shadingPoint.z) < delta;
+		float delta = wireBoxWidth;
+		bool hitx = fabs(shadingPoint.x - wireMin.x) < delta || fabs(wireMax.x - shadingPoint.x) < delta;
+		bool hity = fabs(shadingPoint.y - wireMin.y) < delta || fabs(wireMax.y - shadingPoint.y) < delta;
+		bool hitz = fabs(shadingPoint.z - wireMin.z) < delta || fabs(wireMax.z - shadingPoint.z) < delta;
 
 
 		if (((hitx || hity) && hitz) ||
