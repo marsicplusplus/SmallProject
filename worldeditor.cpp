@@ -1273,14 +1273,17 @@ void WorldEditor::UpdateSelectedBrick()
 
 
 		float3 hitPoint = ray.O + ray.D * distance;
+		// Get position inside of the grid to determine brick location
+		float3 gridPos = hitPoint + 0.5 * normal;
 
-		// Get position inside of the voxel to determine brick location
-		float3 voxelPos = hitPoint + 0.5 * normal;
+		if (gridPos.x < 0 || gridPos.y < 0 || gridPos.z < 0 || gridPos.x > MAPWIDTH || gridPos.y > MAPHEIGHT || gridPos.z > MAPDEPTH)
+			return;
+
 		float3 brickPos;
 		if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
-			brickPos = make_float3((int)voxelPos.x / BRICKDIM, (int)voxelPos.y / BRICKDIM, (int)voxelPos.z / BRICKDIM);
+			brickPos = make_float3((int)gridPos.x / BRICKDIM, (int)gridPos.y / BRICKDIM, (int)gridPos.z / BRICKDIM);
 		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
-			brickPos = make_float3((int)voxelPos.x / (BRICKDIM * 2), (int)voxelPos.y / (BRICKDIM * 2), (int)voxelPos.z / (BRICKDIM * 2));
+			brickPos = make_float3((int)gridPos.x / (BRICKDIM * 2), (int)gridPos.y / (BRICKDIM * 2), (int)gridPos.z / (BRICKDIM * 2));
 
 		selectedBricks.box.Grow(brickPos);
 
@@ -1306,7 +1309,13 @@ void WorldEditor::UpdateSelectedBrick()
 		}
 		else
 		{
-			selectedBricks.box.Grow(brickPos + normal);
+			float3 newBrickPos = brickPos + normal;
+
+			// If the normal puts us outside of the grid, just use the original intersected brick
+			if (newBrickPos.x < 0 || newBrickPos.y < 0 || newBrickPos.z < 0 || newBrickPos.x > MAPWIDTH || newBrickPos.y > MAPHEIGHT || newBrickPos.z > MAPDEPTH)
+				selectedBricks.box.Grow(brickPos);
+			else
+				selectedBricks.box.Grow(newBrickPos);
 		}
 	}
 
