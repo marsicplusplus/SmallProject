@@ -418,7 +418,7 @@ public:
 		else
 		{
 			grid[brickIndex] = 0;
-			FreeBrick(brickIndex);
+			FreeBrick(brickBufferOffset);
 		}
 	}
 

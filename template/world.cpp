@@ -1563,7 +1563,7 @@ void World::StampSpriteTo(const uint idx, const uint x, const uint y, const uint
 	{
 		const uint v = localPos[i];
 		const uint vx = v & 1023, vy = (v >> 10) & 1023, vz = (v >> 20) & 1023;
-		Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i]);
+		Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i] | 0xF0000);
 	}
 }
 
@@ -1675,6 +1675,7 @@ void World::DrawTile(const uint idx, const uint x, const uint y, const uint z)
 	const uint cellIdx = x + z * GRIDWIDTH + y * GRIDWIDTH * GRIDDEPTH;
 	DrawTileVoxels(cellIdx, tile[idx]->voxels, tile[idx]->zeroes);
 }
+
 void World::DrawTileVoxels(const uint cellIdx, const PAYLOAD* voxels, uint zeroCount)
 {
 	const uint g = grid[cellIdx];
