@@ -403,12 +403,12 @@ public:
 		if (zeroes[brickIndex] < BRICKSIZE)
 		{
 			brick[voxelIdx] = v; 
-			//Mark(brickIndex);
+			Mark(brickBufferIndex);
 		}
 		else
 		{
 			grid[brickIndex] = 0;
-			FreeBrick(brickIndex);
+			FreeBrick(brickBufferIndex);
 		}
 	}
 
@@ -423,7 +423,7 @@ public:
 		// be careful, setting a bit in an array is not thread-safe without _interlockedbittestandset
 		_interlockedbittestandset((LONG*)modified + (idx >> 5), idx & 31);
 	#else
-		modified[idx >> 5] |= 1 << (idx & 31);
+		modified[idx >> 6] |= 1 << (idx & 31);
 	#endif
 	}
 
