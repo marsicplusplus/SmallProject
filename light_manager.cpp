@@ -1,4 +1,5 @@
 #include "precomp.h"
+#if 0
 
 uint3 Tmpl8::LightManager::PositionFromIteration(int3 center, uint& iteration, uint radius)
 {
@@ -358,3 +359,4 @@ void Tmpl8::LightManager::PopLights(float deltaTime)
 		lasttime += deltaTime;
 	}
 }
+#endif

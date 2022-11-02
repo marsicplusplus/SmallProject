@@ -430,6 +430,7 @@ void main()
 	game = CreateGame();
 	game->screen = screen;
 	game->Init();
+	if (!world->GetLightsBuffer()) world->SetupLightBuffer();
 	// add a skydome to the world
 	world->LoadSky( Game::skyDomeImage.c_str(), Game::skyDomeScale );
 	// after init, optimize world and sync all bricks to GPU
