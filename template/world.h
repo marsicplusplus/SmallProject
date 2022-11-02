@@ -14,8 +14,6 @@ namespace Tmpl8
 {
 class LightManager;
 
-struct BrickInfo { uint zeroes; /* , location; */ };
-
 // Sprite system overview:
 // The world contains a set of 0 or more sprites, typically loaded from .vox files.
 // Sprites act like classic homecomputer sprites: they do not affect the world in
@@ -533,7 +531,6 @@ private:
 #endif
 	PAYLOAD* brick = 0;					// pointer to host-side copy of the bricks
 	uint* modified = 0;					// bitfield to mark bricks for synchronization
-	BrickInfo* brickInfo = 0;			// maintenance data for bricks: zeroes, location
 	volatile inline static LONG trashHead = BRICKCOUNT;	// thrash circular buffer tail
 	volatile inline static LONG trashTail = 0;	// thrash circular buffer tail
 	bool viewer = false;
