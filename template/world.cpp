@@ -234,6 +234,36 @@ void World::SetupReservoirBuffers()
 		SetReservoirBuffer(prevReservoirbuffer, 1);
 	}
 }
+
+void World::AddLight(const int3 pos, const int3 size, const uint c)
+{
+	//TODO: Recognize bricks;
+	vector<Light> ls;
+	for (int x = 0; x < size.x; ++x)
+	{
+		for (int y = 0; y < size.y; ++y)
+		{
+			for (int z = 0; z < size.z; ++z)
+			{
+				uint index = (pos.x + x) + (pos.z + z) * MAPWIDTH + (pos.y + y) * MAPWIDTH * MAPDEPTH;
+				uint prev = Get(pos.x + x, pos.y + y, pos.z + z);
+				if (EmitStrength(prev) == 0)
+				{
+					defaultVoxel[index] = prev;
+				}
+				Set(pos.x+x, pos.y+y, pos.z+z, c);
+				printf("Adding light at: (%d, %d, %d)\n", pos.x + x, pos.y + y, pos.z + z);
+				Light l;
+				l.position = index;
+				l.voxel = c;
+				l.size = 1;
+				ls.push_back(l);
+			}
+		}
+	}
+	SetupLightBuffer(ls, params.numberOfLights);
+	params.restirtemporalframe = 0;
+}
 void World::AddRandomLights(int _numberOfLights)
 {
 	uint numberOfLights = _numberOfLights + params.numberOfLights;
@@ -266,7 +296,7 @@ void World::AddRandomLights(int _numberOfLights)
 		ls.push_back(l);
 	}
 
-	//SetupBuffer(ls, NumberOfLights());
+	SetupLightBuffer(ls, params.numberOfLights);
 	params.restirtemporalframe = 0;
 }
 void World::MoveLights()
@@ -378,7 +408,7 @@ void World::RemoveRandomLights(int _numberOfLights)
 		indices.erase(indices.begin() + index);
 	}
 
-	Light* lights = reinterpret_cast<Light*>(GetWorld()->GetLightsBuffer()->hostBuffer);
+	Light* lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
 	uint lightBufferSize = lightsBuffer->size * 4 / sizeof(Light);
 
 	Light* newlights;
@@ -508,7 +538,35 @@ void World::FindLightsInWord(vector<Light>& ls)
 	printf("Number of emitting voxels found in world: %d, number of voxels: %d, number of bricks: %d\n", ls.size(), numberOfVoxels, numberOfBricks);
 }
 
-void World::SetupLightBuffer(const vector<Light> &ls)
+void World::RemoveLight(const int3 pos, const int3 size) 
+{
+	if (!lightsBuffer)
+	{
+		printf("Light buffer does not exist.\n");
+		return;
+	}
+	if (params.numberOfLights < 1)
+	{
+		printf("No lights to remove.\n");
+		return;
+	}
+	Light* lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
+	uint lightBufferSize = lightsBuffer->size * 4 / sizeof(Light);
+	for (int x = 0; x < size.x; ++x)
+	{
+		for (int y = 0; y < size.y; ++y)
+		{
+			for (int z = 0; z < size.z; ++z)
+			{
+				uint index = (pos.x + x) + (pos.z + z) * MAPWIDTH + (pos.y + y) * MAPWIDTH * MAPDEPTH;
+				// if at that position there is a light, do not copy it in the new lightbuffer.
+			}
+		}
+	}
+
+}
+
+void World::SetupLightBuffer(const vector<Light> &ls, int pos)
 {
 	uint numberOfLights = ls.size() + params.numberOfLights;
 	Light* lights;
@@ -552,7 +610,7 @@ void World::SetupLightBuffer(const vector<Light> &ls)
 	// add lights
 	for (int i = 0; i < ls.size(); i++)
 	{
-		lights[i] = ls[i];
+		lights[i+pos] = ls[i];
 	}
 
 	params.numberOfLights = (numberOfLights);

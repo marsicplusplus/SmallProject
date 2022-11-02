@@ -253,10 +253,12 @@ public:
 	void UpdateLights(float deltaTime);
 	void FindLightsInWord(vector<Light> &ls);
 	void SetupLightBuffer() { vector<Light> empty; SetupLightBuffer(empty); }
-	void SetupLightBuffer(const vector<Light>& ls);
+	void SetupLightBuffer(const vector<Light>& ls, int pos = 0);
 
 	void AddRandomLights(int numberOfLights);
 	void RemoveRandomLights(int numberOfLights);
+	void AddLight(const int3 pos, const int3 size, const uint c);
+	void RemoveLight(const int3 pos, const int3 size);
 
 	void SetUpMovingLights(int numberOfLights);
 	void MoveLights();

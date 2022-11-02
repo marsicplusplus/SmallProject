@@ -117,25 +117,21 @@ void WaterWorld::InitialiseLighthouseScenario()
 	World& world = *GetWorld();
 	for (int lx = 18; lx < 25; ++lx) {
 		for (int ly = 62; ly < 70; ++ly) {
-			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
 			world.Set(450 + lx, 500 + ly, 500 + 60, WHITE | (15 << 12));
 		}
 	}
 	for (int lx = 18; lx < 25; ++lx) {
 		for (int ly = 62; ly < 70; ++ly) {
-			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
 			world.Set(450 + lx, 500 + ly, 500 + 68, WHITE | (15 << 12));
 		}
 	}
 	for (int ly = 62; ly < 70; ++ly) {
 		for (int lz = 61; lz < 68; ++lz) {
-			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
 			world.Set(450 + 25, 500 + ly, 500 + lz, WHITE | (15 << 12));
 		}
 	}
 	for (int ly = 62; ly < 70; ++ly) {
 		for (int lz = 61; lz < 68; ++lz) {
-			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
 			world.Set(450 + 17, 500 + ly, 500 + lz, WHITE | (15 << 12));
 		}
 	}
