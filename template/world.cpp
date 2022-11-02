@@ -72,7 +72,6 @@ World::World(const uint targetID)
 		brickBuffer[i]->CopyToDevice();
 	}
 #endif
-	brickInfo = (BrickInfo*)_aligned_malloc(BRICKCOUNT * sizeof(BrickInfo), 64);
 	// create a cyclic array for unused bricks (all of them, for now)
 	trash = (uint*)_aligned_malloc(BRICKCOUNT * 4, 64);
 	memset(trash, 0, BRICKCOUNT * 4);
@@ -90,7 +89,8 @@ World::World(const uint targetID)
 	printf("Allocated %iMB on CPU and GPU for the top-level grid.\n", (int)(numBytesGrid >> 20));
 	printf("Allocated %iMB on CPU and GPU for %ik bricks.\n", (int)((BRICKCOUNT * BRICKSIZE) >> 20), (int)(BRICKCOUNT >> 10));
 	printf("Allocated %iKB on CPU for bitfield.\n", (int)(BRICKCOUNT >> 15));
-	printf("Allocated %iMB on CPU for brickInfo.\n", (int)((BRICKCOUNT * sizeof(BrickInfo)) >> 20));
+	// I.e. the zeroes buffer
+	printf("Allocated %iMB on CPU for brickInfo.\n", (int)((BRICKCOUNT * sizeof(uint)) >> 20));
 
 	params.frame = 0;
 	params.framecount = 0;
@@ -247,7 +247,6 @@ World::~World()
 #else
 	for (int i = 0; i < 4; i++) delete brickBuffer[i];
 #endif
-	_aligned_free(brickInfo);
 	_aligned_free(trash);
 	delete screen;
 	delete paramBuffer;
@@ -1293,15 +1292,18 @@ void World::DrawTile(const uint idx, const uint x, const uint y, const uint z)
 	const uint cellIdx = x + z * GRIDWIDTH + y * GRIDWIDTH * GRIDDEPTH;
 	DrawTileVoxels(cellIdx, tile[idx]->voxels, tile[idx]->zeroes);
 }
-void World::DrawTileVoxels(const uint cellIdx, const PAYLOAD* voxels, const uint zeroes)
+void World::DrawTileVoxels(const uint cellIdx, const PAYLOAD* voxels, uint zeroCount)
 {
 	const uint g = grid[cellIdx];
-	uint brickIdx;
-	if ((g & 1) == 1) brickIdx = g >> 1; else brickIdx = NewBrick(), grid[cellIdx] = (brickIdx << 1) | 1;
+	uint brickBufferOffset;
+	if ((g & 1) == 1) 
+		brickBufferOffset = g >> 1; 
+	else 
+		brickBufferOffset = NewBrick(), grid[cellIdx] = (brickBufferOffset << 1) | 1;
 	// copy tile data to brick
-	memcpy(brick + brickIdx * BRICKSIZE, voxels, BRICKSIZE * PAYLOADSIZE);
-	Mark(brickIdx);
-	brickInfo[brickIdx].zeroes = zeroes;
+	memcpy(brick + brickBufferOffset * BRICKSIZE, voxels, BRICKSIZE * PAYLOADSIZE);
+	Mark(brickBufferOffset);
+	zeroes[brickBufferOffset] = zeroCount;
 }
 
 // World::DrawTiles

@@ -299,14 +299,14 @@ public:
 	__forceinline void RemoveBrick(const uint bx, const uint by, const uint bz)
 	{
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
-		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		const uint brickIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		// obtain current brick identifier from top-level grid
-		uint g = grid[cellIdx], g1 = g >> 1;
+		uint g = grid[brickIndex], brickBufferOffset = g >> 1;
 
-		brickInfo[g1].zeroes = BRICKSIZE;
-		grid[cellIdx] = 0;	// brick just became completely zeroed; recycle
-		Mark(g1);			// no need to send it to GPU anymore
-		FreeBrick(g1);
+		zeroes[brickBufferOffset] = BRICKSIZE;
+		grid[brickIndex] = 0;	// brick just became completely zeroed; recycle
+		Mark(brickBufferOffset);			// no need to send it to GPU anymore
+		FreeBrick(brickBufferOffset);
 	}
 
 	__forceinline int SplitSolidBrick(uint brickColor, uint brickIndex)
@@ -357,7 +357,7 @@ public:
 			// TODO: Generic case
 		#endif
 
-		zeroes[brickIndex] = (brickColor == 0) * BRICKSIZE;
+		zeroes[newBrickBufferOffset] = (brickColor == 0) * BRICKSIZE;
 		// Update the grid, as the brick inside the grid is now an offset into the brick buffer
 		// rather than a solid color
 		grid[brickIndex] = (newBrickBufferOffset << 1) | 1;
@@ -397,8 +397,8 @@ public:
 		const uint originalVoxel = brick[voxelIdx];
 
 		int zeroChange = (originalVoxel != 0 && v == 0) - (originalVoxel == 0 && v != 0);
-		zeroes[brickIndex] += zeroChange;
-		if (zeroes[brickIndex] < BRICKSIZE)
+		zeroes[brickBufferOffset] += zeroChange;
+		if (zeroes[brickBufferOffset] < BRICKSIZE)
 		{
 			brick[voxelIdx] = v; 
 			Mark(brickBufferOffset);
