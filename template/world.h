@@ -378,7 +378,7 @@ public:
 		const uint brickIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		uint brickValue = grid[brickIndex];
 		uint brickColor = brickValue >> 1;
-		uint brickBufferIndex = brickValue >> 1;
+		uint brickBufferOffset = brickValue >> 1;
 
 		if (IsSolidGridCell(brickValue))
 		{
@@ -387,13 +387,13 @@ public:
 			{
 				return;
 			}
-			brickBufferIndex = SplitSolidBrick(brickColor, brickIndex);
+			brickBufferOffset = SplitSolidBrick(brickColor, brickIndex);
 			brickValue = grid[brickIndex];
 		}
 
 		// calculate the position of the voxel inside the brick
 		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
-		const uint voxelIdx = brickBufferIndex * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM; //Precalculate this?
+		const uint voxelIdx = brickBufferOffset * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM; //Precalculate this?
 		const uint originalVoxel = brick[voxelIdx];
 
 		int zeroChange = (originalVoxel != 0 && v == 0) - (originalVoxel == 0 && v != 0);
@@ -401,7 +401,7 @@ public:
 		if (zeroes[brickIndex] < BRICKSIZE)
 		{
 			brick[voxelIdx] = v; 
-			Mark(brickIndex);
+			Mark(brickBufferOffset);
 		}
 		else
 		{
