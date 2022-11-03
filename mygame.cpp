@@ -1,8 +1,6 @@
 #include "precomp.h"
 #include "mygame.h"
 #include "mygamescene.h"
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
 
 Game* CreateGame() { return new MyGame(); }

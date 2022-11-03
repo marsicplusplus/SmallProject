@@ -4,10 +4,14 @@
 #include "precomp.h"
 
 #define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+
 #define STBI_NO_PSD
 #define STBI_NO_PIC
 #define STBI_NO_PNM
 #include "lib/stb_image.h"
+#include "lib/stb_image_write.h"
+
 
 #pragma comment( linker, "/subsystem:windows /ENTRY:mainCRTStartup" )
 

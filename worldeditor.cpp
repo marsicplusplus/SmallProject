@@ -1,7 +1,6 @@
 #include "precomp.h"
 #include "worldeditor.h"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
 
 #define MAX_ALLOCATION 512000000 // max bytes allowed for undo/redo states

@@ -246,8 +246,16 @@ void WaterWorld::HandleInput(float deltaTime)
 	{
 		World& world = *GetWorld();
 		WorldEditor& worldEditor = *world.getWorldEditor();
-		if (worldEditor.IsEnabled()) worldEditor.Disable();
-		else worldEditor.Enable();
+		if (worldEditor.IsEnabled())
+		{
+			ShowCursor(false);
+			worldEditor.Disable();
+		}
+		else
+		{
+			ShowCursor(true);
+			worldEditor.Enable();
+		}
 		keyPressed['G'] = true;
 	}
 	else if (!GetAsyncKeyState('G'))
