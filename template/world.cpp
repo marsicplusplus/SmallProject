@@ -3,8 +3,6 @@
 #define OGT_VOX_IMPLEMENTATION
 #include "lib/ogt_vox.h"
 
-#include "light_manager.h"
-
 // Acknowledgements:
 // B&H'21 = Brian Janssen and Hugo Peters, INFOMOV'21 assignment
 // CO'21  = Christian Oliveros, INFOMOV'21 assignment
@@ -205,8 +203,10 @@ World::World(const uint targetID)
 
 void World::InitReSTIR() {
 	/* ReSTIR initialization */
+	worldEditor = new Tmpl8::WorldEditor();
 	params.numberOfLights = 0;
 	params.accumulate = false;
+	params.editorEnabled = false;
 	params.spatial = USESPATIAL;
 	params.temporal = USETEMPORAL;
 	params.spatialTaps = SPATIALTAPS;
@@ -673,6 +673,7 @@ World::~World()
 	delete sky;
 	delete blueNoise;
 	delete font;
+	delete worldEditor;
 	clReleaseProgram(sharedProgram);
 }
 
@@ -771,6 +772,7 @@ void World::Clear()
 	// easiest top just clear the top-level grid and recycle all bricks
 	memset(grid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 	memset(trash, 0, BRICKCOUNT * 4);
+
 	for (uint i = 0; i < BRICKCOUNT; i++) trash[(i * 31 /* prevent false sharing*/) & (BRICKCOUNT - 1)] = i;
 	trashHead = BRICKCOUNT, trashTail = 0;
 	
@@ -2206,6 +2208,8 @@ void World::Render()
 		params.prevP1 = make_float4(prevP1, 0);
 		params.prevP2 = make_float4(prevP2, 0);
 		params.prevP3 = make_float4(prevP3, 0);
+
+		params.editorEnabled = worldEditor->IsEnabled();
 		// finalize params
 		params.R0 = RandomUInt();
 		params.skyWidth = skySize.x;

@@ -194,6 +194,7 @@ void WaterWorld::Init()
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
+	params.editorEnabled = false;
 	params.spatial = useSpatialResampling;
 	params.temporal = useTemporalResampling;
 	params.spatialTaps = SPATIALTAPS;
@@ -240,6 +241,21 @@ void WaterWorld::HandleInput(float deltaTime)
 	{
 		keyPressed[VK_SHIFT] = false;
 	}
+
+	if (GetAsyncKeyState('G') && !keyPressed['G'])
+	{
+		World& world = *GetWorld();
+		WorldEditor& worldEditor = *world.getWorldEditor();
+		if (worldEditor.IsEnabled()) worldEditor.Disable();
+		else worldEditor.Enable();
+		keyPressed['G'] = true;
+	}
+	else if (!GetAsyncKeyState('G'))
+	{
+		keyPressed['G'] = false;
+	}
+
+
 #if 1
 	// enable to set spline path points using P key
 	static bool pdown = false;

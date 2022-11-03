@@ -179,15 +179,20 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 	float3 color = (float3)(0.0, 0.0, 0.0);
 	// hit the background/exit the scene
-	float distance = dist;
-	if (HitSelectedBrick(params->E, D, params->selectedMin, params->selectedMax, &distance))
+
+	if (params->editorEnabled) 
 	{
-		color = (float3)(0.2, 0.8, 0.8);
-		return (float4)(color, distance);
+		float distance = dist;
+		if (HitSelectedBrick(params->E, D, params->selectedMin, params->selectedMax, params->wireBoxWidth, &distance))
+		{
+			color = (float3)(0.2, 0.8, 0.8);
+			return (float4)(color, distance);
+		}
 	}
+
 	if (voxel == 0)
 	{
-		if (HitWorldGrid(params->E, D))
+		if (params->editorEnabled && HitWorldGrid(params->E, D))
 		{
 			color = (float3)(0.8, 0.8, 0.8);
 		}
