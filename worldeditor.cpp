@@ -534,18 +534,18 @@ void WorldEditor::MouseUp(int mouseButton)
 
 
 #pragma region Editing
-void WorldEditor::UpdateEditedBricks(int bx, int by, int bz)
+void WorldEditor::UpdateEditedBricks(int x, int y, int z)
 {
 	if (gesture.size == GestureSize::GESTURE_BIG_TILE)
 	{
-		for (int x = 0; x < 2; x++)
-			for (int y = 0; y < 2; y++)
-				for (int z = 0; z < 2; z++)
-					editedBricks.insert(make_int3(bx * 2 + x, by * 2 + y, bz * 2 + z));
+		for (int _x = 0; _x < 2; _x++)
+			for (int _y = 0; _y < 2; _y++)
+				for (int _z = 0; _z < 2; _z++)
+					editedBricks.insert(make_int3(x / BRICKDIM + _x, y / BRICKDIM + _y, z / BRICKDIM + _z));
 	}
 	else
 	{
-		editedBricks.insert((make_int3)(bx, by, bz));
+		editedBricks.insert((make_int3)(x / BRICKDIM, y / BRICKDIM, z / BRICKDIM));
 	}
 
 	return;
@@ -656,97 +656,128 @@ void WorldEditor::MultiAddRemove()
 				}
 	}
 
+	if (gesture.size == GESTURE_VOXEL)
+	{
+		// We've updated the selected box so now it doesn't cover the same area
+		// For all individual updated voxels, put back the old ones
+		for (int x = oldBox.bmin3.x; x <= oldBox.bmax3.x; x++)
+			for (int y = oldBox.bmin3.y; y <= oldBox.bmax3.y; y++)
+				for (int z = oldBox.bmin3.z; z <= oldBox.bmax3.z; z++)
+				{
+					__m128 b4 = _mm_setr_ps(x, y, z, 0);
+					if (intersection.Contains(b4))
+						continue;
 
-	// Clear all edited bricks and fill it with bricks form the new selected bricks aabb
+					const uint bx = x / BRICKDIM;
+					const uint by = y / BRICKDIM;
+					const uint bz = z / BRICKDIM;
+					if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
+					const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+					// obtain current brick identifier from top-level grid
+					uint g = grid[cellIdx], g1 = g >> 1;
+
+					// calculate the position of the voxel inside the brick
+					const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
+					const uint voxelIdx = g1 * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM;
+					const uint oldVoxelValue = tempBricks[voxelIdx];
+					world.Set(x, y, z, oldVoxelValue);
+				}
+	}
+
+
+	// Clear all edited bricks and fill it with bricks form the new selected box aabb
 	editedBricks.clear();
-	// Either add or remove the bricks in the new selected bricks aabb
-	for (int bx = newBox.bmin3.x; bx <= newBox.bmax3.x; bx++)
-		for (int by = newBox.bmin3.y; by <= newBox.bmax3.y; by++)
-			for (int bz = newBox.bmin3.z; bz <= newBox.bmax3.z; bz++)
+	// Either add or remove the values in the new selected box aabb
+	for (int x = newBox.bmin3.x; x <= newBox.bmax3.x; x++)
+		for (int y = newBox.bmin3.y; y <= newBox.bmax3.y; y++)
+			for (int z = newBox.bmin3.z; z <= newBox.bmax3.z; z++)
 			{
-				__m128 b4 = _mm_setr_ps(bx, by, bz, 0);
+				__m128 b4 = _mm_setr_ps(x, y, z, 0);
 				if (intersection.Contains(b4))
 				{
-					UpdateEditedBricks(bx, by, bz);
+					UpdateEditedBricks(x * boxScale, y * boxScale, z * boxScale);
 					continue;
 				}
 
 				if (gesture.mode & GestureMode::GESTURE_REMOVE)
 				{
-					Remove(bx * boxScale, by * boxScale, bz * boxScale);
+					Remove(x * boxScale, y * boxScale, z * boxScale);
 				}
 				else
 				{
-					Add(bx * boxScale, by * boxScale, bz * boxScale);
+					Add(x * boxScale, y * boxScale, z * boxScale);
 				}
 			}
 }
 
-void WorldEditor::Add(int x, int y, int z)
+void WorldEditor::Add(int vx, int vy, int vz)
 {
 	World& world = *GetWorld();
 
 	// Convert voxel xyz to brick coords
-	int bx = x / BRICKDIM;
-	int by = y / BRICKDIM;
-	int bz = z / BRICKDIM;
+	int bx = vx / BRICKDIM;
+	int by = vy / BRICKDIM;
+	int bz = vz / BRICKDIM;
 
 	if (gesture.size == GestureSize::GESTURE_VOXEL)
 	{
-		world.Set(x, y, z, voxelValue);
-		UpdateEditedBricks(bx, by, bz);
-		return;
+		world.Set(vx, vy, vz, voxelValue);
+		UpdateEditedBricks(vx, vy, vz);
 	}
-
-	// Avoid adding a brick already added during this gesture
-	int3 brickPos = make_int3(bx, by, bz);
-	if (!editedBricks.count(brickPos))
+	else 
 	{
-		UpdateEditedBricks(bx, by, bz);
-		if (gesture.size == GestureSize::GESTURE_TILE)
+		// Avoid adding a brick already added during this gesture
+		int3 brickPos = make_int3(bx, by, bz);
+		if (!editedBricks.count(brickPos))
 		{
-			world.DrawTile(selectedTileIdx, bx, by, bz);
-		}
-		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
-		{
-			world.DrawBigTile(selectedBigTileIdx, bx / 2, by / 2, bz / 2);
-		}
-		else if (gesture.size == GestureSize::GESTURE_BRICK)
-		{
-			world.SetBrick(x, y, z, voxelValue);
+			UpdateEditedBricks(vx, vy, vz);
+			if (gesture.size == GestureSize::GESTURE_TILE)
+			{
+				world.DrawTile(selectedTileIdx, bx, by, bz);
+			}
+			else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+			{
+				world.DrawBigTile(selectedBigTileIdx, bx / 2, by / 2, bz / 2);
+			}
+			else if (gesture.size == GestureSize::GESTURE_BRICK)
+			{
+				world.AddBrick(bx, by, bz, voxelValue);
+			}
 		}
 	}
 }
 
-void WorldEditor::Remove(int x, int y, int z)
+void WorldEditor::Remove(int vx, int vy, int vz)
 {
 	World& world = *GetWorld();
 
-	int bx = x / BRICKDIM;
-	int by = y / BRICKDIM;
-	int bz = z / BRICKDIM;
+	int bx = vx / BRICKDIM;
+	int by = vy / BRICKDIM;
+	int bz = vz / BRICKDIM;
 
 	if (gesture.size == GestureSize::GESTURE_VOXEL)
 	{
-		world.Set(x, y, z, 0);
-		UpdateEditedBricks(bx, by, bz);
-		return;
+		world.Set(vx, vy, vz, 0);
+		UpdateEditedBricks(vx, vy, vz);
+	}
+	else
+	{
+		// Avoid removing a brick already removed during this gesture
+		int3 brickPos = make_int3(bx, by, bz);
+		if (!editedBricks.count(brickPos))
+		{
+			UpdateEditedBricks(vx, vy, vz);
+			if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
+			{
+				world.RemoveBrick(bx, by, bz);
+			}
+			else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
+			{
+				world.RemoveBigTile(bx, by, bz);
+			}
+		}
 	}
 
-	// Avoid removing a brick already removed during this gesture
-	int3 brickPos = make_int3(bx, by, bz);
-	if (!editedBricks.count(brickPos))
-	{
-		UpdateEditedBricks(bx, by, bz);
-		if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK)
-		{
-			world.RemoveBrick(bx, by, bz);
-		}
-		else if (gesture.size == GestureSize::GESTURE_BIG_TILE)
-		{
-			world.RemoveBigTile(bx, by, bz);
-		}
-	}
 }
 
 // Update which brick is currently selected by the mouse cursor 
@@ -892,7 +923,10 @@ void WorldEditor::UpdateSelectedBox()
 
 			// If the normal puts us outside of the grid, just use the original intersection
 			if (newBoxPos.x < 0 || newBoxPos.y < 0 || newBoxPos.z < 0 || newBoxPos.x > MAPWIDTH || newBoxPos.y > MAPHEIGHT || newBoxPos.z > MAPDEPTH)
+			{
 				selected.box.Grow(boxPos);
+				selected.box.Grow(boxPos + make_float3(boxScale - 1, boxScale - 1, boxScale - 1));
+			}
 			else
 			{
 				selected.box.Grow(newBoxPos);
@@ -1030,6 +1064,8 @@ void WorldEditor::Redo()
 		world.Mark(brickIdx);
 	}
 
+	//vector<Light> ls;
+	//world.SetupLights(ls);
 }
 
 // Called after a gesture has been completed so we can update the history
@@ -1069,7 +1105,7 @@ void WorldEditor::SaveState()
 		uint tempBrickOffset = (tempGridValue >> 1);
 		uint brickOffset = (gridValue >> 1);
 
-		// Old brick is empty
+		// Old brick is empty/or a solid brick
 		if ((tempGridValue & 1) == 0)
 		{
 			memset(stateCurrent->oldBricks + (idx * BRICKSIZE), 0, BRICKSIZE * PAYLOADSIZE);
@@ -1079,7 +1115,7 @@ void WorldEditor::SaveState()
 			memcpy(stateCurrent->oldBricks + (idx * BRICKSIZE), tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
 		}
 		
-		// New brick is empty
+		// New brick is empty/or a solid brick
 		if ((gridValue & 1) == 0)
 		{
 			memset(stateCurrent->newBricks + (idx * BRICKSIZE), 0, BRICKSIZE * PAYLOADSIZE);
@@ -1108,7 +1144,7 @@ void WorldEditor::SaveState()
 
 
 	// Check to see if the state has actually changed....if not don't add it to the history
-	if (memcmp(stateCurrent->oldBricks, stateCurrent->newBricks, numBricks * BRICKSIZE * PAYLOADSIZE) == 0)
+	if (memcmp(stateCurrent->oldGridVals, stateCurrent->newGridVals, numBricks * 4) == 0)
 	{
 		stateCurrent = stateCurrent->prevState;
 		DeleteState(stateCurrent->nextState);
@@ -1612,7 +1648,7 @@ void WorldEditor::RenderGUI()
 			const uint p = (red << 8) + (green << 4) + blue;
 			voxelValue = (p == 0) ? 1 : p;
 
-			if (emmisive) voxelValue |= 1 << 15;
+			if (emmisive) voxelValue |= 15 << 12;
 			ImGui::EndTabItem();
 		}
 

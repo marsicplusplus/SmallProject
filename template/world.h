@@ -287,6 +287,22 @@ public:
 		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
 		return brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
 	}
+
+	__forceinline void AddBrick(const uint bx, const uint by, const uint bz, const uint v /* actually an 8-bit value */)
+	{
+		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
+		const uint brickIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		uint brickValue = grid[brickIdx], brickBufferOffset = brickValue >> 1;
+		if (brickValue & 1)
+		{
+			FreeBrick(brickBufferOffset);
+			Mark(brickBufferOffset);
+		}
+
+		Mark(0);
+		grid[brickIdx] = v << 1;
+	}
+
 	__forceinline void SetBrick(const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */)
 	{
 		for (uint ly = 0; ly < BRICKDIM; ly++)
@@ -376,11 +392,11 @@ public:
 			brick[voxelIdx] = v;
 			Mark(g1); // tag to be synced with GPU
 			return;
+		} 
+			grid[cellIdx] = 0;	// brick just became completely zeroed; recycle
+			//UnMark( g1 );		// no need to send it to GPU anymore
+			FreeBrick(g1);
 		}
-		grid[cellIdx] = 0;	// brick just became completely zeroed; recycle
-		//UnMark( g1 );		// no need to send it to GPU anymore
-		FreeBrick(g1);
-	}
 
 	//Temp Getter to allow easy access to world data from CAPE
 	Buffer* GetBrickBuffer() { return brickBuffer; }

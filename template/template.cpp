@@ -372,7 +372,7 @@ void MouseButtonCallback( GLFWwindow* window, int button, int action, int mods )
 	ImGuiIO& io = ImGui::GetIO();
 	io.AddMouseButtonEvent(button, action);
 
-	if (!io.WantCaptureMouse)
+	if (!io.WantCaptureMouse && world)
 	{
 		WorldEditor* worldEditor = world->getWorldEditor();
 		if (action == GLFW_PRESS)
@@ -394,7 +394,7 @@ void MousePosCallback( GLFWwindow* window, double x, double y )
 
 	if (!io.WantCaptureMouse)
 	{
-		world->getWorldEditor()->MouseMove((int)x, (int)y);
+		if (world) world->getWorldEditor()->MouseMove((int)x, (int)y);
 		if (game) game->MouseMove((int)x, (int)y);
 	}
 }
