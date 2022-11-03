@@ -12,7 +12,6 @@
 
 namespace Tmpl8
 {
-class LightManager;
 class WorldEditor;
 
 // Sprite system overview:

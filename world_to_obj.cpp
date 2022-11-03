@@ -9,6 +9,16 @@
 
 using namespace Tmpl8;
 
+bool IsEmitter(const uint v)
+{
+	return (v >> 16 & 255) > 0;
+}
+
+float Tmpl8::EmitStrength(const uint v)
+{
+	return (float)((v & 0xff0000) >> 16);
+}
+
 // convert a voxel color to floating point rgb // from tools.cl
 float3 Tmpl8::ToFloatRGB(const uint v)
 {

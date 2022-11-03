@@ -302,6 +302,17 @@ float GetAlphaf(uint v)
 	return alphaChannel / (float)0xF;
 }
 
+// 4 bits so the value ranges from 0 to 15
+float EmitStrength(const uint v)
+{
+	return (float)((v & 0xff0000) >> 16);
+}
+
+bool IsEmitter(const uint v)
+{
+	return (v & 0xff0000) > 0;
+}
+
 // convert a voxel color to floating point rgb
 float3 ToFloatRGB(const uint v)
 {
