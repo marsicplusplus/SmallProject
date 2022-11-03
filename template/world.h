@@ -256,8 +256,9 @@ public:
 
 	void AddRandomLights(int numberOfLights);
 	void RemoveRandomLights(int numberOfLights);
+	void AddLight(const int3 pos, const uint c) { AddLight(pos, make_int3(1), c); };
 	void AddLight(const int3 pos, const int3 size, const uint c);
-	void RemoveLight(const int3 pos, const int3 size);
+	void RemoveLight(const int3 pos);
 
 	void SetUpMovingLights(int numberOfLights);
 	void MoveLights();

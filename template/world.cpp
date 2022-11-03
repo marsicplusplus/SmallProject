@@ -538,8 +538,9 @@ void World::FindLightsInWord(vector<Light>& ls)
 	printf("Number of emitting voxels found in world: %d, number of voxels: %d, number of bricks: %d\n", ls.size(), numberOfVoxels, numberOfBricks);
 }
 
-void World::RemoveLight(const int3 pos, const int3 size) 
+void World::RemoveLight(const int3 pos) 
 {
+	uint numberOfLights = max(0, (int)params.numberOfLights - 1);
 	if (!lightsBuffer)
 	{
 		printf("Light buffer does not exist.\n");
@@ -552,18 +553,53 @@ void World::RemoveLight(const int3 pos, const int3 size)
 	}
 	Light* lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
 	uint lightBufferSize = lightsBuffer->size * 4 / sizeof(Light);
-	for (int x = 0; x < size.x; ++x)
+	Light* newlights;
+	Buffer* newLightBuffer;
+	uint newLightBufferSize = max((uint)1, numberOfLights * 2);
+	if (newLightBufferSize < lightBufferSize / 2)
 	{
-		for (int y = 0; y < size.y; ++y)
+		printf("Resizing buffer to %d\n", newLightBufferSize);
+		Buffer* buffer = new Buffer(sizeof(Light) / 4 * newLightBufferSize, 0, new Light[newLightBufferSize]);
+		buffer->ownData = true;
+		newlights = reinterpret_cast<Light*>(buffer->hostBuffer);
+		newLightBuffer = buffer;
+	}
+	else
+	{
+		newLightBuffer = lightsBuffer;
+		newlights = new Light[lightBufferSize];
+	}
+	uint bufferi = 0;
+	uint toRemove = (pos.x) + (pos.z) * MAPWIDTH + (pos.y) * MAPWIDTH * MAPDEPTH;
+	for (int i = 0; i < params.numberOfLights; i++)
+	{
+		if (lights[i].position != toRemove) 
 		{
-			for (int z = 0; z < size.z; ++z)
-			{
-				uint index = (pos.x + x) + (pos.z + z) * MAPWIDTH + (pos.y + y) * MAPWIDTH * MAPDEPTH;
-				// if at that position there is a light, do not copy it in the new lightbuffer.
-			}
+			newlights[bufferi++] = lights[i];
 		}
 	}
 
+	if (lightsBuffer == newLightBuffer)
+	{
+		delete[] lights;
+		lightsBuffer->hostBuffer = reinterpret_cast<uint*>(newlights);
+	}
+	else
+	{
+		delete lightsBuffer;
+		lightsBuffer = (newLightBuffer);
+	}
+
+	params.restirtemporalframe = 0;
+	params.numberOfLights = numberOfLights;
+	lightsBuffer->CopyToDevice();
+
+	uint color = 0;
+	if (defaultVoxel.find(toRemove) != defaultVoxel.end())
+	{
+		color = defaultVoxel[toRemove];
+	}
+	Set(pos.x, pos.y, pos.z, color);
 }
 
 void World::SetupLightBuffer(const vector<Light> &ls, int pos)

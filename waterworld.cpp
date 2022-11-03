@@ -207,7 +207,7 @@ void WaterWorld::Init()
 	vector<Light> vls;
 	world.FindLightsInWord(vls);
 	world.SetupLightBuffer(vls);
-	skyDomeLightScale = 2.0f;
+	skyDomeLightScale = 0.0f;
 	skyDomeImage = "assets/sky_21.hdr";
 }
 
@@ -222,7 +222,6 @@ void WaterWorld::HandleInput(float deltaTime)
 	if (GetAsyncKeyState('W')) O += speed * D; else if (GetAsyncKeyState('S')) O -= speed * D;
 	if (GetAsyncKeyState('A')) O -= speed * right; else if (GetAsyncKeyState('D')) O += speed * right;
 	if (GetAsyncKeyState('R')) O += speed * up; else if (GetAsyncKeyState('F')) O -= speed * up;
-	if (GetAsyncKeyState('T')) SetSpriteFrame(lighthouseSprite, (frame = (frame + 1) % 5));
 	if (GetAsyncKeyState(VK_LEFT)) D = normalize(D - right * 0.025f * speed);
 	if (GetAsyncKeyState(VK_RIGHT)) D = normalize(D + right * 0.025f * speed);
 	if (GetAsyncKeyState(VK_UP)) D = normalize(D - up * 0.025f * speed);
