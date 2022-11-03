@@ -343,10 +343,9 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 
 	// Any "remaining" translucency, i.e. light not absorbed/reflected, will be passed on for the final
 	// stage for weighing with the sampling of the skydome
-	voxel = FromFloatRGBA((float4)(outputColor, 1.0f - remainingVisibility));
-
-	// no need to copy since we swap the current and previous albedo buffer every frame
-	//prevAlbedo[x + y * SCRWIDTH] = albedo[x + y * SCRWIDTH];
+	// Note: don't use emit strength to pass on the original emitter strength, as it may scale the value
+	// to a value out of range for a single byte
+	voxel = FromFloatRGBA((float4)(outputColor, 1.0f - remainingVisibility), (voxel >> 12) & 0xF );
 
 	struct CLRay* hit = &albedo[x + y * SCRWIDTH];
 	hit->voxelValue = voxel;

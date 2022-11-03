@@ -323,9 +323,10 @@ float3 ToFloatRGB(const uint v)
 #endif
 }
 
-uint FromFloatRGBA(const float4 rgba)
+uint FromFloatRGBA(const float4 rgba, uint emitStrength)
 {
 	return (convert_uint(rgba.a * 15) << 16) + 
+		(emitStrength << 12) +
 		(convert_uint(rgba.r * 15) << 8) + 
 		(convert_uint(rgba.g * 15) << 4) + 
 		(convert_uint(rgba.b * 15));
