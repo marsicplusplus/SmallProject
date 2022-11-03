@@ -112,7 +112,7 @@ void WaterWorld::InitialiseLighthouseScenario()
 	SetStaticBlock(450, 400, 500, 256, 1, 256, RED);
 
 	lighthouseSprite = LoadSprite("assets/lighthouse.vox");
-	StampSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
+	MoveSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
 
 	World& world = *GetWorld();
 	for (int lx = 18; lx < 25; ++lx) {
@@ -222,6 +222,7 @@ void WaterWorld::HandleInput(float deltaTime)
 	if (GetAsyncKeyState('W')) O += speed * D; else if (GetAsyncKeyState('S')) O -= speed * D;
 	if (GetAsyncKeyState('A')) O -= speed * right; else if (GetAsyncKeyState('D')) O += speed * right;
 	if (GetAsyncKeyState('R')) O += speed * up; else if (GetAsyncKeyState('F')) O -= speed * up;
+	if (GetAsyncKeyState('T')) SetSpriteFrame(lighthouseSprite, (frame = (frame + 1) % 5));
 	if (GetAsyncKeyState(VK_LEFT)) D = normalize(D - right * 0.025f * speed);
 	if (GetAsyncKeyState(VK_RIGHT)) D = normalize(D + right * 0.025f * speed);
 	if (GetAsyncKeyState(VK_UP)) D = normalize(D - up * 0.025f * speed);
