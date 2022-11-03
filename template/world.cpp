@@ -487,7 +487,7 @@ void World::FindLightsInWord(vector<Light>& ls)
 		{
 			for (uint bx = 0; bx < GRIDWIDTH; bx++)
 			{
-				ushort vox = 0;
+				PAYLOAD vox = 0;
 				const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 				const uint g = grid[cellIdx];
 				if ((g & 1) == 0)
@@ -1441,7 +1441,7 @@ void World::DrawSprite(const uint idx)
 				const uint v = localPos[i];
 				const uint vx = v & 1023, vy = (v >> 10) & 1023, vz = (v >> 20) & 1023;
 				backup->buffer[i] = Get(vx + pos.x, vy + pos.y, vz + pos.z);
-				Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i]);
+				Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i] | 0x0F000);
 			}
 		}
 		else
@@ -1563,7 +1563,7 @@ void World::StampSpriteTo(const uint idx, const uint x, const uint y, const uint
 	{
 		const uint v = localPos[i];
 		const uint vx = v & 1023, vy = (v >> 10) & 1023, vz = (v >> 20) & 1023;
-		Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i] | 0xF0000);
+		Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i] | 0x0F000);
 	}
 }
 
@@ -1660,7 +1660,7 @@ uint TileManager::LoadTile(const char* voxFile)
 	{
 		// Set to fully opaque if it is a non-zero voxel; transparency is not data set directly from magica voxel at the moment
 		// TO-DO: Remove if magica voxel materials (specifically, translucency) is supported
-		addedTile->voxels[i] |= 0xB0000 * (addedTile->voxels[i] > 0);
+		addedTile->voxels[i] |= 0x0B000 * (addedTile->voxels[i] > 0);
 	}
 	tile.push_back(addedTile);
 	return (uint)tile.size() - 1;

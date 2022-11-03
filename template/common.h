@@ -83,17 +83,17 @@
 #define BROWN		((3<<5)+(1<<2))
 #define LIGHTRED	(7<<5)+(2<<2)+1
 #else
-#define BLACK		0x001	// actually: dark blue; black itself is transparent
-#define GREEN		0x0F0
-#define BLUE		0x00F
-#define RED			0xF00
-#define YELLOW		0xFF0
-#define WHITE		0xF0FFF
-#define GREY		0x777
-#define ORANGE		0xF70
-#define LIGHTBLUE	0x77F
-#define BROWN		0x720
-#define LIGHTRED	0xF55
+#define BLACK		0xF001	// actually: dark blue; black itself is transparent
+#define GREEN		0xF0F0
+#define BLUE		0xF00F
+#define RED			0xFF00
+#define YELLOW		0xFFF0
+#define WHITE		0xFFFF
+#define GREY		0xF777
+#define ORANGE		0xFF70
+#define LIGHTBLUE	0xF77F
+#define BROWN		0xF720
+#define LIGHTRED	0xFF55
 #endif
 
 // renderer

@@ -293,24 +293,24 @@ bool HitWorldGrid(const float3 O, const float3 D)
 
 uint GetAlpha(uint v)
 {
-	return (v & 0xf0000) >> 16;
+	return (v & 0xf000) >> 12;
 }
 
 float GetAlphaf(uint v)
 {
-	uint alphaChannel = (v & 0xf0000) >> 16;
+	uint alphaChannel = (v & 0xf000) >> 12;
 	return alphaChannel / (float)0xF;
 }
 
 // 4 bits so the value ranges from 0 to 15
 float EmitStrength(const uint v)
 {
-	return (float)((v & 0xf000) >> 12)*16;
+	return (float)((v & 0xff0000) >> 16);
 }
 
 bool IsEmitter(const uint v)
 {
-	return (v & 0xf000) > 0;
+	return (v & 0xff0000) > 0;
 }
 
 // convert a voxel color to floating point rgb
@@ -325,7 +325,7 @@ float3 ToFloatRGB(const uint v)
 
 uint FromFloatRGBA(const float4 rgba)
 {
-	return (convert_uint(rgba.a * 15) << 16) + 
+	return (convert_uint(rgba.a * 15) << 12) + 
 		(convert_uint(rgba.r * 15) << 8) + 
 		(convert_uint(rgba.g * 15) << 4) + 
 		(convert_uint(rgba.b * 15));
