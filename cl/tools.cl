@@ -255,8 +255,6 @@ bool HitSelectedBrick(const float3 O, const float3 D, const float3 bboxMin, cons
 	return false;
 }
 
-
-
 // Check if we've hit the world grid using the Ray-Box Intersection Algorithm from https://jcgt.org/published/0007/03/04/paper-lowres.pdf
 bool HitWorldGrid(const float3 O, const float3 D)
 {
@@ -293,15 +291,26 @@ bool HitWorldGrid(const float3 O, const float3 D)
 
 }
 
+uint GetAlpha(uint v)
+{
+	return (v & 0xf000) >> 12;
+}
+
+float GetAlphaf(uint v)
+{
+	uint alphaChannel = (v & 0xf000) >> 12;
+	return alphaChannel / (float)0xF;
+}
+
 // 4 bits so the value ranges from 0 to 15
 float EmitStrength(const uint v)
 {
-	return (float)((v & 0xf000) >> 12)*16;
+	return (float)((v & 0xff0000) >> 16);
 }
 
 bool IsEmitter(const uint v)
 {
-	return (v & 0xf000) > 0;
+	return (v & 0xff0000) > 0;
 }
 
 // convert a voxel color to floating point rgb
@@ -312,6 +321,15 @@ float3 ToFloatRGB(const uint v)
 #else
 	return (float3)(((v >> 8) & 15) * (1.0f / 15.0f), ((v >> 4) & 15) * (1.0f / 15.0f), (v & 15) * (1.0f / 15.0f));
 #endif
+}
+
+uint FromFloatRGBA(const float4 rgba, uint emitStrength)
+{
+	return (emitStrength << 16) +
+		(convert_uint(rgba.a * 15) << 12) + 
+		(convert_uint(rgba.r * 15) << 8) + 
+		(convert_uint(rgba.g * 15) << 4) + 
+		(convert_uint(rgba.b * 15));
 }
 
 // ACES filmic tonemapping, via https://www.shadertoy.com/view/3sfBWs

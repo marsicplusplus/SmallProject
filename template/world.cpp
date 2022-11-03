@@ -12,8 +12,8 @@
 
 using namespace Tmpl8;
 
-static const uint gridSize = GRIDSIZE * sizeof(uint);
-static const uint commitSize = BRICKCOMMITSIZE + gridSize;
+static const uint numBytesGrid = GRIDSIZE * sizeof(uint);
+static const uint commitSize = BRICKCOMMITSIZE + numBytesGrid;
 
 // helper defines for inline ray tracing
 #define OFFS_X		((bits >> 5) & 1)			// extract grid plane offset over x (0 or 1)
@@ -30,6 +30,16 @@ static const uint commitSize = BRICKCOMMITSIZE + gridSize;
 #define TOPMASK3	(((1023 - BMSK) << 20) + ((1023 - BMSK) << 10) + (1023 - BMSK))
 #define SELECT(a,b,c) ((c)?(b):(a))
 
+uint3 PositionFromIteration(int3 center, uint& iteration, uint radius)
+{
+	float angle = (float)iteration / 100 * TWOPI;
+	float x1 = cos(angle) * radius;
+	float x2 = sin(angle) * radius;
+	int3 pos = make_int3(x1 + center.x, center.y, center.z + x2);
+	pos.x = max(0, pos.x);
+	pos.z = max(0, pos.z);
+	return make_uint3(pos);
+}
 // helpers for skydome sampling
 float3 DiffuseReflectionCosWeighted(const float r0, const float r1, const float3& N)
 {
@@ -72,25 +82,25 @@ World::World(const uint targetID)
 		brickBuffer[i]->CopyToDevice();
 	}
 #endif
-	brickInfo = (BrickInfo*)_aligned_malloc(BRICKCOUNT * sizeof(BrickInfo), 64);
 	// create a cyclic array for unused bricks (all of them, for now)
 	trash = (uint*)_aligned_malloc(BRICKCOUNT * 4, 64);
 	memset(trash, 0, BRICKCOUNT * 4);
 	for (uint i = 0; i < BRICKCOUNT; i++) trash[(i * 31 /* prevent false sharing*/) & (BRICKCOUNT - 1)] = i;
 	// prepare a test world
-	grid = gridOrig = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
-	memset(grid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-	zeroes = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
-	memset(zeroes, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-	zeroesBuffer = new Buffer(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH, Buffer::DEFAULT, (uint*)zeroes);
+	grid = gridOrig = (uint*)_aligned_malloc(numBytesGrid, 64);
+	memset(grid, 0, numBytesGrid);
+	zeroes = (uint*)_aligned_malloc(numBytesGrid, 64);
+	memset(zeroes, 0, numBytesGrid);
+	zeroesBuffer = new Buffer(GRIDSIZE, Buffer::DEFAULT, (uint*)zeroes);
 	zeroesBuffer->CopyToDevice();
 	DummyWorld();
 	ClearMarks(); // clear 'modified' bit array
 	// report memory usage
-	printf("Allocated %iMB on CPU and GPU for the top-level grid.\n", (int)(gridSize >> 20));
+	printf("Allocated %iMB on CPU and GPU for the top-level grid.\n", (int)(numBytesGrid >> 20));
 	printf("Allocated %iMB on CPU and GPU for %ik bricks.\n", (int)((BRICKCOUNT * BRICKSIZE) >> 20), (int)(BRICKCOUNT >> 10));
 	printf("Allocated %iKB on CPU for bitfield.\n", (int)(BRICKCOUNT >> 15));
-	printf("Allocated %iMB on CPU for brickInfo.\n", (int)((BRICKCOUNT * sizeof(BrickInfo)) >> 20));
+	// I.e. the zeroes buffer
+	printf("Allocated %iMB on CPU for brickInfo.\n", (int)((BRICKCOUNT * sizeof(uint)) >> 20));
 
 	params.frame = 0;
 	params.framecount = 0;
@@ -195,7 +205,6 @@ World::World(const uint targetID)
 
 void World::InitReSTIR() {
 	/* ReSTIR initialization */
-	lm = new Tmpl8::LightManager();
 	params.numberOfLights = 0;
 	params.accumulate = false;
 	params.spatial = USESPATIAL;
@@ -205,8 +214,6 @@ void World::InitReSTIR() {
 	params.numberOfCandidates = NUMBEROFCANDIDATES;
 	params.numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
 	params.skyDomeSampling = true;
-	vector<Light> ls;
-	SetupLights(ls);
 	SetupReservoirBuffers();
 }
 
@@ -227,10 +234,387 @@ void World::SetupReservoirBuffers()
 		SetReservoirBuffer(prevReservoirbuffer, 1);
 	}
 }
-void World::SetupLights(vector<Light>& ls)
+
+void World::AddLight(const int3 pos, const int3 size, const uint c)
 {
-	lm->FindLightsInWorld(ls);
-	lm->SetupBuffer(ls);
+	//TODO: Recognize bricks;
+	vector<Light> ls;
+	for (int x = 0; x < size.x; ++x)
+	{
+		for (int y = 0; y < size.y; ++y)
+		{
+			for (int z = 0; z < size.z; ++z)
+			{
+				uint index = (pos.x + x) + (pos.z + z) * MAPWIDTH + (pos.y + y) * MAPWIDTH * MAPDEPTH;
+				uint prev = Get(pos.x + x, pos.y + y, pos.z + z);
+				if (EmitStrength(prev) == 0)
+				{
+					defaultVoxel[index] = prev;
+				}
+				Set(pos.x+x, pos.y+y, pos.z+z, c);
+				printf("Adding light at: (%d, %d, %d)\n", pos.x + x, pos.y + y, pos.z + z);
+				Light l;
+				l.position = index;
+				l.voxel = c;
+				l.size = 1;
+				ls.push_back(l);
+			}
+		}
+	}
+	SetupLightBuffer(ls, params.numberOfLights);
+	params.restirtemporalframe = 0;
+}
+void World::AddRandomLights(int _numberOfLights)
+{
+	uint numberOfLights = _numberOfLights + params.numberOfLights;
+
+	uint sizex = MAPWIDTH;
+	uint sizey = MAPHEIGHT;
+	uint sizez = MAPDEPTH;
+	const int world_width = 256;
+	const int world_height = 128;
+	const int world_depth = 288;
+
+	vector<Light> ls;
+	for (int i = 0; i < _numberOfLights; i++)
+	{
+		uint x = RandomFloat() * world_width;
+		uint y = RandomFloat() * world_height;
+		uint z = RandomFloat() * world_depth;
+		uint c = (uint)(RandomFloat() * ((1 << 12) - 2) + 1) | (1 << 12);
+		uint index = x + z * sizex + y * sizex * sizez;
+		uint prev = Get(x, y, z);
+		if (EmitStrength(prev) == 0)
+		{
+			defaultVoxel[index] = prev;
+		}
+		Set(x, y, z, c);
+		Light l;
+		l.position = index;
+		l.voxel = c;
+		l.size = 1;
+		ls.push_back(l);
+	}
+
+	SetupLightBuffer(ls, params.numberOfLights);
+	params.restirtemporalframe = 0;
+}
+void World::MoveLights()
+{
+	Light* lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
+
+	for (auto& ml : movinglights)
+	{
+		uint index = ml.first;
+		int3 center = make_int3(make_uint3(ml.second));
+		uint& iteration = ml.second.w;
+
+		Light& l = lights[index];
+		uint3 pos = PositionFromIteration(center, iteration, 15);
+
+		const uint oldy = l.position / (MAPWIDTH * MAPDEPTH);
+		const uint oldz = (l.position / MAPWIDTH) % MAPDEPTH;
+		const uint oldx = l.position % MAPDEPTH;
+		iteration = (iteration + 1) % 1000;
+		uint sizex = MAPWIDTH;
+		uint sizey = MAPHEIGHT;
+		uint sizez = MAPDEPTH;
+		uint lightposition = pos.x + pos.z * sizex + pos.y * sizex * sizez;
+		uint voxel = Get(pos.x, pos.y, pos.z);
+		if (EmitStrength(voxel) == 0)
+		{
+			defaultVoxel[lightposition] = voxel;
+		}
+		uint color = 0;
+		if (defaultVoxel.find(l.position) != defaultVoxel.end())
+		{
+			color = defaultVoxel[l.position];
+		}
+		Set(oldx, oldy, oldz, color);
+		Set(pos.x, pos.y, pos.z, l.voxel);
+		l.position = lightposition;
+	}
+
+	// spatial hides the incorrect temporal albedo artifacts
+	if (!params.spatial) params.restirtemporalframe = 0;
+	lightsBuffer->CopyToDevice();
+}
+void World::PopLights(float deltaTime)
+{
+	const double frametime = 500;
+	static double lasttime = 0;
+
+	if (lasttime > frametime)
+	{
+		if (params.numberOfLights >= 500)
+		{
+			RemoveRandomLights(500);
+			AddRandomLights(500);
+		}
+		else
+		{
+			AddRandomLights(500);
+		}
+		lasttime = 0;
+	}
+	else
+	{
+		lasttime += deltaTime;
+	}
+}
+void World::SetUpMovingLights(int _numberOfMovingLights)
+{
+	movinglights.clear();
+	int numberOfMovingLights = min((uint)_numberOfMovingLights, params.numberOfLights);
+
+	vector<uint> indices;
+	for (int i = 0; i < params.numberOfLights; i++) indices.push_back(i);
+
+	for (int i = 0; i < numberOfMovingLights; i++)
+	{
+		int index = RandomFloat() * (indices.size() - 1);
+		uint lightIndex = indices[index];
+		Light light = reinterpret_cast<Light*>(lightsBuffer->hostBuffer)[lightIndex];
+		const uint y = light.position / (MAPWIDTH * MAPDEPTH);
+		const uint z = (light.position / MAPWIDTH) % MAPDEPTH;
+		const uint x = light.position % MAPDEPTH;
+		movinglights.insert({ lightIndex, make_uint4(x, y, z, RandomUInt() % 1000) });
+		indices.erase(indices.begin() + index);
+	}
+	printf("%d lights registered for moving\n", movinglights.size());
+}
+void World::RemoveRandomLights(int _numberOfLights)
+{
+	uint numberOfLights = max(0, (int)params.numberOfLights - (int)_numberOfLights);
+	if (!lightsBuffer)
+	{
+		printf("Light buffer does not exist.\n");
+		return;
+	}
+	if (params.numberOfLights < 1)
+	{
+		printf("No lights to remove.\n");
+		return;
+	}
+
+	vector<uint> indices;
+	for (int i = 0; i < params.numberOfLights; i++) indices.push_back(i);
+	unordered_set<uint> toRemove;
+	for (int i = 0; i < _numberOfLights; i++)
+	{
+		if (indices.size() == 0) break;
+		int index = RandomFloat() * (indices.size() - 1);
+		toRemove.insert(indices[index]);
+		indices.erase(indices.begin() + index);
+	}
+
+	Light* lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
+	uint lightBufferSize = lightsBuffer->size * 4 / sizeof(Light);
+
+	Light* newlights;
+	uint newLightBufferSize = max((uint)1, numberOfLights * 2);
+	Buffer* newLightBuffer;
+	if (newLightBufferSize < lightBufferSize / 2)
+	{
+		printf("Resizing buffer to %d\n", newLightBufferSize);
+		Buffer* buffer = new Buffer(sizeof(Light) / 4 * newLightBufferSize, 0, new Light[newLightBufferSize]);
+		buffer->ownData = true;
+		newlights = reinterpret_cast<Light*>(buffer->hostBuffer);
+		newLightBuffer = buffer;
+	}
+	else
+	{
+		newLightBuffer = lightsBuffer;
+		newlights = new Light[lightBufferSize];
+	}
+
+	uint bufferi = 0;
+	for (int i = 0; i < params.numberOfLights; i++)
+	{
+		if (toRemove.find(i) == toRemove.end())
+		{
+			newlights[bufferi++] = lights[i];
+		}
+	}
+
+	if (lightsBuffer == newLightBuffer)
+	{
+		delete[] lights;
+		lightsBuffer->hostBuffer = reinterpret_cast<uint*>(newlights);
+	}
+	else
+	{
+		delete lightsBuffer;
+		lightsBuffer = (newLightBuffer);
+	}
+
+	params.restirtemporalframe = 0;
+	params.numberOfLights = numberOfLights;
+	lightsBuffer->CopyToDevice();
+
+	for (const uint i : toRemove)
+	{
+		uint index = lights[i].position;
+		const uint y = index / (MAPWIDTH * MAPDEPTH);
+		const uint z = (index / MAPWIDTH) % MAPDEPTH;
+		const uint x = index % MAPDEPTH;
+		uint color = 0;
+		if (defaultVoxel.find(index) != defaultVoxel.end())
+		{
+			color = defaultVoxel[index];
+		}
+		Set(x, y, z, color);
+		if (movinglights.find(i) != movinglights.end())
+		{
+			movinglights.erase(i);
+		}
+	}
+}
+void World::FindLightsInWord(vector<Light>& ls)
+{
+	uint sizex = MAPWIDTH;
+	uint sizey = MAPHEIGHT;
+	uint sizez = MAPDEPTH;
+
+	ls.clear();
+	uint* grid = GetGrid();
+	PAYLOAD* brick = GetBrick();
+	uint numberOfVoxels = 0;
+	uint numberOfBricks = 0;
+	for (uint by = 0; by < GRIDHEIGHT; by++)
+	{
+		for (uint bz = 0; bz < GRIDDEPTH; bz++)
+		{
+			for (uint bx = 0; bx < GRIDWIDTH; bx++)
+			{
+				PAYLOAD vox = 0;
+				const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+				const uint g = grid[cellIdx];
+				if ((g & 1) == 0)
+				{
+					vox = g >> 1;
+					bool isEmitter = EmitStrength(vox) > 0;
+					if (isEmitter)
+					{
+						Light light;
+						light.position = bx * BRICKDIM + bz * BRICKDIM * sizex + by * BRICKDIM * sizex * sizez;
+						light.voxel = vox;
+						light.size = BRICKDIM;
+						ls.push_back(light);
+						numberOfBricks++;
+					}
+				}
+				else
+				{
+					for (uint ly = 0; ly < BRICKDIM; ly++)
+					{
+						for (uint lz = 0; lz < BRICKDIM; lz++)
+						{
+							for (uint lx = 0; lx < BRICKDIM; lx++)
+							{
+								uint _index = (g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM;
+								vox = brick[_index];
+								bool isEmitter = EmitStrength(vox) > 0;
+								if (isEmitter)
+								{
+									uint x = lx + bx * BRICKDIM;
+									uint y = ly + by * BRICKDIM;
+									uint z = lz + bz * BRICKDIM;
+									Light light;
+									light.position = x + z * sizex + y * sizex * sizez;
+									light.voxel = vox;
+									light.size = 1;
+									ls.push_back(light);
+									numberOfVoxels++;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	printf("Number of emitting voxels found in world: %d, number of voxels: %d, number of bricks: %d\n", ls.size(), numberOfVoxels, numberOfBricks);
+}
+
+void World::RemoveLight(const int3 pos, const int3 size) 
+{
+	if (!lightsBuffer)
+	{
+		printf("Light buffer does not exist.\n");
+		return;
+	}
+	if (params.numberOfLights < 1)
+	{
+		printf("No lights to remove.\n");
+		return;
+	}
+	Light* lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
+	uint lightBufferSize = lightsBuffer->size * 4 / sizeof(Light);
+	for (int x = 0; x < size.x; ++x)
+	{
+		for (int y = 0; y < size.y; ++y)
+		{
+			for (int z = 0; z < size.z; ++z)
+			{
+				uint index = (pos.x + x) + (pos.z + z) * MAPWIDTH + (pos.y + y) * MAPWIDTH * MAPDEPTH;
+				// if at that position there is a light, do not copy it in the new lightbuffer.
+			}
+		}
+	}
+
+}
+
+void World::SetupLightBuffer(const vector<Light> &ls, int pos)
+{
+	uint numberOfLights = ls.size() + params.numberOfLights;
+	Light* lights;
+	if (!lightsBuffer)
+	{
+		uint buffersize = max((uint)1, numberOfLights * 2);
+		printf("Light buffer does not exist, creating of size %d.\n", buffersize);
+		Buffer* buffer = new Buffer(sizeof(Light) / 4 * buffersize, Buffer::DEFAULT, new Light[buffersize]);
+		buffer->ownData = true;
+		lights = reinterpret_cast<Light*>(buffer->hostBuffer);
+		lightsBuffer = buffer;
+	}
+	else
+	{
+		uint lightBufferSize = lightsBuffer->size * 4 / sizeof(Light);
+		if (lightBufferSize < numberOfLights)
+		{
+			uint buffersize = max((uint)1, numberOfLights * 2);
+			printf("Light buffer too small, resizing to %d.\n", buffersize);
+
+			Buffer* buffer = new Buffer(sizeof(Light) / 4 * buffersize, 0, new Light[buffersize]);
+			buffer->ownData = true;
+
+			lights = reinterpret_cast<Light*>(buffer->hostBuffer);
+			Light* _lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
+
+			for (int i = 0; i < numberOfLights; i++)
+			{
+				lights[i] = _lights[i];
+			}
+
+			delete lightsBuffer;
+			lightsBuffer = buffer;
+		}
+		else
+		{
+			lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
+		}
+	}
+
+	// add lights
+	for (int i = 0; i < ls.size(); i++)
+	{
+		lights[i+pos] = ls[i];
+	}
+
+	params.numberOfLights = (numberOfLights);
+	lightsBuffer->CopyToDevice();
 }
 
 // World Destructor
@@ -247,14 +631,12 @@ World::~World()
 #else
 	for (int i = 0; i < 4; i++) delete brickBuffer[i];
 #endif
-	_aligned_free(brickInfo);
 	_aligned_free(trash);
 	delete screen;
 	delete paramBuffer;
 	delete sky;
 	delete blueNoise;
 	delete font;
-	delete lm;
 	clReleaseProgram(sharedProgram);
 }
 
@@ -312,7 +694,7 @@ void World::OptimizeBricks()
 void World::DummyWorld()
 {
 	Clear();
-	for (int y = 0; y < 256; y++) for (int z = 0; z < 1024; z++)
+	for (int y = 0; y < 156; y++) for (int z = 0; z < 1024; z++)
 	{
 		Set(6, y, z, WHITE);
 		Set(1017, y, z, WHITE);
@@ -320,12 +702,28 @@ void World::DummyWorld()
 	for (int x = 0; x < 1024; x++) for (int z = 0; z < 1024; z++)
 	{
 		Set(x, 6, z, WHITE);
-		Set(x, 256, z, WHITE);
+		Set(x, 156, z, WHITE);
 	}
-	for (int x = 0; x < 1024; x++) for (int y = 0; y < 256; y++)
+	for (int x = 0; x < 1024; x++) for (int y = 0; y < 156; y++)
 	{
 		Set(x, y, 6, WHITE);
 		Set(x, y, 1017, WHITE);
+	}
+
+	for (int y = 0; y < 256; y++) for (int z = 0; z < 1024; z++)
+	{
+		Set(6, y + 200, z, WHITE);
+		Set(1017, y + 200, z, WHITE);
+	}
+	for (int x = 0; x < 1024; x++) for (int z = 0; z < 1024; z++)
+	{
+		Set(x, 6 + 200, z, WHITE);
+		Set(x, 256 + 200, z, WHITE);
+	}
+	for (int x = 0; x < 1024; x++) for (int y = 0; y < 256; y++)
+	{
+		Set(x, y + 200, 6, WHITE);
+		Set(x, y + 200, 1017, WHITE);
 	}
 	// performance note: these coords prevent exessive brick traversal.
 }
@@ -343,13 +741,8 @@ void World::Clear()
 	uint bs = CHUNKCOUNT * CHUNKSIZE;
 	memset(brick, 0, bs * sizeof(uchar));
 
-	// TO-DO: This is done in the fluid sim project, but breaks
-	// the ReSTIR project
-	for (int i = 0; i < GRIDSIZE; i++)
-		grid[i] = (i << 1) | 1; //zero identifier
 	for (int i = 0; i < BRICKCOUNT; i++)
-		zeroes[i] = BRICKSIZE;
-
+		zeroes[i] = 0;
 	zeroesBuffer->CopyToDevice();
 
 	ClearMarks();
@@ -1048,7 +1441,7 @@ void World::DrawSprite(const uint idx)
 				const uint v = localPos[i];
 				const uint vx = v & 1023, vy = (v >> 10) & 1023, vz = (v >> 20) & 1023;
 				backup->buffer[i] = Get(vx + pos.x, vy + pos.y, vz + pos.z);
-				Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i]);
+				Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i] | 0x0F000);
 			}
 		}
 		else
@@ -1170,7 +1563,7 @@ void World::StampSpriteTo(const uint idx, const uint x, const uint y, const uint
 	{
 		const uint v = localPos[i];
 		const uint vx = v & 1023, vy = (v >> 10) & 1023, vz = (v >> 20) & 1023;
-		Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i]);
+		Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i] | 0x0F000);
 	}
 }
 
@@ -1262,7 +1655,14 @@ void World::EraseParticles(const uint set)
 // ----------------------------------------------------------------------------
 uint TileManager::LoadTile(const char* voxFile)
 {
-	tile.push_back(new Tile(voxFile));
+	Tile* addedTile = new Tile(voxFile);
+	for (int i = 0; i < BRICKSIZE; i++)
+	{
+		// Set to fully opaque if it is a non-zero voxel; transparency is not data set directly from magica voxel at the moment
+		// TO-DO: Remove if magica voxel materials (specifically, translucency) is supported
+		addedTile->voxels[i] |= 0x0B000 * (addedTile->voxels[i] > 0);
+	}
+	tile.push_back(addedTile);
 	return (uint)tile.size() - 1;
 }
 
@@ -1275,15 +1675,19 @@ void World::DrawTile(const uint idx, const uint x, const uint y, const uint z)
 	const uint cellIdx = x + z * GRIDWIDTH + y * GRIDWIDTH * GRIDDEPTH;
 	DrawTileVoxels(cellIdx, tile[idx]->voxels, tile[idx]->zeroes);
 }
-void World::DrawTileVoxels(const uint cellIdx, const PAYLOAD* voxels, const uint zeroes)
+
+void World::DrawTileVoxels(const uint cellIdx, const PAYLOAD* voxels, uint zeroCount)
 {
 	const uint g = grid[cellIdx];
-	uint brickIdx;
-	if ((g & 1) == 1) brickIdx = g >> 1; else brickIdx = NewBrick(), grid[cellIdx] = (brickIdx << 1) | 1;
+	uint brickBufferOffset;
+	if ((g & 1) == 1) 
+		brickBufferOffset = g >> 1; 
+	else 
+		brickBufferOffset = NewBrick(), grid[cellIdx] = (brickBufferOffset << 1) | 1;
 	// copy tile data to brick
-	memcpy(brick + brickIdx * BRICKSIZE, voxels, BRICKSIZE * PAYLOADSIZE);
-	Mark(brickIdx);
-	brickInfo[brickIdx].zeroes = zeroes;
+	memcpy(brick + brickBufferOffset * BRICKSIZE, voxels, BRICKSIZE * PAYLOADSIZE);
+	Mark(brickBufferOffset);
+	zeroes[brickBufferOffset] = zeroCount;
 }
 
 // World::DrawTiles
@@ -1676,13 +2080,13 @@ Intersection* World::TraceBatchToVoid(const uint batchSize)
 }
 
 void World::UpdateLights(float deltaTime) {
-	if (lm->lightsAreMoving)
+	if (lightsAreMoving)
 	{
-		lm->MoveLights();
+		MoveLights();
 	}
-	if (lm->poppingLights)
+	if (poppingLights)
 	{
-		lm->PopLights(deltaTime);
+		PopLights(deltaTime);
 	}
 }
 
@@ -1831,14 +2235,6 @@ void World::Render()
 			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferInIndex]); //read
 
 #endif
-// TODO: THIS BLOCK NEEDS TO BE CHECKED. In Waterworld is the following:
-/* 
-* 			renderer->SetArgument( 1, paramBuffer );
-*			renderer->SetArgument( 2, &gridMap );
-*			renderer->SetArgument( 3, sky );
-*			renderer->SetArgument( 4, blueNoise );
-*			renderer->SetArgument( 5, &uberGrid );
-*/ 
 			currentRenderer->SetArgument(renderer_arg_i++, &gridMap);
 			currentRenderer->SetArgument(renderer_arg_i++, sky);
 			currentRenderer->SetArgument(renderer_arg_i++, blueNoise);
@@ -1956,15 +2352,15 @@ void World::Commit()
 	static uint* pinnedMemPtr = 0;
 	if (pinnedMemPtr == 0)
 	{
-		const uint pinnedSize = commitSize + gridSize;
+		const uint pinnedSize = commitSize + numBytesGrid;
 		cl_mem pinned = clCreateBuffer(Kernel::GetContext(), CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, commitSize * 2, 0, 0);
 		pinnedMemPtr = (uint*)clEnqueueMapBuffer(Kernel::GetQueue(), pinned, 1, CL_MAP_WRITE, 0, pinnedSize, 0, 0, 0, 0);
-		StreamCopy((__m256i*)(pinnedMemPtr + commitSize / 4), (__m256i*)grid, gridSize);
+		StreamCopy((__m256i*)(pinnedMemPtr + commitSize / 4), (__m256i*)grid, numBytesGrid);
 		grid = pinnedMemPtr + commitSize / 4; // top-level grid resides at the start of the staging buffer
 	}
 	// gather changed bricks
 	tasks = 0;
-	uint* brickIndices = pinnedMemPtr + gridSize / 4;
+	uint* brickIndices = pinnedMemPtr + numBytesGrid / 4;
 	uchar* changedBricks = (uchar*)(brickIndices + MAXCOMMITS);
 	for (uint j = 0; j < BRICKCOUNT / 32; j++) if (IsDirty32(j) /* if not dirty: skip 32 bits at once */)
 	{
@@ -1985,9 +2381,9 @@ void World::Commit()
 		zeroesBuffer->CopyToDevice(); //Lazy commit zeroes
 
 		// copy top-level grid to start of pinned buffer in preparation of final transfer
-		StreamCopyMT((__m256i*)pinnedMemPtr, (__m256i*)grid, gridSize);
+		StreamCopyMT((__m256i*)pinnedMemPtr, (__m256i*)grid, numBytesGrid);
 		// enqueue (on queue 2) memcopy of pinned buffer to staging buffer on GPU
-		const uint copySize = firstFrame ? commitSize : (gridSize + MAXCOMMITS * 4 + tasks * BRICKSIZE * PAYLOADSIZE);
+		const uint copySize = firstFrame ? commitSize : (numBytesGrid + MAXCOMMITS * 4 + tasks * BRICKSIZE * PAYLOADSIZE);
 		clEnqueueWriteBuffer(Kernel::GetQueue2(), devmem, 0, 0, copySize, pinnedMemPtr, 0, 0, 0);
 		const size_t ws = UBERWIDTH * UBERHEIGHT * UBERDEPTH;
 		const size_t ls = 16;

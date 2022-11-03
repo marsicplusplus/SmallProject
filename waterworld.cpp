@@ -111,32 +111,28 @@ void WaterWorld::InitialiseLighthouseScenario()
 	SetStaticBlock(450, 400, 500, 1, 256, 256, RED);
 	SetStaticBlock(450, 400, 500, 256, 1, 256, RED);
 
-	int eg = LoadSprite("assets/lighthouse.vox");
-	StampSpriteTo(eg, 450, 500, 500);
+	lighthouseSprite = LoadSprite("assets/lighthouse.vox");
+	StampSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
 
 	World& world = *GetWorld();
 	for (int lx = 18; lx < 25; ++lx) {
 		for (int ly = 62; ly < 70; ++ly) {
-			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + lx, 500 + ly, 500 + 60, WHITE | (15 << 12));
+			world.Set(450 + lx, 500 + ly, 500 + 60, WHITE | (255 << 16));
 		}
 	}
 	for (int lx = 18; lx < 25; ++lx) {
 		for (int ly = 62; ly < 70; ++ly) {
-			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + lx, 500 + ly, 500 + 68, WHITE | (15 << 12));
+			world.Set(450 + lx, 500 + ly, 500 + 68, WHITE | (255 << 16));
 		}
 	}
 	for (int ly = 62; ly < 70; ++ly) {
 		for (int lz = 61; lz < 68; ++lz) {
-			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + 25, 500 + ly, 500 + lz, WHITE | (15 << 12));
+			world.Set(450 + 25, 500 + ly, 500 + lz, WHITE | (255 << 16));
 		}
 	}
 	for (int ly = 62; ly < 70; ++ly) {
 		for (int lz = 61; lz < 68; ++lz) {
-			//lightManager.AddLight(uint3(450+lx, 500+ly, 500+lz), uint3(1,1,1), YELLOW | 15 << 12);
-			world.Set(450 + 17, 500 + ly, 500 + lz, WHITE | (15 << 12));
+			world.Set(450 + 17, 500 + ly, 500 + lz, WHITE | (255 << 16));
 		}
 	}
 }
@@ -209,21 +205,10 @@ void WaterWorld::Init()
 
 	world.OptimizeBricks(); //important to recognize bricks
 	vector<Light> vls;
-	world.SetupLights(vls);
-	skyDomeLightScale = 0.0f;
+	world.FindLightsInWord(vls);
+	world.SetupLightBuffer(vls);
+	skyDomeLightScale = 2.0f;
 	skyDomeImage = "assets/sky_21.hdr";
-}
-void WaterWorld::IntArgFunction(function<void(WaterWorld&, int)> fn, WaterWorld& g, string s, int defaultarg)
-{
-	int result;
-	if (s != "" && string_to <int>(s, result))
-	{
-		fn(g, result);
-	}
-	else
-	{
-		fn(g, defaultarg);
-	}
 }
 
 // -----------------------------------------------------------
@@ -241,7 +226,11 @@ void WaterWorld::HandleInput(float deltaTime)
 	if (GetAsyncKeyState(VK_RIGHT)) D = normalize(D + right * 0.025f * speed);
 	if (GetAsyncKeyState(VK_UP)) D = normalize(D - up * 0.025f * speed);
 	if (GetAsyncKeyState(VK_DOWN)) D = normalize(D + up * 0.025f * speed);
-	if (GetAsyncKeyState(VK_SPACE)) fluidSimulator.Update(deltaTime);
+	if (GetAsyncKeyState(VK_SPACE))
+	{
+		SetSpriteFrame(lighthouseSprite, (frame = frame + 1) % 5);
+		fluidSimulator.Update(deltaTime);
+	}
 	if (GetAsyncKeyState(VK_SHIFT) && !keyPressed[VK_SHIFT])
 	{
 		runCAPESimulation = !runCAPESimulation;

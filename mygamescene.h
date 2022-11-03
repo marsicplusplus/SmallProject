@@ -4,9 +4,9 @@ namespace Tmpl8
 {
 	namespace MyGameScene
 	{
-		int LoadWorld(World& world, std::string path);
+		int LoadWorld(World& world, const std::string& path);
 		void CreateWorld(World& world);
-		void SaveWorld(std::string path, uint sizeX, uint sizeY, uint sizeZ);
+		void SaveWorld(const std::string& path, uint sizeX, uint sizeY, uint sizeZ);
 
 		void CreateMountainWorld(World& world);
 		void CreateLetterWorld(World& world);

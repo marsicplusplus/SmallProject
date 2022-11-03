@@ -1,7 +1,7 @@
 #include "template/common.h"
 #include "cl/reservoir.cl"
-#include "cl/trace.cl"
 #include "cl/tools.cl"
+#include "cl/trace.cl"
 
 #if ONEBRICKBUFFER == 1
 #define BRICKPARAMS brick0

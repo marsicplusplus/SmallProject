@@ -58,7 +58,7 @@ void WorldEditor::MouseMove(int x, int y)
 		if (!(oldBox == selectedBricks.box))
 		{
 			World& world = *GetWorld();
-			unsigned short* brick = world.GetBrick();
+			PAYLOAD* brick = world.GetBrick();
 			uint* grid = world.GetGrid();
 
 			// Calculate the symmetrical difference

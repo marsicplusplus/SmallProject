@@ -6,7 +6,7 @@ bool isLightOccluded(const struct Light* light, const float3 shadingPoint,
 )
 {
 	const uint3 emitterVoxelCoords = indexToCoordinates(light->position);
-	const uint voxel2 = TraceRay((float4)(shadingPoint, 0), (float4)(L, 1.0),
+	const uint voxel2 = TraceOpaqueRay((float4)(shadingPoint, 0), (float4)(L, 1.0),
 		dist, side, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
 	uint3 hitVoxelCoords = GridCoordinatesFromHit(*side, L, *dist, shadingPoint);
 
@@ -198,6 +198,13 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	}
 	else
 	{
+		float3 skyContribution = (float3)(0.0, 0.0, 0.0);
+		uint alpha = GetAlpha(voxel);
+		if (params->skyDomeSampling && alpha != 0xF)
+		{
+			skyContribution = SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight);
+		}
+
 		// hit emitter
 		if (IsEmitter(voxel))
 		{
@@ -239,7 +246,8 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 				}
 			}
 
-		//color = ToFloatRGB(voxel);
+		float alphaF = GetAlphaf(voxel);
+		color += alphaF * color + (1 - alphaF) * skyContribution;
 	}
 
 	//sample sky
@@ -257,7 +265,10 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 		const uint voxel2 = TraceRay((float4)(shadingPointOffset, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH / 12);
 		const float3 N2 = VoxelNormal(side2, R.xyz);
 		float3 toAdd = (float3)skyLightScale, M = N;
-		if (voxel2 != 0) toAdd *= INVPI * ToFloatRGB(voxel2), M = N2;
+		// TO-DO: Add alpha blend here
+		if (voxel2 != 0) 
+			toAdd *= INVPI * ToFloatRGB(voxel2), M = N2;
+
 		float4 sky;
 		if (M.x < -0.9f) sky = params->skyLight[0];
 		if (M.x > 0.9f) sky = params->skyLight[1];
@@ -267,6 +278,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 		if (M.z > 0.9f) sky = params->skyLight[5];
 		incoming += toAdd * sky.xyz;
 
+		// TO-DO: Add alpha blend here
 		const float3 brdf = ToFloatRGB(voxel) * INVPI;
 		color += incoming * brdf;
 	}
@@ -290,17 +302,54 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 
 	uint side = 0;
 	float dist = 0;
-	const uint voxel = TraceRay((float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid,
+	float3 origin = params->E;
+	uint voxel = TraceRay((float4)(origin, 0), (float4)(D, 1), &dist, &side, grid,
 		uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
+	float alpha = GetAlphaf(voxel);
+	float3 outputColor = ToFloatRGB(voxel) * alpha;
+	float totalDist = 0.;
 
-	// no need to copy since we swap the current and previous albedo buffer every frame
-	//prevAlbedo[x + y * SCRWIDTH] = albedo[x + y * SCRWIDTH];
+	// Continue until we have a non translucent voxel. 0 is considered solid as well, to avoid users
+	// abusing an alpha of 0 on voxels supposed to be empty as it is much less efficient
+	// Note that we modify the albedo here directly. An alternative is to shoot these rays from the 
+	// final shading function
+	int iteration = 0;
+	float remainingVisibility = 1.0f - GetAlphaf(voxel);
+	int MaxIterations = 20;
+	while (voxel != 0 && remainingVisibility > 0.f)
+	{
+		// Offset by 1 voxel (which is at most sqrt(2) distance from the current) so that we don't 
+		// continuously intersect the same voxel
+		totalDist += dist + sqrt(2.f);
+
+		// Offset so that we don't keep hitting the same voxel
+		origin = params->E + totalDist * D;
+		voxel = TraceRay((float4)(origin, 0), (float4)(D, 1), &dist, &side, grid,
+			uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
+		float3 color = ToFloatRGB(voxel);
+		alpha = GetAlphaf(voxel);
+		outputColor += remainingVisibility * alpha * color;
+		// If the most recently hit object is fully opaque, the visibility goes to zero
+		remainingVisibility = alpha < 0.99f ? remainingVisibility * (1.0f - alpha) : 0.f;
+		// A failsafe to prevent completely tanking performance
+		if (++iteration == MaxIterations)
+		{
+			// Skybox hack. If we reached the max number of iterations, we consider the light
+			// to have been fully absorbed. If not, the skybox will blend with the remainder
+			remainingVisibility = 0.f;
+		}
+	}
+	totalDist += dist;
+
+	// Any "remaining" translucency, i.e. light not absorbed/reflected, will be passed on for the final
+	// stage for weighing with the sampling of the skydome
+	voxel = FromFloatRGBA((float4)(outputColor, 1.0f - remainingVisibility), EmitStrength(voxel));
 
 	struct CLRay* hit = &albedo[x + y * SCRWIDTH];
 	hit->voxelValue = voxel;
 	hit->side = side;
 	hit->seed = seed;
-	hit->distance = dist;
+	hit->distance = totalDist;
 	hit->rayDirection = D;
 }
 

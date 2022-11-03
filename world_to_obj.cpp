@@ -11,12 +11,12 @@ using namespace Tmpl8;
 
 bool IsEmitter(const uint v)
 {
-	return (v >> 12 & 15) > 0;
+	return (v >> 16 & 255) > 0;
 }
 
 float Tmpl8::EmitStrength(const uint v)
 {
-	return (float)((v & 0xf000) >> 12);
+	return (float)((v & 0xff0000) >> 16);
 }
 
 // convert a voxel color to floating point rgb // from tools.cl
@@ -41,7 +41,7 @@ uint Tmpl8::ToUint(float3 c)
 
 int createVertex(unordered_map<int, int>& map, vector<int3>& vertices, int3 v)
 {
-	int hash = v.x + v.z * GRIDWIDTH * BRICKDIM + v.y * GRIDWIDTH * BRICKDIM * GRIDDEPTH * BRICKDIM;
+	int hash = v.x + v.z * GRIDWIDTH * BRICKDIM + v.y * GRIDSIZE * BRICKDIM;
 	auto search = map.find(hash);
 	if (search != map.end())
 	{
@@ -181,7 +181,7 @@ void SaveMeshToObj(Mesh& mesh, string filename)
 	printf("Start writing to file %s\r\n", path.string().c_str());
 
 	// We could switch materials for every face but that would add a lot of unnecessary lines to the obj files so we sort the faces per material.
-	unordered_map<ushort, vector<int3>*> tris_per_mat;
+	unordered_map<PAYLOAD, vector<int3>*> tris_per_mat;
 	for (Tri& f : mesh.tris)
 	{
 		auto search = tris_per_mat.find(f.col);
@@ -211,7 +211,7 @@ void SaveMeshToObj(Mesh& mesh, string filename)
 	fprintf(matfile, "#materials\n");
 	for (auto& entry : tris_per_mat)
 	{
-		ushort col = entry.first;
+		PAYLOAD col = entry.first;
 		fprintf(matfile, "newmtl %d\n", col);
 
 		float3 kd = ToFloatRGB(col);
@@ -245,7 +245,7 @@ void SaveMeshToObj(Mesh& mesh, string filename)
 
 	for (auto& entry : tris_per_mat)
 	{
-		ushort col = entry.first;
+		PAYLOAD col = entry.first;
 		fprintf(objfile, "usemtl %d\n", col);
 
 		vector<int3>* tris = entry.second;

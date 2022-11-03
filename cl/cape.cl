@@ -1,6 +1,6 @@
 #include "template/common.h"
-#include "cl/trace.cl"
 #include "cl/tools.cl"
+#include "cl/trace.cl"
 
 //Required on 6900XT
 #pragma OPENCL EXTENSION cl_khr_3d_image_writes : enable

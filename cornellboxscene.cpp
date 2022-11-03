@@ -50,7 +50,7 @@ void MyGameScene::CreateCornellBoxWorld(World& world)
 		{
 			for (uint bx = 0; bx < GRIDWIDTH; bx++)
 			{
-				ushort vox = 0;
+				PAYLOAD vox = 0;
 				const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 				const uint g = grid[cellIdx];
 				if ((g & 1) != 0)
