@@ -335,11 +335,11 @@ public:
 		const uint brickIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		// obtain current brick identifier from top-level grid
 		uint brickValue = grid[brickIndex], brickBufferOffset = brickValue >> 1;
-		zeroes[brickBufferOffset] = BRICKSIZE;
 		grid[brickIndex] = 0;	// brick just became completely zeroed; recycle
 
 		if (brickValue & 1) // If not solid/empty, free brick
 		{
+			zeroes[brickBufferOffset] = BRICKSIZE;
 			FreeBrick(brickBufferOffset);
 			Mark(brickBufferOffset);
 		}

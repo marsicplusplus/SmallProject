@@ -43,6 +43,7 @@ static int angle_offset_index = 0;
 // -----------------------------------------------------------
 void MyGame::Init()
 {
+	skyDomeLightScale = 0.5f;
 	string import_filename = "/grid.vx";
 	string export_dir = "/scene";
 

@@ -1120,13 +1120,13 @@ void WorldEditor::SaveState()
 		else
 		{
 			memcpy(stateCurrent->newBricks + (idx * BRICKSIZE), bricks + brickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+			stateCurrent->oldBrickZeroes[idx] = tempZeroes[tempBrickOffset];
+			stateCurrent->newBrickZeroes[idx] = zeroes[brickOffset];
 		}
 
 		stateCurrent->oldGridVals[idx] = tempGridValue;
 		stateCurrent->newGridVals[idx] = gridValue;
 
-		stateCurrent->oldBrickZeroes[idx] = tempZeroes[tempBrickOffset];
-		stateCurrent->newBrickZeroes[idx] = zeroes[brickOffset];
 
 		stateCurrent->editedBricks[idx] = brick;
 		idx++;
@@ -1589,7 +1589,7 @@ void WorldEditor::RenderGUI()
 			if (emissive)
 			{
 				ImGui::PushItemWidth(ImGui::GetColumnWidth(1) * 0.35);
-				ImGui::SliderInt ("Emissive Strength", &emissiveVal, 0, 15, "%d", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::SliderInt ("Emissive Strength", &emissiveVal, 0, 255, "%d", ImGuiSliderFlags_AlwaysClamp);
 				ImGui::PopItemWidth();
 			}
 			ImGui::Checkbox("Edit Voxel", &voxel);
@@ -1650,7 +1650,7 @@ void WorldEditor::RenderGUI()
 			const uint green = min(15u, (uint)(color.y * 15.0f));
 			const uint blue = min(15u, (uint)(color.z * 15.0f));
 			const uint alpha = min(15u, (uint)(color.w * 15.0f));
-			const uint emissiveness = min(15u, (uint)(emissiveVal * 15.0f));
+			const uint emissiveness = min(255u, (uint)(emissiveVal));
 
 			color.x = (red * (1.0f / 15.0f));
 			color.y = (green * (1.0f / 15.0f));
