@@ -1698,7 +1698,7 @@ uint TileManager::LoadTile(const char* voxFile)
 	{
 		// Set to fully opaque if it is a non-zero voxel; transparency is not data set directly from magica voxel at the moment
 		// TO-DO: Remove if magica voxel materials (specifically, translucency) is supported
-		addedTile->voxels[i] |= 0x0B000 * (addedTile->voxels[i] > 0);
+		addedTile->voxels[i] |= 0xF000 * (addedTile->voxels[i] > 0);
 	}
 	tile.push_back(addedTile);
 	return (uint)tile.size() - 1;
@@ -1743,7 +1743,18 @@ void World::DrawTiles(const char* tileString, const uint x, const uint y, const 
 // ----------------------------------------------------------------------------
 uint TileManager::LoadBigTile(const char* voxFile)
 {
-	bigTile.push_back(new BigTile(voxFile));
+	BigTile* addedBigTile = new BigTile(voxFile);
+	for (int tileIdx = 0; tileIdx < 8; tileIdx++)
+	{
+		for (int i = 0; i < BRICKSIZE; i++)
+		{
+			// Set to fully opaque if it is a non-zero voxel; transparency is not data set directly from magica voxel at the moment
+			// TO-DO: Remove if magica voxel materials (specifically, translucency) is supported
+			addedBigTile->tile[tileIdx].voxels[i] |= 0xF000 * (addedBigTile->tile[tileIdx].voxels[i] > 0);
+		}
+	}
+
+	bigTile.push_back(addedBigTile);
 	return (uint)bigTile.size() - 1;
 }
 

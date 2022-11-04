@@ -344,13 +344,13 @@ WorldEditor::WorldEditor()
 {
 	tempBricks = (PAYLOAD*)_aligned_malloc(CHUNKCOUNT * CHUNKSIZE, 64);
 	tempGrid = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * 4, 64);
-	//tempBrickInfo = (BrickInfo*)_aligned_malloc(BRICKCOUNT * sizeof(BrickInfo), 64);
+	tempZeroes = (uint*)_aligned_malloc(GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint), 64);
 	stateHead = (State*)calloc(1, sizeof(State));
 	stateCurrent = stateTail = stateHead;
 
 	memset(tempBricks, 0, CHUNKCOUNT * CHUNKSIZE);
 	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-	//memset(tempBrickInfo, BRICKSIZE, BRICKCOUNT * sizeof(BrickInfo));
+	memset(tempZeroes, BRICKSIZE, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 
 	LoadTiles();
 }
@@ -486,7 +486,7 @@ void WorldEditor::MouseDown(int mouseButton)
 		World& world = *GetWorld();
 		memcpy(tempBricks, world.GetBrick(), CHUNKCOUNT * CHUNKSIZE);
 		memcpy(tempGrid, world.GetGrid(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-		//memcpy(tempBrickInfo, world.GetBrickInfo(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+		memcpy(tempZeroes, world.GetZeroes(), GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 
 		float3 brickPos = selected.box.bmin3;
 		// Add or remove the intial brick where the mouse is hovered
@@ -534,13 +534,13 @@ void WorldEditor::MouseUp(int mouseButton)
 
 
 #pragma region Editing
-void WorldEditor::UpdateEditedBricks(int x, int y, int z)
+void WorldEditor::UpdateEditedBricks(uint x, uint y, uint z)
 {
 	if (gesture.size == GestureSize::GESTURE_BIG_TILE)
 	{
-		for (int _x = 0; _x < 2; _x++)
-			for (int _y = 0; _y < 2; _y++)
-				for (int _z = 0; _z < 2; _z++)
+		for (uint _x = 0; _x < 2; _x++)
+			for (uint _y = 0; _y < 2; _y++)
+				for (uint _z = 0; _z < 2; _z++)
 					editedBricks.insert(make_int3(x / BRICKDIM + _x, y / BRICKDIM + _y, z / BRICKDIM + _z));
 	}
 	else
@@ -561,7 +561,7 @@ void WorldEditor::MultiAddRemove()
 	if (oldBox == selected.box) return;
 
 	World& world = *GetWorld();
-	unsigned int* brick = world.GetBrick();
+	uint* brick = world.GetBrick();
 	uint* grid = world.GetGrid();
 
 	aabb newBox = selected.box;
@@ -585,13 +585,13 @@ void WorldEditor::MultiAddRemove()
 	}
 
 
-	oldBox.bmin3 = make_float3((int)oldBox.bmin3.x / boxScale, (int)oldBox.bmin3.y / boxScale, (int)oldBox.bmin3.z / boxScale);
-	oldBox.bmax3 = make_float3((int)oldBox.bmax3.x / boxScale, (int)oldBox.bmax3.y / boxScale, (int)oldBox.bmax3.z / boxScale);
-	newBox.bmin3 = make_float3((int)newBox.bmin3.x / boxScale, (int)newBox.bmin3.y / boxScale, (int)newBox.bmin3.z / boxScale);
-	newBox.bmax3 = make_float3((int)newBox.bmax3.x / boxScale, (int)newBox.bmax3.y / boxScale, (int)newBox.bmax3.z / boxScale);
+	oldBox.bmin3 = make_float3((uint)oldBox.bmin3.x / boxScale, (uint)oldBox.bmin3.y / boxScale, (uint)oldBox.bmin3.z / boxScale);
+	oldBox.bmax3 = make_float3((uint)oldBox.bmax3.x / boxScale, (uint)oldBox.bmax3.y / boxScale, (uint)oldBox.bmax3.z / boxScale);
+	newBox.bmin3 = make_float3((uint)newBox.bmin3.x / boxScale, (uint)newBox.bmin3.y / boxScale, (uint)newBox.bmin3.z / boxScale);
+	newBox.bmax3 = make_float3((uint)newBox.bmax3.x / boxScale, (uint)newBox.bmax3.y / boxScale, (uint)newBox.bmax3.z / boxScale);
 	aabb intersection = oldBox.Intersection(newBox);
 
-	auto RestoreTempBrickVal = [&](int x, int y, int z) {
+	auto RestoreTempBrickVal = [&](uint x, uint y, uint z) {
 		const uint cellIdx = x + z * GRIDWIDTH + y * GRIDWIDTH * GRIDDEPTH;
 		const uint tempGridVal = tempGrid[cellIdx];
 		const uint curGridVal = grid[cellIdx];
@@ -617,7 +617,7 @@ void WorldEditor::MultiAddRemove()
 		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
 		memcpy(brick + brickIdx * BRICKSIZE, tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
 		grid[cellIdx] = gridValue;
-		//world.GetBrickInfo()[brickIdx].zeroes = tempBrickInfo[tempBrickOffset].zeroes;
+		world.GetZeroes()[brickIdx] = tempZeroes[tempBrickOffset];
 		world.Mark(brickIdx);
 	};
 
@@ -710,14 +710,14 @@ void WorldEditor::MultiAddRemove()
 			}
 }
 
-void WorldEditor::Add(int vx, int vy, int vz)
+void WorldEditor::Add(uint vx, uint vy, uint vz)
 {
 	World& world = *GetWorld();
 
 	// Convert voxel xyz to brick coords
-	int bx = vx / BRICKDIM;
-	int by = vy / BRICKDIM;
-	int bz = vz / BRICKDIM;
+	uint bx = vx / BRICKDIM;
+	uint by = vy / BRICKDIM;
+	uint bz = vz / BRICKDIM;
 
 	if (gesture.size == GestureSize::GESTURE_VOXEL)
 	{
@@ -747,13 +747,13 @@ void WorldEditor::Add(int vx, int vy, int vz)
 	}
 }
 
-void WorldEditor::Remove(int vx, int vy, int vz)
+void WorldEditor::Remove(uint vx, uint vy, uint vz)
 {
 	World& world = *GetWorld();
 
-	int bx = vx / BRICKDIM;
-	int by = vy / BRICKDIM;
-	int bz = vz / BRICKDIM;
+	uint bx = vx / BRICKDIM;
+	uint by = vy / BRICKDIM;
+	uint bz = vz / BRICKDIM;
 
 	if (gesture.size == GestureSize::GESTURE_VOXEL)
 	{
@@ -906,9 +906,9 @@ void WorldEditor::UpdateSelectedBox()
 		float3 voxelPos = hitPoint - 0.1 * normal;
 		float3 boxPos;
 		boxPos = make_float3(
-			(int)(voxelPos.x / boxScale) * boxScale,
-			(int)(voxelPos.y / boxScale) * boxScale,
-			(int)(voxelPos.z / boxScale) * boxScale
+			(uint)(voxelPos.x / boxScale) * boxScale,
+			(uint)(voxelPos.y / boxScale) * boxScale,
+			(uint)(voxelPos.z / boxScale) * boxScale
 		);
 
 		if (gesture.mode & GestureMode::GESTURE_REMOVE)
@@ -979,7 +979,7 @@ void WorldEditor::Undo()
 	World& world = *GetWorld();
 	uint* grid = world.GetGrid();
 	PAYLOAD* bricks = world.GetBrick();
-	//BrickInfo* brickInfo = world.GetBrickInfo();
+	uint* zeroes = world.GetZeroes();
 
 	int numBricks = stateCurrent->numBricks;
 	for (int idx = 0; idx < numBricks; idx++)
@@ -1011,7 +1011,7 @@ void WorldEditor::Undo()
 		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
 		memcpy(bricks + (brickIdx * BRICKSIZE), stateCurrent->oldBricks + (idx * BRICKSIZE), BRICKSIZE * PAYLOADSIZE);
 		grid[cellIdx] = gridValue;
-		//brickInfo[brickIdx].zeroes = stateCurrent->oldBrickZeroes[idx];
+		zeroes[brickIdx] = stateCurrent->oldBrickZeroes[idx];
 		world.Mark(brickIdx);
 	}
 
@@ -1028,7 +1028,7 @@ void WorldEditor::Redo()
 	World& world = *GetWorld();
 	uint* grid = world.GetGrid();
 	PAYLOAD* bricks = world.GetBrick();
-	//BrickInfo* brickInfo = world.GetBrickInfo();
+	uint* zeroes = world.GetZeroes();
 
 	int numBricks = stateCurrent->numBricks;
 	for (int idx = 0; idx < numBricks; idx++)
@@ -1060,12 +1060,9 @@ void WorldEditor::Redo()
 		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
 		memcpy(bricks + (brickIdx * BRICKSIZE), stateCurrent->newBricks + (idx * BRICKSIZE), BRICKSIZE * PAYLOADSIZE);
 		grid[cellIdx] = gridValue;
-		//brickInfo[brickIdx].zeroes = stateCurrent->oldBrickZeroes[idx];
+		zeroes[brickIdx] = stateCurrent->oldBrickZeroes[idx];
 		world.Mark(brickIdx);
 	}
-
-	//vector<Light> ls;
-	//world.SetupLights(ls);
 }
 
 // Called after a gesture has been completed so we can update the history
@@ -1074,7 +1071,7 @@ void WorldEditor::SaveState()
 	World& world = *GetWorld();
 	uint* grid = world.GetGrid();
 	PAYLOAD* bricks = world.GetBrick();
-	//BrickInfo* brickInfo = world.GetBrickInfo();
+	uint* zeroes = world.GetZeroes();
 	uint* trash = world.GetTrash();
 
 	if (!CreateNewState())
@@ -1089,8 +1086,8 @@ void WorldEditor::SaveState()
 	stateCurrent->oldBricks = (PAYLOAD*)_aligned_malloc(numBricks * BRICKSIZE * PAYLOADSIZE, 64);
 	stateCurrent->newGridVals = (uint*)_aligned_malloc(numBricks * 4, 64);
 	stateCurrent->oldGridVals = (uint*)_aligned_malloc(numBricks * 4, 64);
-	//stateCurrent->newBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
-	//stateCurrent->oldBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
+	stateCurrent->newBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
+	stateCurrent->oldBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
 	stateCurrent->editedBricks = (int3*)_aligned_malloc(numBricks * sizeof(int3), 64);
 
 	int idx = 0;
@@ -1128,8 +1125,8 @@ void WorldEditor::SaveState()
 		stateCurrent->oldGridVals[idx] = tempGridValue;
 		stateCurrent->newGridVals[idx] = gridValue;
 
-		//stateCurrent->oldBrickZeroes[idx] = tempBrickInfo[tempBrickOffset].zeroes;
-		//stateCurrent->newBrickZeroes[idx] = brickInfo[brickOffset].zeroes;
+		stateCurrent->oldBrickZeroes[idx] = tempZeroes[tempBrickOffset];
+		stateCurrent->newBrickZeroes[idx] = zeroes[brickOffset];
 
 		stateCurrent->editedBricks[idx] = brick;
 		idx++;
@@ -1208,7 +1205,7 @@ void WorldEditor::LoadWorld()
 
 	unsigned int* brick = world.GetBrick();
 	uint* grid = world.GetGrid();
-	//BrickInfo* brickInfo = world.GetBrickInfo();
+	uint* zeroes = world.GetZeroes();
 
 	ifstream rf("worlddata.nbt", ios::in | ios::binary);
 	if (!rf)
@@ -1270,7 +1267,7 @@ void WorldEditor::LoadWorld()
 					{
 						uint payloadValue = (uint)namedTag.payload[0] | (uint)namedTag.payload[1] << 8 | (uint)namedTag.payload[2] << 16 | (uint)namedTag.payload[3] << 24;
 						if (namedTag.name == "brick index") brickIndex = payloadValue;
-						//if (namedTag.name == "brick zeroes") brickInfo[brickIndex].zeroes = payloadValue;
+						if (namedTag.name == "brick zeroes") zeroes[brickIndex]= payloadValue;
 					}
 
 					if (namedTag.type == TAG_Byte_Array)
@@ -1305,7 +1302,7 @@ void WorldEditor::SaveWorld()
 
 	unsigned int* brick = world.GetBrick();
 	uint* grid = world.GetGrid();
-	//BrickInfo* brickInfo = world.GetBrickInfo();
+	uint* zeroes = world.GetZeroes();
 
 	// NBT File format 
 	//	Tag_List("grid list") : x entries of type Tag_Compound (Note: Elements in list are unnamed) 
@@ -1385,6 +1382,12 @@ void WorldEditor::SaveWorld()
 
 			valueTag.payload.assign(bVal, bVal + 4);
 		}
+		else
+		{
+			uVal = grid[idx];
+			valueTag.payload.assign(bVal, bVal + 4);
+
+		}
 
 		Tag endTag;
 		endTag.type = TAG_End;
@@ -1421,18 +1424,18 @@ void WorldEditor::SaveWorld()
 		valueTag.payload.resize(PAYLOADSIZE * BRICKSIZE);
 		memcpy(&valueTag.payload[0], brick + oldBrickIdx * BRICKSIZE, PAYLOADSIZE * BRICKSIZE);
 
-		//Tag zeroesTag;
-		//zeroesTag.type = TAG_Int;
-		//zeroesTag.name = "brick zeroes";
-		//uVal = brickInfo[oldBrickIdx].zeroes;
-		//zeroesTag.payload.assign(bVal, bVal + 4);
+		Tag zeroesTag;
+		zeroesTag.type = TAG_Int;
+		zeroesTag.name = "brick zeroes";
+		uVal = zeroes[oldBrickIdx];
+		zeroesTag.payload.assign(bVal, bVal + 4);
 
 		NBTHelper::Tag endTag;
 		endTag.type = TAG_End;
 
 		compoundTag.tags.push_back(indexTag);
 		compoundTag.tags.push_back(valueTag);
-		//compoundTag.tags.push_back(zeroesTag);
+		compoundTag.tags.push_back(zeroesTag);
 		compoundTag.tags.push_back(endTag);
 
 		listTag.tags.push_back(compoundTag);
@@ -1552,11 +1555,12 @@ void WorldEditor::RenderGUI()
 
 			static ImVec4 color = { 1.0f, 1.0f, 1.0f, 1.0f};
 
-			static bool emmisive = false;
+			static bool emissive = false;
 			static bool voxel = false;
-			static bool ref_color = false;
-			static int display_mode = 0;
-			static int picker_mode = 0;
+			static bool refColor = false;
+			static int displayMode = 0;
+			static int pickerMode = 0;
+			static int emissiveVal = 0;
 
 
 			ImGuiColorEditFlags flags = ImGuiColorEditFlags_None;
@@ -1575,14 +1579,21 @@ void WorldEditor::RenderGUI()
 				saved_palette_init = false;
 			}
 
+			ImGui::Columns(2);
+			ImGui::SetColumnWidth(0, 150);
 			static ImVec4 backup_color;
 			ImGui::Text("Voxel Color:");
-			bool picker = ImGui::ColorButton("##voxelcolor", color, flags, ImVec2(128, 128));
-			ImGui::SameLine();
-
-			ImGui::Checkbox("Emmisive", &emmisive);
+			bool picker = ImGui::ColorButton("##voxelcolor", color, flags, ImVec2(128, 128)); 
+			ImGui::NextColumn();
+			ImGui::Checkbox("Emissive", &emissive);
+			if (emissive)
+			{
+				ImGui::PushItemWidth(ImGui::GetColumnWidth(1) * 0.35);
+				ImGui::SliderInt ("Emissive Strength", &emissiveVal, 0, 15, "%d", ImGuiSliderFlags_AlwaysClamp);
+				ImGui::PopItemWidth();
+			}
 			ImGui::Checkbox("Edit Voxel", &voxel);
-
+			ImGui::Columns();
 			if (voxel) gesture.size = GestureSize::GESTURE_VOXEL;
 			else gesture.size = GestureSize::GESTURE_BRICK;
 			
@@ -1639,6 +1650,7 @@ void WorldEditor::RenderGUI()
 			const uint green = min(15u, (uint)(color.y * 15.0f));
 			const uint blue = min(15u, (uint)(color.z * 15.0f));
 			const uint alpha = min(15u, (uint)(color.w * 15.0f));
+			const uint emissiveness = min(15u, (uint)(emissiveVal * 15.0f));
 
 			color.x = (red * (1.0f / 15.0f));
 			color.y = (green * (1.0f / 15.0f));
@@ -1648,7 +1660,9 @@ void WorldEditor::RenderGUI()
 			const uint p = (red << 8) + (green << 4) + blue;
 			voxelValue = (p == 0) ? 1 : p;
 
-			if (emmisive) voxelValue |= 15 << 12;
+			voxelValue |= alpha << 12;
+			if (emissive) voxelValue |= emissiveness << 16;
+			
 			ImGui::EndTabItem();
 		}
 

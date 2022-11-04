@@ -127,8 +127,8 @@ namespace Tmpl8
 
 	private:
 		void UpdateSelectedBox();
-		void Add(int x, int y, int z);
-		void Remove(int x, int y, int z);
+		void Add(uint x, uint y, uint z);
+		void Remove(uint x, uint y, uint z);
 		void MultiAddRemove();
 		void UpdateGestureMode();
 		void CheckMemoryAllowance();
@@ -138,7 +138,7 @@ namespace Tmpl8
 		void DeleteState(State* state);
 		bool CreateNewState();
 		void LoadTiles();
-		void UpdateEditedBricks(int bx, int by, int bz);
+		void UpdateEditedBricks(uint bx, uint by, uint bz);
 		void SaveWorld();
 		void LoadWorld();
 
@@ -152,7 +152,7 @@ namespace Tmpl8
 		// Temporary buffers to hold previous state
 		PAYLOAD* tempBricks = 0;
 		uint* tempGrid = 0;
-		//BrickInfo* tempBrickInfo = 0;
+		uint* tempZeroes = 0;
 
 		std::vector<std::pair<int, GLuint>> loadedTiles;
 		std::vector<std::pair<int, GLuint>> loadedBigTiles;

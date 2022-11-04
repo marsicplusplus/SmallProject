@@ -207,6 +207,7 @@ public:
 	uint* GetGrid() { return grid; }
 	PAYLOAD* GetBrick() { return brick; }
 	uint* GetTrash() { return trash; }
+	uint* GetZeroes() { return zeroes; }
 	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
 	void SetReservoirBuffer(Buffer* buffer, int index) { reservoirBuffers[index] = buffer; }
 	void Commit();
@@ -333,12 +334,16 @@ public:
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
 		const uint brickIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		// obtain current brick identifier from top-level grid
-		uint g = grid[brickIndex], brickBufferOffset = g >> 1;
-
+		uint brickValue = grid[brickIndex], brickBufferOffset = brickValue >> 1;
 		zeroes[brickBufferOffset] = BRICKSIZE;
 		grid[brickIndex] = 0;	// brick just became completely zeroed; recycle
-		Mark(brickBufferOffset);			// no need to send it to GPU anymore
-		FreeBrick(brickBufferOffset);
+
+		if (brickValue & 1) // If not solid/empty, free brick
+		{
+			FreeBrick(brickBufferOffset);
+			Mark(brickBufferOffset);
+		}
+		Mark(0);
 	}
 
 	__forceinline int SplitSolidBrick(uint brickColor, uint brickIndex)
