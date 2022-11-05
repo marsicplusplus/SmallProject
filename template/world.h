@@ -218,7 +218,6 @@ public:
 	float GetSpatialTime() { return spatialTime; }
 	float GetShadingTime() { return shadingTime; }
 	float GetFinalizingTime() { return finalizingTime; }
-	bool IsSolidGridCell(uint value) const { return (value & 1) == 0; }
 	// high-level voxel access
 	void Sphere( const float x, const float y, const float z, const float r, const uint c );
 	void HDisc( const float x, const float y, const float z, const float r, const uint c );
@@ -294,8 +293,8 @@ public:
 		const uint by = (y / BRICKDIM) & (GRIDHEIGHT - 1);
 		const uint bz = (z / BRICKDIM) & (GRIDDEPTH - 1);
 		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-		const uint g = grid[cellIdx];
-		if ((g & 1) == 0 /* this is currently a 'solid' grid cell */) return g >> 1;
+		const uint cellValue = grid[cellIdx];
+		if (IsSolidGridCell(cellValue) /* this is currently a 'solid' grid cell */) return cellValue >> 1;
 		// calculate the position of the voxel inside the brick
 		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
 		return brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
@@ -306,7 +305,7 @@ public:
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
 		const uint brickIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		uint brickValue = grid[brickIdx], brickBufferOffset = brickValue >> 1;
-		if (brickValue & 1)
+		if (!IsSolidGridCell(brickValue))
 		{
 			FreeBrick(brickBufferOffset);
 			Mark(brickBufferOffset);
@@ -332,12 +331,12 @@ public:
 	__forceinline void RemoveBrick(const uint bx, const uint by, const uint bz)
 	{
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
-		const uint brickIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		const uint cellIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		// obtain current brick identifier from top-level grid
-		uint brickValue = grid[brickIndex], brickBufferOffset = brickValue >> 1;
-		grid[brickIndex] = 0;	// brick just became completely zeroed; recycle
+		uint cellValue = grid[cellIndex], brickBufferOffset = cellValue >> 1;
+		grid[cellIndex] = 0;	// brick just became completely zeroed; recycle
 
-		if (brickValue & 1) // If not solid/empty, free brick
+		if (!IsSolidGridCell(cellIndex)) // If not solid/empty, free brick
 		{
 			zeroes[brickBufferOffset] = BRICKSIZE;
 			FreeBrick(brickBufferOffset);
@@ -346,7 +345,7 @@ public:
 		Mark(0);
 	}
 
-	__forceinline int SplitSolidBrick(uint brickColor, uint brickIndex)
+	__forceinline int SplitSolidBrick(uint brickColor, uint cellIndex)
 	{
 		const uint newBrickBufferOffset = NewBrick();
 
@@ -397,7 +396,7 @@ public:
 		zeroes[newBrickBufferOffset] = (brickColor == 0) * BRICKSIZE;
 		// Update the grid, as the brick inside the grid is now an offset into the brick buffer
 		// rather than a solid color
-		grid[brickIndex] = (newBrickBufferOffset << 1) | 1;
+		grid[cellIndex] = (newBrickBufferOffset << 1) | 1;
 		return newBrickBufferOffset;
 	}
 
@@ -420,20 +419,20 @@ public:
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH)
 			return;		//Way to prevent this branching?
 
-		const uint brickIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-		uint brickValue = grid[brickIndex];
-		uint brickColor = brickValue >> 1;
-		uint brickBufferOffset = brickValue >> 1;
+		const uint cellIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		uint cellValue = grid[cellIndex];
+		uint brickColor = cellValue >> 1;
+		uint brickBufferOffset = cellValue >> 1;
 
-		if (IsSolidGridCell(brickValue))
+		if (IsSolidGridCell(cellValue))
 		{
 			// No change to the actual brick color, return
 			if (v == brickColor)
 			{
 				return;
 			}
-			brickBufferOffset = SplitSolidBrick(brickColor, brickIndex);
-			brickValue = grid[brickIndex];
+			brickBufferOffset = SplitSolidBrick(brickColor, cellValue);
+			cellValue = grid[cellIndex];
 		}
 
 		// calculate the position of the voxel inside the brick
@@ -450,7 +449,7 @@ public:
 		}
 		else
 		{
-			grid[brickIndex] = 0;
+			grid[cellIndex] = 0;
 			FreeBrick(brickBufferOffset);
 		}
 	}
