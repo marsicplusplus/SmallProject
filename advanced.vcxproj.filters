@@ -8,9 +8,6 @@
       <Filter>template</Filter>
     </ClCompile>
     <ClCompile Include="advanced.cpp" />
-    <ClCompile Include="light_manager.cpp">
-      <Filter>template</Filter>
-    </ClCompile>
     <ClCompile Include="template\CAPE.cpp">
       <Filter>template</Filter>
     </ClCompile>
@@ -38,9 +35,6 @@
       <Filter>template\cl</Filter>
     </ClInclude>
     <ClInclude Include="advanced.h" />
-    <ClInclude Include="light_manager.h">
-      <Filter>template</Filter>
-    </ClInclude>
     <ClInclude Include="template\CAPE.h">
       <Filter>template</Filter>
     </ClInclude>

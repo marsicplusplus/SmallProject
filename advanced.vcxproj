@@ -122,7 +122,6 @@
   <!-- END Custom section -->
   <ItemGroup>
     <ClCompile Include="advanced.cpp" />
-    <ClCompile Include="light_manager.cpp" />
     <ClCompile Include="template\CAPE.cpp" />
     <ClCompile Include="template\template.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -139,7 +138,6 @@
     <ClInclude Include="cl\tools.cl" />
     <ClInclude Include="cl\trace.cl" />
     <ClInclude Include="advanced.h" />
-    <ClInclude Include="light_manager.h" />
     <ClInclude Include="template\bluenoise.h" />
     <ClInclude Include="template\CAPE.h" />
     <ClInclude Include="template\common.h" />
