@@ -3,8 +3,6 @@
 #define OGT_VOX_IMPLEMENTATION
 #include "lib/ogt_vox.h"
 
-#include "light_manager.h"
-
 // Acknowledgements:
 // B&H'21 = Brian Janssen and Hugo Peters, INFOMOV'21 assignment
 // CO'21  = Christian Oliveros, INFOMOV'21 assignment
@@ -205,8 +203,10 @@ World::World(const uint targetID)
 
 void World::InitReSTIR() {
 	/* ReSTIR initialization */
+	worldEditor = new Tmpl8::WorldEditor();
 	params.numberOfLights = 0;
 	params.accumulate = false;
+	params.editorEnabled = false;
 	params.spatial = USESPATIAL;
 	params.temporal = USETEMPORAL;
 	params.spatialTaps = SPATIALTAPS;
@@ -538,8 +538,9 @@ void World::FindLightsInWord(vector<Light>& ls)
 	printf("Number of emitting voxels found in world: %d, number of voxels: %d, number of bricks: %d\n", ls.size(), numberOfVoxels, numberOfBricks);
 }
 
-void World::RemoveLight(const int3 pos, const int3 size) 
+void World::RemoveLight(const int3 pos) 
 {
+	uint numberOfLights = max(0, (int)params.numberOfLights - 1);
 	if (!lightsBuffer)
 	{
 		printf("Light buffer does not exist.\n");
@@ -552,18 +553,53 @@ void World::RemoveLight(const int3 pos, const int3 size)
 	}
 	Light* lights = reinterpret_cast<Light*>(lightsBuffer->hostBuffer);
 	uint lightBufferSize = lightsBuffer->size * 4 / sizeof(Light);
-	for (int x = 0; x < size.x; ++x)
+	Light* newlights;
+	Buffer* newLightBuffer;
+	uint newLightBufferSize = max((uint)1, numberOfLights * 2);
+	if (newLightBufferSize < lightBufferSize / 2)
 	{
-		for (int y = 0; y < size.y; ++y)
+		printf("Resizing buffer to %d\n", newLightBufferSize);
+		Buffer* buffer = new Buffer(sizeof(Light) / 4 * newLightBufferSize, 0, new Light[newLightBufferSize]);
+		buffer->ownData = true;
+		newlights = reinterpret_cast<Light*>(buffer->hostBuffer);
+		newLightBuffer = buffer;
+	}
+	else
+	{
+		newLightBuffer = lightsBuffer;
+		newlights = new Light[lightBufferSize];
+	}
+	uint bufferi = 0;
+	uint toRemove = (pos.x) + (pos.z) * MAPWIDTH + (pos.y) * MAPWIDTH * MAPDEPTH;
+	for (int i = 0; i < params.numberOfLights; i++)
+	{
+		if (lights[i].position != toRemove) 
 		{
-			for (int z = 0; z < size.z; ++z)
-			{
-				uint index = (pos.x + x) + (pos.z + z) * MAPWIDTH + (pos.y + y) * MAPWIDTH * MAPDEPTH;
-				// if at that position there is a light, do not copy it in the new lightbuffer.
-			}
+			newlights[bufferi++] = lights[i];
 		}
 	}
 
+	if (lightsBuffer == newLightBuffer)
+	{
+		delete[] lights;
+		lightsBuffer->hostBuffer = reinterpret_cast<uint*>(newlights);
+	}
+	else
+	{
+		delete lightsBuffer;
+		lightsBuffer = (newLightBuffer);
+	}
+
+	params.restirtemporalframe = 0;
+	params.numberOfLights = numberOfLights;
+	lightsBuffer->CopyToDevice();
+
+	uint color = 0;
+	if (defaultVoxel.find(toRemove) != defaultVoxel.end())
+	{
+		color = defaultVoxel[toRemove];
+	}
+	Set(pos.x, pos.y, pos.z, color);
 }
 
 void World::SetupLightBuffer(const vector<Light> &ls, int pos)
@@ -637,6 +673,7 @@ World::~World()
 	delete sky;
 	delete blueNoise;
 	delete font;
+	delete worldEditor;
 	clReleaseProgram(sharedProgram);
 }
 
@@ -735,6 +772,7 @@ void World::Clear()
 	// easiest top just clear the top-level grid and recycle all bricks
 	memset(grid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 	memset(trash, 0, BRICKCOUNT * 4);
+
 	for (uint i = 0; i < BRICKCOUNT; i++) trash[(i * 31 /* prevent false sharing*/) & (BRICKCOUNT - 1)] = i;
 	trashHead = BRICKCOUNT, trashTail = 0;
 	
@@ -1660,7 +1698,7 @@ uint TileManager::LoadTile(const char* voxFile)
 	{
 		// Set to fully opaque if it is a non-zero voxel; transparency is not data set directly from magica voxel at the moment
 		// TO-DO: Remove if magica voxel materials (specifically, translucency) is supported
-		addedTile->voxels[i] |= 0x0B000 * (addedTile->voxels[i] > 0);
+		addedTile->voxels[i] |= 0xF000 * (addedTile->voxels[i] > 0);
 	}
 	tile.push_back(addedTile);
 	return (uint)tile.size() - 1;
@@ -1705,7 +1743,18 @@ void World::DrawTiles(const char* tileString, const uint x, const uint y, const 
 // ----------------------------------------------------------------------------
 uint TileManager::LoadBigTile(const char* voxFile)
 {
-	bigTile.push_back(new BigTile(voxFile));
+	BigTile* addedBigTile = new BigTile(voxFile);
+	for (int tileIdx = 0; tileIdx < 8; tileIdx++)
+	{
+		for (int i = 0; i < BRICKSIZE; i++)
+		{
+			// Set to fully opaque if it is a non-zero voxel; transparency is not data set directly from magica voxel at the moment
+			// TO-DO: Remove if magica voxel materials (specifically, translucency) is supported
+			addedBigTile->tile[tileIdx].voxels[i] |= 0xF000 * (addedBigTile->tile[tileIdx].voxels[i] > 0);
+		}
+	}
+
+	bigTile.push_back(addedBigTile);
 	return (uint)bigTile.size() - 1;
 }
 
@@ -2170,6 +2219,8 @@ void World::Render()
 		params.prevP1 = make_float4(prevP1, 0);
 		params.prevP2 = make_float4(prevP2, 0);
 		params.prevP3 = make_float4(prevP3, 0);
+
+		params.editorEnabled = worldEditor->IsEnabled();
 		// finalize params
 		params.R0 = RandomUInt();
 		params.skyWidth = skySize.x;

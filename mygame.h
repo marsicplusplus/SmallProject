@@ -8,18 +8,17 @@ namespace Tmpl8
 
 		void PrintDebug();
 		void PrintStats();
-		WorldEditor worldEditor;
 	public:
 		// game flow methods
 		void Init();
 		void Tick(float deltaTime);
 		void Shutdown() { /* implement if you want to do something on exit */ }
 		// input handling 
-		void MouseUp(int button) { worldEditor.MouseUp(button); }
-		void MouseDown(int button) { worldEditor.MouseDown(button); };
-		void MouseMove(int x, int y) { worldEditor.MouseMove(x, y); };
-		void KeyUp(int key) { worldEditor.KeyUp(key); }
-		void KeyDown(int key) { worldEditor.KeyDown(key); }
+		void MouseUp(int button) { /* implement if you want to do something on mouse up */ }
+		void MouseDown(int button) { /* implement if you want to do something on mouse down */ }
+		void MouseMove(int x, int y) { /* implement if you want to do something on mouse move */  }
+		void KeyUp(int key) { /* implement if you want to do something on key up */ }
+		void KeyDown(int key) { /* implement if you want to do something on key down */  }
 		// data members
 		void DumpScreenBuffer();
 

@@ -112,7 +112,7 @@ void WaterWorld::InitialiseLighthouseScenario()
 	SetStaticBlock(450, 400, 500, 256, 1, 256, RED);
 
 	lighthouseSprite = LoadSprite("assets/lighthouse.vox");
-	StampSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
+	MoveSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
 
 	World& world = *GetWorld();
 	for (int lx = 18; lx < 25; ++lx) {
@@ -194,6 +194,7 @@ void WaterWorld::Init()
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
+	params.editorEnabled = false;
 	params.spatial = useSpatialResampling;
 	params.temporal = useTemporalResampling;
 	params.spatialTaps = SPATIALTAPS;
@@ -207,7 +208,7 @@ void WaterWorld::Init()
 	vector<Light> vls;
 	world.FindLightsInWord(vls);
 	world.SetupLightBuffer(vls);
-	skyDomeLightScale = 2.0f;
+	skyDomeLightScale = 0.0f;
 	skyDomeImage = "assets/sky_21.hdr";
 }
 
@@ -240,6 +241,29 @@ void WaterWorld::HandleInput(float deltaTime)
 	{
 		keyPressed[VK_SHIFT] = false;
 	}
+
+	if (GetAsyncKeyState('G') && !keyPressed['G'])
+	{
+		World& world = *GetWorld();
+		WorldEditor& worldEditor = *world.getWorldEditor();
+		if (worldEditor.IsEnabled())
+		{
+			ShowCursor(false);
+			worldEditor.Disable();
+		}
+		else
+		{
+			ShowCursor(true);
+			worldEditor.Enable();
+		}
+		keyPressed['G'] = true;
+	}
+	else if (!GetAsyncKeyState('G'))
+	{
+		keyPressed['G'] = false;
+	}
+
+
 #if 1
 	// enable to set spline path points using P key
 	static bool pdown = false;

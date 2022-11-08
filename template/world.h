@@ -12,7 +12,7 @@
 
 namespace Tmpl8
 {
-class LightManager;
+class WorldEditor;
 
 // Sprite system overview:
 // The world contains a set of 0 or more sprites, typically loaded from .vox files.
@@ -180,6 +180,7 @@ public:
 	void UpdateSkylights(); // updates the six skylight colors
 	void ForceSyncAllBricks();
 	void OptimizeBricks();
+	WorldEditor* getWorldEditor() { return worldEditor; };
 	// camera
 	void SetCameraMatrix(const mat4& m) { camMat = m; }
 	float3 GetCameraViewDir() { return make_float3(camMat[2], camMat[6], camMat[10]); }
@@ -205,6 +206,8 @@ public:
 	uint GetTextureId() { return targetTextureID; }
 	uint* GetGrid() { return grid; }
 	PAYLOAD* GetBrick() { return brick; }
+	uint* GetTrash() { return trash; }
+	uint* GetZeroes() { return zeroes; }
 	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
 	void SetReservoirBuffer(Buffer* buffer, int index) { reservoirBuffers[index] = buffer; }
 	void Commit();
@@ -256,8 +259,9 @@ public:
 
 	void AddRandomLights(int numberOfLights);
 	void RemoveRandomLights(int numberOfLights);
+	void AddLight(const int3 pos, const uint c) { AddLight(pos, make_int3(1), c); };
 	void AddLight(const int3 pos, const int3 size, const uint c);
-	void RemoveLight(const int3 pos, const int3 size);
+	void RemoveLight(const int3 pos);
 
 	void SetUpMovingLights(int numberOfLights);
 	void MoveLights();
@@ -265,6 +269,9 @@ public:
 	uint MovingLightCount() { return movinglights.size(); }
 
 	void InitReSTIR();
+
+	vector<Tile*>& GetTileList() { return TileManager::GetTileManager()->tile; }
+	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
 private:
 	// internal methods
 	void EraseSprite( const uint idx );
@@ -278,8 +285,6 @@ private:
 	// convenient access to 'guaranteed to be instantiated' sprite, particle, tile lists
 	vector<Sprite*>& GetSpriteList() { return SpriteManager::GetSpriteManager()->sprite; }
 	vector<Particles*>& GetParticlesList() { return ParticlesManager::GetParticlesManager()->particles; }
-	vector<Tile*>& GetTileList() { return TileManager::GetTileManager()->tile; }
-	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
 public:
 	// low-level voxel access
 	__forceinline PAYLOAD Get( const uint x, const uint y, const uint z)
@@ -295,6 +300,22 @@ public:
 		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
 		return brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
 	}
+
+	__forceinline void AddBrick(const uint bx, const uint by, const uint bz, const uint v /* actually an 8-bit value */)
+	{
+		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
+		const uint brickIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		uint brickValue = grid[brickIdx], brickBufferOffset = brickValue >> 1;
+		if (brickValue & 1)
+		{
+			FreeBrick(brickBufferOffset);
+			Mark(brickBufferOffset);
+		}
+
+		Mark(0);
+		grid[brickIdx] = v << 1;
+	}
+
 	__forceinline void SetBrick(const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */)
 	{
 		for (uint ly = 0; ly < BRICKDIM; ly++)
@@ -313,12 +334,16 @@ public:
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
 		const uint brickIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		// obtain current brick identifier from top-level grid
-		uint g = grid[brickIndex], brickBufferOffset = g >> 1;
-
-		zeroes[brickBufferOffset] = BRICKSIZE;
+		uint brickValue = grid[brickIndex], brickBufferOffset = brickValue >> 1;
 		grid[brickIndex] = 0;	// brick just became completely zeroed; recycle
-		Mark(brickBufferOffset);			// no need to send it to GPU anymore
-		FreeBrick(brickBufferOffset);
+
+		if (brickValue & 1) // If not solid/empty, free brick
+		{
+			zeroes[brickBufferOffset] = BRICKSIZE;
+			FreeBrick(brickBufferOffset);
+			Mark(brickBufferOffset);
+		}
+		Mark(0);
 	}
 
 	__forceinline int SplitSolidBrick(uint brickColor, uint brickIndex)
@@ -374,6 +399,14 @@ public:
 		// rather than a solid color
 		grid[brickIndex] = (newBrickBufferOffset << 1) | 1;
 		return newBrickBufferOffset;
+	}
+
+	__forceinline void RemoveBigTile(const uint bx, const uint by, const uint bz)
+	{
+		for (int x = 0; x < 2; x++)
+			for (int y = 0; y < 2; y++)
+				for (int z = 0; z < 2; z++)
+					RemoveBrick(bx + x, by + y, bz + z);
 	}
 
 
@@ -446,7 +479,7 @@ public:
 		modified[idx >> 5] &= 0xffffffffu - (1 << (idx & 31));
 	#endif
 	}
-private:
+public:
 	uint NewBrick()
 	{
 	#if THREADSAFEWORLD
@@ -469,6 +502,9 @@ private:
 		trash[trashHead++ & (BRICKCOUNT - 1)] = idx;
 	#endif
 	}
+
+private:
+
 
 	bool IsDirty( const uint idx ) { return (modified[idx >> 5] & (1 << (idx & 31))) > 0; }
 	bool IsDirty32( const uint idx ) { return modified[idx] != 0; }
@@ -614,6 +650,7 @@ private:
 	public:
 	bool lightsAreMoving = false;
 	bool poppingLights = false;
+	WorldEditor* worldEditor;
 };
 
 } // namespace Tmpl8

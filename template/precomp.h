@@ -58,6 +58,10 @@ using namespace std;
 // zlib
 #include "zlib.h"
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 // namespaces
 namespace Tmpl8 { class World; };
 using namespace Tmpl8;
@@ -334,6 +338,22 @@ inline uint4 make_uint4( const int4& a ) { return make_uint4( uint( a.x ), uint(
 inline uchar4 make_uchar4( const uchar a, const uchar b, const uchar c, const uchar d ) { uchar4 c4; c4.x = a, c4.y = b, c4.z = c, c4.w = d; return c4; }
 
 inline bool operator==(const int3& a, const int3& b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
+inline bool operator!=(const int3& a, const int3& b) { return !(a == b); }
+
+inline bool operator<(const int3& a, const int3& b)
+{
+	if (a == b) return false;
+
+	if (a.x < b.x) return true;
+	if (a.x > b.x) return false;
+
+	if (a.y < b.y) return true;
+	if (a.y > b.y) return false;
+
+	if (a.z < b.z) return true;
+	if (a.z > b.z) return false;
+
+}
 
 inline float2 operator-( const float2& a ) { return make_float2( -a.x, -a.y ); }
 inline int2 operator-( const int2& a ) { return make_int2( -a.x, -a.y ); }
@@ -676,6 +696,11 @@ inline float4 smoothstep( float4 a, float4 b, float4 x )
 {
 	float4 y = clamp( (x - a) / (b - a), 0.0f, 1.0f );
 	return (y * y * (make_float4( 3.0f ) - (make_float4( 2.0f ) * y)));
+}
+
+inline bool LessThan( float2 a, float2 b )
+{
+	return (a.x < b.x) && (a.y < b.y);
 }
 
 // axis aligned bounding box class

@@ -104,12 +104,12 @@ struct RenderParams
 	uint R0, frame, framecount, restirtemporalframe;
 	uint skyWidth, skyHeight;
 	float4 skyLight[6];
-	float skyLightScale, dummy1, dummy2, dummy3;
+	float skyLightScale, wireBoxWidth, dummy1, dummy2;
 	// reprojection data
 	float4 Nleft, Nright, Ntop, Nbottom;
 	float4 prevRight, prevDown;
 	float4 prevP0, prevP1, prevP2, prevP3;
-	int accumulate, spatial, temporal, skyDomeSampling; //booleans
+	int accumulate, spatial, temporal, skyDomeSampling, editorEnabled; //booleans
 	uint numberOfLights;
 	uint numberOfCandidates;
 	uint numberOfMaxTemporalImportance;

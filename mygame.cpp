@@ -1,8 +1,6 @@
 #include "precomp.h"
 #include "mygame.h"
 #include "mygamescene.h"
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
 
 Game* CreateGame() { return new MyGame(); }
@@ -45,6 +43,7 @@ static int angle_offset_index = 0;
 // -----------------------------------------------------------
 void MyGame::Init()
 {
+	skyDomeLightScale = 0.5f;
 	string import_filename = "/grid.vx";
 	string export_dir = "/scene";
 
@@ -97,6 +96,7 @@ void MyGame::Init()
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
+	params.editorEnabled = false;
 	params.spatial = useSpatialResampling;
 	params.temporal = useTemporalResampling;
 	params.spatialTaps = SPATIALTAPS;
@@ -142,6 +142,7 @@ KeyHandler rightHandler = { 0, VK_RIGHT };
 KeyHandler upHandler = { 0, VK_UP };
 KeyHandler downHandler = { 0, VK_DOWN };
 KeyHandler cHandler = { 0, 'C' };
+KeyHandler gHandler = { 0, 'G' };
 KeyHandler vHandler = { 0, 'V' };
 KeyHandler nHandler = { 0, 'N' };
 KeyHandler mHandler = { 0, 'M' };
@@ -151,7 +152,7 @@ KeyHandler aHandler = { 0, 'A' };
 KeyHandler dHandler = { 0, 'D' };
 KeyHandler rHandler = { 0, 'R' };
 KeyHandler fHandler = { 0, 'F' };
-KeyHandler zHandler = { 0, 'Z' };
+KeyHandler bHandler = { 0, 'B' };
 KeyHandler lHandler = { 0, 'L' };
 KeyHandler xHandler = { 0, 'X' };
 KeyHandler inputKeyHandler = { 0, 'I' };
@@ -169,6 +170,7 @@ void MyGame::HandleControls(float deltaTime)
 	bool dirty = false;
 	RenderParams& renderparams = GetWorld()->GetRenderParams();
 	World& w = *GetWorld();
+	WorldEditor& worldEditor = *w.getWorldEditor();
 	if (inputKeyHandler.IsTyped() && (ConsoleHasFocus() || isFocused))
 	{
 		if (isFocused)
@@ -253,7 +255,14 @@ void MyGame::HandleControls(float deltaTime)
 	if (upHandler.isPressed()) { D = normalize(D - up * 0.025f * speed); dirty = true; }
 	else if (downHandler.isPressed()) { D = normalize(D + up * 0.025f * speed); dirty = true; }
 
-	if (zHandler.isPressed()) { D = _D; O = _O; dirty = true; }
+	if (bHandler.isPressed()) { D = _D; O = _O; dirty = true; }
+
+	if (gHandler.IsTyped())
+	{
+		if (worldEditor.IsEnabled()) worldEditor.Disable();
+		else worldEditor.Enable();
+		dirty = true;
+	}
 
 	if (uHandler.IsTyped())
 	{
