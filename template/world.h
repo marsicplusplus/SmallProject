@@ -430,7 +430,7 @@ public:
 			{
 				return;
 			}
-			brickBufferOffset = SplitSolidBrick(brickColor, cellValue);
+			brickBufferOffset = SplitSolidBrick(brickColor, cellIndex);
 			cellValue = grid[cellIndex];
 		}
 
