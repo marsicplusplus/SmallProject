@@ -551,6 +551,21 @@ void WorldEditor::UpdateEditedBricks(uint x, uint y, uint z)
 	return;
 }
 
+int WorldEditor::GetBoxScale()
+{
+	switch (gesture.size)
+	{
+	case GestureSize::GESTURE_TILE:
+	case GestureSize::GESTURE_BRICK:
+		return BRICKDIM;
+	case GestureSize::GESTURE_BIG_TILE:
+		return BRICKDIM * 2;
+	case GestureSize::GESTURE_VOXEL:
+	default:
+		return 1;
+	}
+}
+
 // Allow the adding/removing of multiple bricks in the seclected box
 void WorldEditor::MultiAddRemove()
 {
@@ -567,23 +582,7 @@ void WorldEditor::MultiAddRemove()
 	aabb newBox = selected.box;
 	// Compute the overlap betweeen the old and new aabbs
 
-	int boxScale = 1;
-	switch (gesture.size)
-	{
-	case GestureSize::GESTURE_VOXEL:
-		boxScale = 1;
-		break;
-	case GestureSize::GESTURE_TILE:
-	case GestureSize::GESTURE_BRICK:
-		boxScale = BRICKDIM;
-		break;
-	case GestureSize::GESTURE_BIG_TILE:
-		boxScale = BRICKDIM * 2;
-		break;
-	default:
-		break;
-	}
-
+	int boxScale = GetBoxScale();
 
 	oldBox.bmin3 = make_float3((uint)oldBox.bmin3.x / boxScale, (uint)oldBox.bmin3.y / boxScale, (uint)oldBox.bmin3.z / boxScale);
 	oldBox.bmax3 = make_float3((uint)oldBox.bmax3.x / boxScale, (uint)oldBox.bmax3.y / boxScale, (uint)oldBox.bmax3.z / boxScale);
@@ -786,22 +785,7 @@ void WorldEditor::UpdateSelectedBox()
 	World& world = *GetWorld();
 	RenderParams& params = world.GetRenderParams();
 
-	int boxScale = 1;
-	switch (gesture.size)
-	{
-	case GestureSize::GESTURE_VOXEL:
-		boxScale = 1;
-		break;
-	case GestureSize::GESTURE_TILE:
-	case GestureSize::GESTURE_BRICK:
-		boxScale = BRICKDIM;
-		break;
-	case GestureSize::GESTURE_BIG_TILE:
-		boxScale = BRICKDIM * 2;
-		break;
-	default:
-		break;
-	}
+	int boxScale = GetBoxScale();
 
 	// setup primary ray for pixel [x,y] 
 	float u = (float)mousePos.x / SCRWIDTH;
@@ -1040,7 +1024,7 @@ void WorldEditor::Redo()
 		const uint newCellValue = stateCurrent->newCellValues[idx];
 
 		// If we're restoring what was an empty/solid brick, just remove the current one
-		if (IsSolidGridCell(oldCellValue))
+		if (IsSolidGridCell(newCellValue))
 		{
 			world.RemoveBrick(b.x, b.y, b.z);
 			grid[cellIndex] = newCellValue;
@@ -1364,7 +1348,7 @@ void WorldEditor::SaveWorld()
 		valueTag.type = TAG_Int;
 		valueTag.name = "grid value";
 
-		// Rewire the brick indices so they start at 0 and go to Num Unique Bricks
+		// Rewire the brick offsets so they start at 0 and go to Num Unique Bricks
 		if (!IsSolidGridCell(grid[index]))
 		{
 			int oldBrickOffset = grid[index] >> 1;

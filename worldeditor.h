@@ -139,6 +139,7 @@ namespace Tmpl8
 		void UpdateEditedBricks(uint bx, uint by, uint bz);
 		void SaveWorld();
 		void LoadWorld();
+		int GetBoxScale();
 
 		// Input and Gesture 
 		int2 mousePos;

@@ -1299,6 +1299,8 @@ public:
 	}
 };
 
+inline bool IsSolidGridCell(uint cellValue) { return (cellValue & 1) == 0; }
+
 // voxel world engine
 #include <functional>
 #include <filesystem>
@@ -1310,8 +1312,6 @@ public:
 #include "worldapi.h"
 #include "world_to_obj.h"
 #include "worldeditor.h"
-
-bool IsSolidGridCell(uint value) { return (value & 1) == 0; }
 
 struct KeyHandler
 {

@@ -1827,7 +1827,7 @@ uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps
 		if (!--steps) break;
 		if (o != 0) if ((o & 1) == 0) /* solid */
 		{
-			dist = (t + to) * 8.0f;
+			dist = to + (t * 8.0f);
 			N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
 			return o >> 1;
 		}
@@ -1898,7 +1898,7 @@ uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps
 		if (!--steps) break;
 		if (o != 0) if ((o & 1) == 0) /* solid */
 		{
-			dist = (t + to) * 8.0f;
+			dist = to + (t * 8.0f);
 			N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
 			return o >> 1;
 		}
@@ -1969,7 +1969,7 @@ uint World::TraceBrick(float4 A, const float4 B, float& dist, float3& N, int ste
 		if (!--steps) break;
 		if (o != 0) if ((o & 1) == 0) /* solid */
 		{
-			dist = (t + to) * 8.0f;
+			dist = to + (t * 8.0f);
 			N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
 			return o >> 1;
 		}

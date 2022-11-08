@@ -297,21 +297,21 @@ public:
 		if (IsSolidGridCell(cellValue) /* this is currently a 'solid' grid cell */) return cellValue >> 1;
 		// calculate the position of the voxel inside the brick
 		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
-		return brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
+		const uint brickBufferOffset = cellValue >> 1;
+		return brick[brickBufferOffset * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
 	}
 
 	__forceinline void AddBrick(const uint bx, const uint by, const uint bz, const uint v /* actually an 8-bit value */)
 	{
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
 		const uint brickIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-		uint brickValue = grid[brickIdx], brickBufferOffset = brickValue >> 1;
-		if (!IsSolidGridCell(brickValue))
+		uint cellValue = grid[brickIdx], brickBufferOffset = cellValue >> 1;
+		if (!IsSolidGridCell(cellValue))
 		{
 			FreeBrick(brickBufferOffset);
-			Mark(brickBufferOffset);
 		}
 
-		Mark(0);
+		Mark(0); // Mark to ensure new grid gets sent to GPU
 		grid[brickIdx] = v << 1;
 	}
 
@@ -336,13 +336,12 @@ public:
 		uint cellValue = grid[cellIndex], brickBufferOffset = cellValue >> 1;
 		grid[cellIndex] = 0;	// brick just became completely zeroed; recycle
 
-		if (!IsSolidGridCell(cellIndex)) // If not solid/empty, free brick
+		if (!IsSolidGridCell(cellValue)) // If not solid/empty, free brick
 		{
 			zeroes[brickBufferOffset] = BRICKSIZE;
 			FreeBrick(brickBufferOffset);
-			Mark(brickBufferOffset);
 		}
-		Mark(0);
+		Mark(0); // Mark to ensure new grid gets sent to GPU
 	}
 
 	__forceinline int SplitSolidBrick(uint brickColor, uint cellIndex)
