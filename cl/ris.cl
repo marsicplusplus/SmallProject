@@ -267,7 +267,9 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 		float dist2;
 		const float3 shadingPoint = D * dist + params->E;
 		const float3 shadingPointOffset = shadingPoint + 0.1 * N;
-		const uint voxel2 = TraceRay((float4)(shadingPointOffset, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH / 12);
+
+		// Opaque ray because we don't treat non-opaque objects as occluders
+		const uint voxel2 = TraceOpaqueRay((float4)(shadingPointOffset, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH / 12);
 		const float3 N2 = VoxelNormal(side2, R.xyz);
 		float3 toAdd = (float3)skyLightScale, M = N;
 		// TO-DO: Add alpha blend here
