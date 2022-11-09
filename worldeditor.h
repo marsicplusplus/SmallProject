@@ -2,7 +2,6 @@
 
 namespace Tmpl8
 {
-
 	namespace NBTHelper
 	{
 		enum TagType {
@@ -41,7 +40,6 @@ namespace Tmpl8
 		void ReadTagByteArray(std::ifstream& rf, Tag& tag);
 		void ReadTagCompound(std::ifstream& rf, Tag& tag);
 
-
 	}
 
 	class WorldEditor
@@ -52,8 +50,8 @@ namespace Tmpl8
 			PAYLOAD* newBricks;
 			PAYLOAD* oldBricks;
 
-			uint* newGridVals;
-			uint* oldGridVals;
+			uint* oldCellValues;
+			uint* newCellValues;
 
 			uint* newBrickZeroes;
 			uint* oldBrickZeroes;
@@ -141,6 +139,7 @@ namespace Tmpl8
 		void UpdateEditedBricks(uint bx, uint by, uint bz);
 		void SaveWorld();
 		void LoadWorld();
+		int GetBoxScale();
 
 		// Input and Gesture 
 		int2 mousePos;
@@ -171,4 +170,3 @@ namespace Tmpl8
 		std::set<int3, std::less<>> editedBricks;
 	};
 }
-

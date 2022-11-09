@@ -8,9 +8,6 @@
       <Filter>template</Filter>
     </ClCompile>
     <ClCompile Include="waterworld.cpp" />
-    <ClCompile Include="light_manager.cpp">
-      <Filter>template</Filter>
-    </ClCompile>
     <ClCompile Include="world_to_obj.cpp">
       <Filter>template</Filter>
     </ClCompile>
@@ -65,9 +62,6 @@
     </ClInclude>
     <ClInclude Include="waterworld.h" />
     <ClInclude Include="template\CAPE.h">
-      <Filter>template</Filter>
-    </ClInclude>
-    <ClInclude Include="light_manager.h">
       <Filter>template</Filter>
     </ClInclude>
     <ClInclude Include="world_to_obj.h">

@@ -551,6 +551,21 @@ void WorldEditor::UpdateEditedBricks(uint x, uint y, uint z)
 	return;
 }
 
+int WorldEditor::GetBoxScale()
+{
+	switch (gesture.size)
+	{
+	case GestureSize::GESTURE_TILE:
+	case GestureSize::GESTURE_BRICK:
+		return BRICKDIM;
+	case GestureSize::GESTURE_BIG_TILE:
+		return BRICKDIM * 2;
+	case GestureSize::GESTURE_VOXEL:
+	default:
+		return 1;
+	}
+}
+
 // Allow the adding/removing of multiple bricks in the seclected box
 void WorldEditor::MultiAddRemove()
 {
@@ -567,23 +582,7 @@ void WorldEditor::MultiAddRemove()
 	aabb newBox = selected.box;
 	// Compute the overlap betweeen the old and new aabbs
 
-	int boxScale = 1;
-	switch (gesture.size)
-	{
-	case GestureSize::GESTURE_VOXEL:
-		boxScale = 1;
-		break;
-	case GestureSize::GESTURE_TILE:
-	case GestureSize::GESTURE_BRICK:
-		boxScale = BRICKDIM;
-		break;
-	case GestureSize::GESTURE_BIG_TILE:
-		boxScale = BRICKDIM * 2;
-		break;
-	default:
-		break;
-	}
-
+	int boxScale = GetBoxScale();
 
 	oldBox.bmin3 = make_float3((uint)oldBox.bmin3.x / boxScale, (uint)oldBox.bmin3.y / boxScale, (uint)oldBox.bmin3.z / boxScale);
 	oldBox.bmax3 = make_float3((uint)oldBox.bmax3.x / boxScale, (uint)oldBox.bmax3.y / boxScale, (uint)oldBox.bmax3.z / boxScale);
@@ -591,34 +590,34 @@ void WorldEditor::MultiAddRemove()
 	newBox.bmax3 = make_float3((uint)newBox.bmax3.x / boxScale, (uint)newBox.bmax3.y / boxScale, (uint)newBox.bmax3.z / boxScale);
 	aabb intersection = oldBox.Intersection(newBox);
 
-	auto RestoreTempBrickVal = [&](uint x, uint y, uint z) {
-		const uint cellIdx = x + z * GRIDWIDTH + y * GRIDWIDTH * GRIDDEPTH;
-		const uint tempGridVal = tempGrid[cellIdx];
-		const uint curGridVal = grid[cellIdx];
+	auto RestoreTempBrickVal = [&](uint bx, uint by, uint bz) {
+		const uint cellIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		const uint tempCellVal = tempGrid[cellIndex];
+		const uint curCellVal = grid[cellIndex];
 
 		// If we're reintroducing what was an empty/solid brick, just remove the current one
-		if ((tempGridVal & 1) == 0)
+		if (IsSolidGridCell(tempCellVal))
 		{
-			world.RemoveBrick(x, y, z);
-			grid[cellIdx] = tempGridVal;
+			world.RemoveBrick(bx, by, bz);
+			grid[cellIndex] = tempCellVal;
 			return;
 		}
 
-		// Get current and new brick offsets (g1)
-		uint tempBrickOffset = (tempGridVal >> 1);
-		uint curBrickOffset = (curGridVal >> 1);
+		// Get current and new brick offsets
+		uint tempBrickBufferOffset = (tempCellVal >> 1);
+		uint curBrickBufferOffset = (curCellVal >> 1);
 
-		uint brickIdx = tempBrickOffset;
-		uint gridValue = tempGridVal;
+		uint brickBufferOffset = tempBrickBufferOffset;
+		uint cellVal = tempCellVal;
 
 		// If the current brick is empty/solid we need to create a NewBrick
-		if ((curGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
+		if (IsSolidGridCell(curCellVal)) brickBufferOffset = world.NewBrick(), cellVal = (brickBufferOffset << 1) | 1;
 
 		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
-		memcpy(brick + brickIdx * BRICKSIZE, tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
-		grid[cellIdx] = gridValue;
-		world.GetZeroes()[brickIdx] = tempZeroes[tempBrickOffset];
-		world.Mark(brickIdx);
+		memcpy(brick + brickBufferOffset * BRICKSIZE, tempBricks + tempBrickBufferOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+		grid[cellIndex] = cellVal;
+		world.GetZeroes()[brickBufferOffset] = tempZeroes[tempBrickBufferOffset];
+		world.Mark(brickBufferOffset);
 	};
 
 	if (gesture.size == GestureSize::GESTURE_BRICK || gesture.size == GestureSize::GESTURE_TILE)
@@ -672,14 +671,14 @@ void WorldEditor::MultiAddRemove()
 					const uint by = y / BRICKDIM;
 					const uint bz = z / BRICKDIM;
 					if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
-					const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+					const uint cellIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 					// obtain current brick identifier from top-level grid
-					uint g = grid[cellIdx], g1 = g >> 1;
+					uint cellValue = grid[cellIndex], brickBufferOffset = cellValue >> 1;
 
 					// calculate the position of the voxel inside the brick
 					const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
-					const uint voxelIdx = g1 * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM;
-					const uint oldVoxelValue = tempBricks[voxelIdx];
+					const uint voxelIndex = brickBufferOffset * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM;
+					const uint oldVoxelValue = tempBricks[voxelIndex];
 					world.Set(x, y, z, oldVoxelValue);
 				}
 	}
@@ -786,22 +785,7 @@ void WorldEditor::UpdateSelectedBox()
 	World& world = *GetWorld();
 	RenderParams& params = world.GetRenderParams();
 
-	int boxScale = 1;
-	switch (gesture.size)
-	{
-	case GestureSize::GESTURE_VOXEL:
-		boxScale = 1;
-		break;
-	case GestureSize::GESTURE_TILE:
-	case GestureSize::GESTURE_BRICK:
-		boxScale = BRICKDIM;
-		break;
-	case GestureSize::GESTURE_BIG_TILE:
-		boxScale = BRICKDIM * 2;
-		break;
-	default:
-		break;
-	}
+	int boxScale = GetBoxScale();
 
 	// setup primary ray for pixel [x,y] 
 	float u = (float)mousePos.x / SCRWIDTH;
@@ -985,34 +969,34 @@ void WorldEditor::Undo()
 	for (int idx = 0; idx < numBricks; idx++)
 	{
 		int3 b = stateCurrent->editedBricks[idx];
-		const uint cellIdx = b.x + b.z * GRIDWIDTH + b.y * GRIDWIDTH * GRIDDEPTH;
+		const uint cellIndex = b.x + b.z * GRIDWIDTH + b.y * GRIDWIDTH * GRIDDEPTH;
 
-		const uint oldGridVal = stateCurrent->oldGridVals[idx];
-		const uint newGridVal = stateCurrent->newGridVals[idx];
+		const uint oldCellValue = stateCurrent->oldCellValues[idx];
+		const uint newCellValue = stateCurrent->newCellValues[idx];
 
 		// If we're restoring what was an empty/solid brick, just remove the current one
-		if ((oldGridVal & 1) == 0)
+		if (IsSolidGridCell(oldCellValue))
 		{
 			world.RemoveBrick(b.x, b.y, b.z);
-			grid[cellIdx] = oldGridVal;
+			grid[cellIndex] = oldCellValue;
 			continue;
 		}
 
 		// Get old and new brick offsets (g1)
-		uint oldBrickOffset = (oldGridVal >> 1);
-		uint newBrickOffset = (newGridVal >> 1);
+		uint oldbrickBufferOffset = (oldCellValue >> 1);
+		uint newbrickBufferOffset = (newCellValue >> 1);
 
-		uint brickIdx = oldBrickOffset;
-		uint gridValue = oldGridVal;
+		uint brickBufferOffset = oldbrickBufferOffset;
+		uint cellValue = oldCellValue;
 
 		// If the current brick is empty/solid we need to create a NewBrick
-		if ((newGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
+		if (IsSolidGridCell(newCellValue)) brickBufferOffset = world.NewBrick(), cellValue = (brickBufferOffset << 1) | 1;
 
 		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
-		memcpy(bricks + (brickIdx * BRICKSIZE), stateCurrent->oldBricks + (idx * BRICKSIZE), BRICKSIZE * PAYLOADSIZE);
-		grid[cellIdx] = gridValue;
-		zeroes[brickIdx] = stateCurrent->oldBrickZeroes[idx];
-		world.Mark(brickIdx);
+		memcpy(bricks + (brickBufferOffset * BRICKSIZE), stateCurrent->oldBricks + (idx * BRICKSIZE), BRICKSIZE * PAYLOADSIZE);
+		grid[cellIndex] = cellValue;
+		zeroes[brickBufferOffset] = stateCurrent->oldBrickZeroes[idx];
+		world.Mark(brickBufferOffset);
 	}
 
 	stateCurrent = stateCurrent->prevState;
@@ -1034,34 +1018,34 @@ void WorldEditor::Redo()
 	for (int idx = 0; idx < numBricks; idx++)
 	{
 		int3 b = stateCurrent->editedBricks[idx];
-		const uint cellIdx = b.x + b.z * GRIDWIDTH + b.y * GRIDWIDTH * GRIDDEPTH;
+		const uint cellIndex = b.x + b.z * GRIDWIDTH + b.y * GRIDWIDTH * GRIDDEPTH;
 
-		const uint oldGridVal = stateCurrent->oldGridVals[idx];
-		const uint newGridVal = stateCurrent->newGridVals[idx];
+		const uint oldCellValue = stateCurrent->oldCellValues[idx];
+		const uint newCellValue = stateCurrent->newCellValues[idx];
 
 		// If we're restoring what was an empty/solid brick, just remove the current one
-		if ((newGridVal & 1) == 0)
+		if (IsSolidGridCell(newCellValue))
 		{
 			world.RemoveBrick(b.x, b.y, b.z);
-			grid[cellIdx] = newGridVal;
+			grid[cellIndex] = newCellValue;
 			continue;
 		}
 
 		// Get old and new brick offsets (g1)
-		uint oldBrickOffset = (oldGridVal >> 1);
-		uint newBrickOffset = (newGridVal >> 1);
+		uint oldbrickBufferOffset = (oldCellValue >> 1);
+		uint newbrickBufferOffset = (newCellValue >> 1);
 
-		uint brickIdx = newBrickOffset;
-		uint gridValue = newGridVal;
+		uint brickBufferOffset = newbrickBufferOffset;
+		uint cellValue = newCellValue;
 
 		// If the current brick is empty/solid we need to create a NewBrick
-		if ((oldGridVal & 1) == 0) brickIdx = world.NewBrick(), gridValue = (brickIdx << 1) | 1;
+		if (IsSolidGridCell(oldCellValue)) brickBufferOffset = world.NewBrick(), cellValue = (brickBufferOffset << 1) | 1;
 
 		// Copy the brick from the saved temporary brick buffer to our current brick buffer 
-		memcpy(bricks + (brickIdx * BRICKSIZE), stateCurrent->newBricks + (idx * BRICKSIZE), BRICKSIZE * PAYLOADSIZE);
-		grid[cellIdx] = gridValue;
-		zeroes[brickIdx] = stateCurrent->oldBrickZeroes[idx];
-		world.Mark(brickIdx);
+		memcpy(bricks + (brickBufferOffset * BRICKSIZE), stateCurrent->newBricks + (idx * BRICKSIZE), BRICKSIZE * PAYLOADSIZE);
+		grid[cellIndex] = cellValue;
+		zeroes[brickBufferOffset] = stateCurrent->oldBrickZeroes[idx];
+		world.Mark(brickBufferOffset);
 	}
 }
 
@@ -1084,52 +1068,52 @@ void WorldEditor::SaveState()
 	stateCurrent->numBricks = numBricks;
 	stateCurrent->newBricks = (PAYLOAD*)_aligned_malloc(numBricks * BRICKSIZE * PAYLOADSIZE, 64);
 	stateCurrent->oldBricks = (PAYLOAD*)_aligned_malloc(numBricks * BRICKSIZE * PAYLOADSIZE, 64);
-	stateCurrent->newGridVals = (uint*)_aligned_malloc(numBricks * 4, 64);
-	stateCurrent->oldGridVals = (uint*)_aligned_malloc(numBricks * 4, 64);
+	stateCurrent->newCellValues = (uint*)_aligned_malloc(numBricks * 4, 64);
+	stateCurrent->oldCellValues = (uint*)_aligned_malloc(numBricks * 4, 64);
 	stateCurrent->newBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
 	stateCurrent->oldBrickZeroes = (uint*)_aligned_malloc(numBricks * sizeof(uint), 64);
 	stateCurrent->editedBricks = (int3*)_aligned_malloc(numBricks * sizeof(int3), 64);
 
-	int idx = 0;
+	int index = 0;
 	for (auto itr = editedBricks.begin(); itr != editedBricks.end(); itr++)
 	{
 		int3 brick = *itr;
-		const uint cellIdx = brick.x + brick.z * GRIDWIDTH + brick.y * GRIDWIDTH * GRIDDEPTH;
+		const uint cellIndex = brick.x + brick.z * GRIDWIDTH + brick.y * GRIDWIDTH * GRIDDEPTH;
 
-		const uint tempGridValue = tempGrid[cellIdx];
-		const uint gridValue = grid[cellIdx];
+		const uint tempCellValue = tempGrid[cellIndex];
+		const uint currCellValue = grid[cellIndex];
 
-		uint tempBrickOffset = (tempGridValue >> 1);
-		uint brickOffset = (gridValue >> 1);
+		uint tempBrickBufferOffset = (tempCellValue >> 1);
+		uint brickBufferOffset = (currCellValue >> 1);
 
 		// Old brick is empty/or a solid brick
-		if ((tempGridValue & 1) == 0)
+		if (IsSolidGridCell(tempCellValue))
 		{
-			memset(stateCurrent->oldBricks + (idx * BRICKSIZE), 0, BRICKSIZE * PAYLOADSIZE);
+			memset(stateCurrent->oldBricks + (index * BRICKSIZE), 0, BRICKSIZE * PAYLOADSIZE);
 		}
 		else
 		{
-			memcpy(stateCurrent->oldBricks + (idx * BRICKSIZE), tempBricks + tempBrickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+			memcpy(stateCurrent->oldBricks + (index * BRICKSIZE), tempBricks + tempBrickBufferOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
 		}
 		
 		// New brick is empty/or a solid brick
-		if ((gridValue & 1) == 0)
+		if (IsSolidGridCell(currCellValue))
 		{
-			memset(stateCurrent->newBricks + (idx * BRICKSIZE), 0, BRICKSIZE * PAYLOADSIZE);
+			memset(stateCurrent->newBricks + (index * BRICKSIZE), 0, BRICKSIZE * PAYLOADSIZE);
 		}
 		else
 		{
-			memcpy(stateCurrent->newBricks + (idx * BRICKSIZE), bricks + brickOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
-			stateCurrent->oldBrickZeroes[idx] = tempZeroes[tempBrickOffset];
-			stateCurrent->newBrickZeroes[idx] = zeroes[brickOffset];
+			memcpy(stateCurrent->newBricks + (index * BRICKSIZE), bricks + brickBufferOffset * BRICKSIZE, BRICKSIZE * PAYLOADSIZE);
+			stateCurrent->oldBrickZeroes[index] = tempZeroes[tempBrickBufferOffset];
+			stateCurrent->newBrickZeroes[index] = zeroes[brickBufferOffset];
 		}
 
-		stateCurrent->oldGridVals[idx] = tempGridValue;
-		stateCurrent->newGridVals[idx] = gridValue;
+		stateCurrent->oldCellValues[index] = tempCellValue;
+		stateCurrent->newCellValues[index] = currCellValue;
 
 
-		stateCurrent->editedBricks[idx] = brick;
-		idx++;
+		stateCurrent->editedBricks[index] = brick;
+		index++;
 	}
 
 
@@ -1141,7 +1125,7 @@ void WorldEditor::SaveState()
 
 
 	// Check to see if the state has actually changed....if not don't add it to the history
-	if (memcmp(stateCurrent->oldGridVals, stateCurrent->newGridVals, numBricks * 4) == 0)
+	if (memcmp(stateCurrent->oldCellValues, stateCurrent->newCellValues, numBricks * 4) == 0)
 	{
 		stateCurrent = stateCurrent->prevState;
 		DeleteState(stateCurrent->nextState);
@@ -1183,8 +1167,8 @@ void WorldEditor::DeleteState(State* state)
 
 	_aligned_free(state->oldBricks);
 	_aligned_free(state->newBricks);
-	_aligned_free(state->oldGridVals);
-	_aligned_free(state->newGridVals);
+	_aligned_free(state->oldCellValues);
+	_aligned_free(state->newCellValues);
 	_aligned_free(state->oldBrickZeroes);
 	_aligned_free(state->newBrickZeroes);
 	_aligned_free(state->editedBricks);
@@ -1259,26 +1243,26 @@ void WorldEditor::LoadWorld()
 		{
 			for (auto compoundTag : tag.tags)
 			{
-				int brickIndex = 0;
+				int brickBufferOffset = 0;
 
 				for (auto namedTag : compoundTag.tags)
 				{
 					if (namedTag.type == TAG_Int)
 					{
 						uint payloadValue = (uint)namedTag.payload[0] | (uint)namedTag.payload[1] << 8 | (uint)namedTag.payload[2] << 16 | (uint)namedTag.payload[3] << 24;
-						if (namedTag.name == "brick index") brickIndex = payloadValue;
-						if (namedTag.name == "brick zeroes") zeroes[brickIndex]= payloadValue;
+						if (namedTag.name == "brick buffer offset") brickBufferOffset = payloadValue;
+						if (namedTag.name == "brick zeroes") zeroes[brickBufferOffset]= payloadValue;
 					}
 
 					if (namedTag.type == TAG_Byte_Array)
 					{
 						if (namedTag.name == "brick value")
 						{
-							memcpy(brick + brickIndex * BRICKSIZE, &namedTag.payload[0], BRICKSIZE * PAYLOADSIZE);
+							memcpy(brick + brickBufferOffset * BRICKSIZE, &namedTag.payload[0], BRICKSIZE * PAYLOADSIZE);
 						}
 					}
 				}
-				world.Mark(brickIndex); // Mark to send to GPU
+				world.Mark(brickBufferOffset); // Mark to send to GPU
 				world.NewBrick(); // Call New Brick to ensure trash buffer is initialised correctly
 			}
 		}
@@ -1319,7 +1303,7 @@ void WorldEditor::SaveWorld()
 	//	{
 	//		TAG_Compound : 2 entries
 	//		{
-	//			TAG_Int("brick index") : index
+	//			TAG_Int(""brick buffer offset"") : offset
 	//			TAG_Byte_Array("brick value") : [PAYLOADSIZE * BRICKSIZE bytes]
 	// 			TAG_Int("brick zeroes") : zeroes
 	//			TAG_End
@@ -1345,9 +1329,9 @@ void WorldEditor::SaveWorld()
 	uint newBrickIdx = 0;
 
 	//	Loop through the world grid and see which indices/values need to be saved to file
-	for (uint idx = 0; idx < GRIDHEIGHT * GRIDWIDTH * GRIDDEPTH; idx++)
+	for (uint index = 0; index < GRIDHEIGHT * GRIDWIDTH * GRIDDEPTH; index++)
 	{
-		if (grid[idx] == 0) continue;
+		if (grid[index] == 0) continue;
 
 		Tag compoundTag;
 		compoundTag.type = TAG_Compound;
@@ -1357,22 +1341,22 @@ void WorldEditor::SaveWorld()
 		indexTag.type = TAG_Int;
 		indexTag.name = "grid index";
 		union { byte bVal[4]; uint uVal; };
-		uVal = idx;
+		uVal = index;
 		indexTag.payload.assign(bVal, bVal + 4);
 
 		Tag valueTag;
 		valueTag.type = TAG_Int;
 		valueTag.name = "grid value";
 
-		// Rewire the brick indices so they start at 0 and go to Num Unique Bricks
-		if (grid[idx] & 1)
+		// Rewire the brick offsets so they start at 0 and go to Num Unique Bricks
+		if (!IsSolidGridCell(grid[index]))
 		{
-			int oldBrickIdx = grid[idx] >> 1;
-			oldBrickIdxs.insert(oldBrickIdx);
-			auto newBrickVal = oldToNew.find(oldBrickIdx);
+			int oldBrickOffset = grid[index] >> 1;
+			oldBrickIdxs.insert(oldBrickOffset);
+			auto newBrickVal = oldToNew.find(oldBrickOffset);
 			if (newBrickVal == oldToNew.end())
 			{
-				oldToNew.insert(std::make_pair(oldBrickIdx, newBrickIdx));
+				oldToNew.insert(std::make_pair(oldBrickOffset, newBrickIdx));
 				uVal = newBrickIdx++ << 1 | 1;
 			}
 			else
@@ -1384,7 +1368,7 @@ void WorldEditor::SaveWorld()
 		}
 		else
 		{
-			uVal = grid[idx];
+			uVal = grid[index];
 			valueTag.payload.assign(bVal, bVal + 4);
 
 		}
@@ -1411,12 +1395,12 @@ void WorldEditor::SaveWorld()
 		compoundTag.type = TAG_Compound;
 		compoundTag.name = "";
 
-		Tag indexTag;
-		indexTag.type = TAG_Int;
-		indexTag.name = "brick index";
+		Tag offsetTag;
+		offsetTag.type = TAG_Int;
+		offsetTag.name = "brick buffer offset";
 		union { byte bVal[4]; uint uVal; };
 		uVal = oldToNew.find(oldBrickIdx)->second;
-		indexTag.payload.assign(bVal, bVal + 4);
+		offsetTag.payload.assign(bVal, bVal + 4);
 
 		Tag valueTag;
 		valueTag.type = TAG_Byte_Array;
@@ -1433,7 +1417,7 @@ void WorldEditor::SaveWorld()
 		NBTHelper::Tag endTag;
 		endTag.type = TAG_End;
 
-		compoundTag.tags.push_back(indexTag);
+		compoundTag.tags.push_back(offsetTag);
 		compoundTag.tags.push_back(valueTag);
 		compoundTag.tags.push_back(zeroesTag);
 		compoundTag.tags.push_back(endTag);

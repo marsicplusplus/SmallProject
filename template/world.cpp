@@ -1706,22 +1706,22 @@ uint TileManager::LoadTile(const char* voxFile)
 
 // World::DrawTile / DrawTileVoxels
 // ----------------------------------------------------------------------------
-void World::DrawTile(const uint idx, const uint x, const uint y, const uint z)
+void World::DrawTile(const uint idx, const uint bx, const uint by, const uint bz)
 {
 	auto& tile = GetTileList();
-	if (x >= GRIDWIDTH || y >= GRIDHEIGHT || z > GRIDDEPTH) return;
-	const uint cellIdx = x + z * GRIDWIDTH + y * GRIDWIDTH * GRIDDEPTH;
-	DrawTileVoxels(cellIdx, tile[idx]->voxels, tile[idx]->zeroes);
+	if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz > GRIDDEPTH) return;
+	const uint cellIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+	DrawTileVoxels(cellIndex, tile[idx]->voxels, tile[idx]->zeroes);
 }
 
-void World::DrawTileVoxels(const uint cellIdx, const PAYLOAD* voxels, uint zeroCount)
+void World::DrawTileVoxels(const uint cellIndex, const PAYLOAD* voxels, uint zeroCount)
 {
-	const uint g = grid[cellIdx];
+	const uint cellValue = grid[cellIndex];
 	uint brickBufferOffset;
-	if ((g & 1) == 1) 
-		brickBufferOffset = g >> 1; 
+	if (!IsSolidGridCell(cellValue))
+		brickBufferOffset = cellValue >> 1;
 	else 
-		brickBufferOffset = NewBrick(), grid[cellIdx] = (brickBufferOffset << 1) | 1;
+		brickBufferOffset = NewBrick(), grid[cellIndex] = (brickBufferOffset << 1) | 1;
 	// copy tile data to brick
 	memcpy(brick + brickBufferOffset * BRICKSIZE, voxels, BRICKSIZE * PAYLOADSIZE);
 	Mark(brickBufferOffset);
@@ -1730,12 +1730,12 @@ void World::DrawTileVoxels(const uint cellIdx, const PAYLOAD* voxels, uint zeroC
 
 // World::DrawTiles
 // ----------------------------------------------------------------------------
-void World::DrawTiles(const char* tileString, const uint x, const uint y, const uint z)
+void World::DrawTiles(const char* tileString, const uint bx, const uint by, const uint bz)
 {
 	for (uint s = (uint)strlen(tileString), i = 0; i < s; i++)
 	{
 		const char t = tileString[i];
-		DrawTile(tileString[i] - '0', x + i, y, z);
+		DrawTile(tileString[i] - '0', bx + i, by, bz);
 	}
 }
 
@@ -1827,7 +1827,7 @@ uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps
 		if (!--steps) break;
 		if (o != 0) if ((o & 1) == 0) /* solid */
 		{
-			dist = (t + to) * 8.0f;
+			dist = to + (t * 8.0f);
 			N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
 			return o >> 1;
 		}
@@ -1898,7 +1898,7 @@ uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps
 		if (!--steps) break;
 		if (o != 0) if ((o & 1) == 0) /* solid */
 		{
-			dist = (t + to) * 8.0f;
+			dist = to + (t * 8.0f);
 			N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
 			return o >> 1;
 		}
@@ -1969,7 +1969,7 @@ uint World::TraceBrick(float4 A, const float4 B, float& dist, float3& N, int ste
 		if (!--steps) break;
 		if (o != 0) if ((o & 1) == 0) /* solid */
 		{
-			dist = (t + to) * 8.0f;
+			dist = to + (t * 8.0f);
 			N = make_float3((float)((last == 0) * DIR_X), (float)((last == 1) * DIR_Y), (float)((last == 2) * DIR_Z)) * -1.0f;
 			return o >> 1;
 		}

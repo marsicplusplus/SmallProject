@@ -121,7 +121,6 @@
   </ItemDefinitionGroup>
   <!-- END Custom section -->
   <ItemGroup>
-    <ClCompile Include="light_manager.cpp" />
     <ClCompile Include="fluid_simulator.cpp" />
     <ClCompile Include="template\CAPE.cpp" />
     <ClCompile Include="tools\imgui\imgui.cpp">
@@ -169,7 +168,6 @@
   <ItemGroup>
     <ClInclude Include="cl\tools.cl" />
     <ClInclude Include="cl\trace.cl" />
-    <ClInclude Include="light_manager.h" />
     <ClInclude Include="template\bluenoise.h" />
     <ClInclude Include="template\CAPE.h" />
     <ClInclude Include="template\common.h" />

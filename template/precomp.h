@@ -1299,6 +1299,8 @@ public:
 	}
 };
 
+inline bool IsSolidGridCell(uint cellValue) { return (cellValue & 1) == 0; }
+
 // voxel world engine
 #include <functional>
 #include <filesystem>
