@@ -1182,11 +1182,11 @@ struct Ray
 struct Intersection
 {
 	// data
-	float t; uint N;
+	float t; uint N; uint V;
 	// access
 	float GetDistance() { return t; }
 	float3 GetNormal() { return make_float3( ((int)N & 3) - 1.0f, (((int)N >> 2) & 3) - 1.0f, (((int)N >> 4) & 3) - 1.0f ); }
-	uint GetVoxel() { return N >> 16; }
+	uint GetVoxel() { return V; }
 };
 
 // InstructionSet.cpp
@@ -1300,6 +1300,15 @@ public:
 };
 
 inline bool IsSolidGridCell(uint cellValue) { return (cellValue & 1) == 0; }
+
+// helpers for skydome sampling
+inline float3 DiffuseReflectionCosWeighted(const float r0, const float r1, const float3& N)
+{
+	const float3 T = normalize(cross(N, fabs(N.y) > 0.99f ? make_float3(1, 0, 0) : make_float3(0, 1, 0)));
+	const float3 B = cross(T, N);
+	const float term1 = TWOPI * r0, term2 = sqrt(1 - r1);
+	return (cosf(term1) * term2 * T) + (sinf(term1) * term2) * B + sqrt(r1) * N;
+}
 
 // voxel world engine
 #include <functional>

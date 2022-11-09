@@ -192,7 +192,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 	if (voxel == 0)
 	{
-		if (params->editorEnabled && HitWorldGrid(params->E, D))
+		if (params->editorEnabled && params->drawGrid && HitWorldGrid(params->E, D))
 		{
 			color = (float3)(0.8, 0.8, 0.8);
 		}

@@ -93,10 +93,13 @@ void MyGame::Init()
 	D = _D;
 	O = _O;
 
+	LookAt(O, O + D);
+
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
 	params.editorEnabled = false;
+	params.drawGrid = true;
 	params.spatial = useSpatialResampling;
 	params.temporal = useTemporalResampling;
 	params.spatialTaps = SPATIALTAPS;
@@ -158,8 +161,16 @@ KeyHandler xHandler = { 0, 'X' };
 KeyHandler inputKeyHandler = { 0, 'I' };
 KeyHandler uHandler = { 0, 'U' };
 KeyHandler oHandler = { 0, 'O' };
+KeyHandler pHandler = { 0, 'P' };
 void MyGame::HandleControls(float deltaTime)
 {
+	World& w = *GetWorld();
+	WorldEditor& worldEditor = *w.getWorldEditor();
+	RenderParams& renderparams = w.GetRenderParams();
+
+	O = w.GetCameraPos();
+	D = w.GetCameraViewDir();
+
 	// free cam controls
 	float3 tmp(0, 1, 0), right = normalize(cross(tmp, D)), up = cross(D, right);
 	float speed = deltaTime * 0.03f;
@@ -168,9 +179,7 @@ void MyGame::HandleControls(float deltaTime)
 		speed *= 0.01;
 	}
 	bool dirty = false;
-	RenderParams& renderparams = GetWorld()->GetRenderParams();
-	World& w = *GetWorld();
-	WorldEditor& worldEditor = *w.getWorldEditor();
+
 	if (inputKeyHandler.IsTyped() && (ConsoleHasFocus() || isFocused))
 	{
 		if (isFocused)
@@ -272,9 +281,13 @@ void MyGame::HandleControls(float deltaTime)
 			w.SetUpMovingLights(100);
 		}
 	}
-	if (oHandler.IsTyped())
+	if (pHandler.IsTyped())
 	{
 		w.poppingLights = !w.poppingLights;
+	}
+	if (oHandler.IsTyped())
+	{
+		w.OptimizeBricks();
 	}
 
 	if (lHandler.isPressed()) { PrintStats(); };

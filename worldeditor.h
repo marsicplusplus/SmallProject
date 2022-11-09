@@ -121,7 +121,7 @@ namespace Tmpl8
 		void Disable() { ResetEditor(); enabled = false; }
 		void ResetEditor();
 		void RenderGUI();
-
+		void LoadTiles();
 
 	private:
 		void UpdateSelectedBox();
@@ -135,7 +135,6 @@ namespace Tmpl8
 		void SaveState();
 		void DeleteState(State* state);
 		bool CreateNewState();
-		void LoadTiles();
 		void UpdateEditedBricks(uint bx, uint by, uint bz);
 		void SaveWorld();
 		void LoadWorld();
