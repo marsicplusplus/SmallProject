@@ -308,15 +308,15 @@ public:
 	__forceinline void AddBrick(const uint bx, const uint by, const uint bz, const uint v /* actually an 8-bit value */)
 	{
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
-		const uint brickIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-		uint cellValue = grid[brickIdx], brickBufferOffset = cellValue >> 1;
+		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		uint cellValue = grid[cellIdx], brickBufferOffset = cellValue >> 1;
 		if (!IsSolidGridCell(cellValue))
 		{
 			FreeBrick(brickBufferOffset);
 		}
 
 		Mark(0); // Mark to ensure new grid gets sent to GPU
-		grid[brickIdx] = v << 1;
+		grid[cellIdx] = v << 1;
 	}
 
 	__forceinline void SetBrick(const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */)

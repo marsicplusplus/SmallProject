@@ -267,7 +267,9 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 		float dist2;
 		const float3 shadingPoint = D * dist + params->E;
 		const float3 shadingPointOffset = shadingPoint + 0.1 * N;
-		const uint voxel2 = TraceRay((float4)(shadingPointOffset, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH / 12);
+
+		// Opaque ray because we don't treat non-opaque objects as occluders
+		const uint voxel2 = TraceOpaqueRay((float4)(shadingPointOffset, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH / 12);
 		const float3 N2 = VoxelNormal(side2, R.xyz);
 		float3 toAdd = (float3)skyLightScale, M = N;
 		// TO-DO: Add alpha blend here
@@ -321,7 +323,7 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	int iteration = 0;
 	float remainingVisibility = 1.0f - GetAlphaf(voxel);
 	int MaxIterations = 100;
-	uint previousSide;
+	uint previousSide = 0;
 	uint previousHitVoxel = 0;
 	float previousDist = 0.f;
 
@@ -331,16 +333,16 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	{
 		previousHitVoxel = voxel;
 		previousDist = totalDist;
+		previousSide = side;
 
 		// Small offset to avoid hitting the voxel behind the one that we started at. This is known to happen. 
 		// TO-DO: Experiment what the minimum distance is to make this work correctly, so that we minimize the skipping over adjacent voxels (e.g. in very tight corners at sharp angles)
-		totalDist += dist + 0.1f;
+		totalDist += dist + 0.01f;
 
-		// Offset so that we don't keep hitting the same voxel
 		origin = params->E + totalDist * D;
 
 		// Ignore emissive value for this by masking it out. We don't care about it as we're only interested in the albedo, I think?
-		voxel = TraceThrough(voxel, 0xFFFFFF, (float4)(origin, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */ );
+		voxel = TraceThrough(voxel, 0x00FFFF, (float4)(origin, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */ );
 
 		float3 color = ToFloatRGB(voxel);
 		alpha = GetAlphaf(voxel);
