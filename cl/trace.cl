@@ -75,7 +75,7 @@ float4 FixZeroDeltas( float4 V )
 #define GRIDSTEP(exitX, zeroTest)																			\
 	if (!--steps) break;																		\
 	{																							\
-	PAYLOAD v = o << 1;																			\
+	PAYLOAD v = o >> 1;																			\
 	if ((zeroTest && (o & 1) == 0) || (o & 1) == 1) {																				\
 	if ((o & 1) == 0) 																			\
 	{ 																							\
