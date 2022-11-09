@@ -135,7 +135,7 @@ int MyGameScene::LoadWorld(World& world, const std::string& filename)
 
 void MyGameScene::CreateWorld(World& world)
 {
-	world.Clear();
+	//world.Clear();
 	//DummyWorld(world);
 
 	//uint a = LoadSprite("assets/corvette.vx");

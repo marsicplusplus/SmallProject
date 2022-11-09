@@ -38,14 +38,7 @@ uint3 PositionFromIteration(int3 center, uint& iteration, uint radius)
 	pos.z = max(0, pos.z);
 	return make_uint3(pos);
 }
-// helpers for skydome sampling
-float3 DiffuseReflectionCosWeighted(const float r0, const float r1, const float3& N)
-{
-	const float3 T = normalize(cross(N, fabs(N.y) > 0.99f ? make_float3(1, 0, 0) : make_float3(0, 1, 0)));
-	const float3 B = cross(T, N);
-	const float term1 = TWOPI * r0, term2 = sqrt(1 - r1);
-	return (cosf(term1) * term2 * T) + (sinf(term1) * term2) * B + sqrt(r1) * N;
-}
+
 float SphericalTheta(const float3& v) { return acosf(clamp(v.z, -1.f, 1.f)); }
 float SphericalPhi(const float3& v) { const float p = atan2f(v.y, v.x); return (p < 0) ? (p + 2 * PI) : p; }
 
@@ -91,7 +84,6 @@ World::World(const uint targetID)
 	memset(zeroes, 0, numBytesGrid);
 	zeroesBuffer = new Buffer(GRIDSIZE, Buffer::DEFAULT, (uint*)zeroes);
 	zeroesBuffer->CopyToDevice();
-	DummyWorld();
 	ClearMarks(); // clear 'modified' bit array
 	// report memory usage
 	printf("Allocated %iMB on CPU and GPU for the top-level grid.\n", (int)(numBytesGrid >> 20));
@@ -198,12 +190,16 @@ World::World(const uint targetID)
 	delete[] data32;
 	// load a bitmap font for the print command
 	font = new Surface("assets/font.png");
+}
 
+void World::InitWorldEditor()
+{
+	worldEditor = new Tmpl8::WorldEditor();
+	worldEditor->LoadTiles();
 }
 
 void World::InitReSTIR() {
 	/* ReSTIR initialization */
-	worldEditor = new Tmpl8::WorldEditor();
 	params.numberOfLights = 0;
 	params.accumulate = false;
 	params.editorEnabled = false;
@@ -235,7 +231,7 @@ void World::SetupReservoirBuffers()
 	}
 }
 
-void World::AddLight(const int3 pos, const int3 size, const uint c)
+void World::AddVoxelLight(const int3 pos, const int3 size, const uint c)
 {
 	//TODO: Recognize bricks;
 	vector<Light> ls;
@@ -697,7 +693,6 @@ void World::ForceSyncAllBricks()
 // ----------------------------------------------------------------------------
 void World::OptimizeBricks()
 {
-	return;
 	Timer t;
 	int replaced = 0;
 	for (int i = 0; i < GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH; i++)
@@ -1866,7 +1861,7 @@ uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps
 	return 0U;
 }
 
-uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps, const PAYLOAD* oldBricks, const uint* oldGrid)
+uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps, const PAYLOAD* brickBuffer, const uint* gridBuffer)
 {
 	const float4 V = FixZeroDeltas(B), rV = make_float4(1 / V.x, 1 / V.y, 1 / V.z, 1);
 	const bool originOutsideGrid = A.x < 0 || A.y < 0 || A.z < 0 || A.x > MAPWIDTH || A.y > MAPHEIGHT || A.z > MAPDEPTH;
@@ -1894,7 +1889,7 @@ uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps
 	do
 	{
 		// fetch brick from top grid
-		uint o = oldGrid[(tp >> 20) + ((tp & 127) << 7) + (((tp >> 10) & 127) << 14)];
+		uint o = gridBuffer[(tp >> 20) + ((tp & 127) << 7) + (((tp >> 10) & 127) << 14)];
 		if (!--steps) break;
 		if (o != 0) if ((o & 1) == 0) /* solid */
 		{
@@ -1915,7 +1910,7 @@ uint World::TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps
 			p &= 7 + (7 << 10) + (7 << 20), o = (o >> 1) * BRICKSIZE;
 			do // traverse brick
 			{
-				const uint v = oldBricks[o + (p >> 20) + ((p >> 7) & (BMSK * BRICKDIM)) + (p & BMSK) * BDIM2];
+				const uint v = brickBuffer[o + (p >> 20) + ((p >> 7) & (BMSK * BRICKDIM)) + (p & BMSK) * BDIM2];
 				if (v)
 				{
 					dist = t + to;
@@ -2221,6 +2216,7 @@ void World::Render()
 		params.prevP3 = make_float4(prevP3, 0);
 
 		params.editorEnabled = worldEditor->IsEnabled();
+
 		// finalize params
 		params.R0 = RandomUInt();
 		params.skyWidth = skySize.x;

@@ -6,7 +6,7 @@
 #define MAX_ALLOCATION 512000000 // max bytes allowed for undo/redo states
 
 #define BIG_TILE_IMAGE_SCALE 8
-#define TILE_IMAGE_SCALE 16
+#define TILE_IMAGE_SCALE 32
 
 #define TILE_IMAGE_DIM BRICKDIM * TILE_IMAGE_SCALE
 
@@ -195,8 +195,6 @@ bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_wid
 	// Setup filtering parameters for display
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // This is required on WebGL for non power-of-two textures
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Same
 
 	// Upload pixels into texture
 #if defined(GL_UNPACK_ROW_LENGTH) && !defined(__EMSCRIPTEN__)
@@ -212,12 +210,123 @@ bool LoadTextureFromFile(const char* filename, GLuint* out_texture, int* out_wid
 	return true;
 }
 
+float blueNoiseSampler(const uint* blueNoise, int x, int y, int sampleIndex, int sampleDimension)
+{
+	// Adapated from E. Heitz. Arguments:
+	// sampleIndex: 0..255
+	// sampleDimension: 0..255
+	x &= 127, y &= 127, sampleIndex &= 255, sampleDimension &= 255;
+	// xor index based on optimized ranking
+	int rankedSampleIndex = (sampleIndex ^ blueNoise[sampleDimension + (x + y * 128) * 8 + 65536 * 3]) & 255;
+	// fetch value in sequence
+	int value = blueNoise[sampleDimension + rankedSampleIndex * 256];
+	// if the dimension is optimized, xor sequence value based on optimized scrambling
+	value ^= blueNoise[(sampleDimension & 7) + (x + y * 128) * 8 + 65536];
+	// convert to float and return
+	float retVal = (0.5f + value) * (1.0f / 256.0f) /* + noiseShift (see LH2) */;
+	if (retVal >= 1) retVal -= 1;
+	return retVal;
+}
+
 void WorldEditor::LoadTiles()
 {
 	const std::filesystem::path tiles{ "assets/Tiles" };
 	const std::filesystem::path bigTiles{ "assets/BigTiles" };
 
 	TileManager* tileManager = TileManager::GetTileManager();
+	World& world = *GetWorld();
+	RenderParams& params = world.GetRenderParams();
+
+	const uchar* data8 = (const uchar*)sob256_64; // tables are 8 bit per entry
+	uint* blueNoise = new uint[65536 * 5]; // we want a full uint per entry
+	for (int i = 0; i < 65536; i++) blueNoise[i] = data8[i]; // convert
+	data8 = (uchar*)scr256_64;
+	for (int i = 0; i < (128 * 128 * 8); i++) blueNoise[i + 65536] = data8[i];
+	data8 = (uchar*)rnk256_64;
+	for (int i = 0; i < (128 * 128 * 8); i++) blueNoise[i + 3 * 65536] = data8[i];
+
+
+	auto CreateTilePreview = [&blueNoise, &world](const char* filename, float3 O, float3 D)
+	{
+		Surface* surface = new Surface(TILE_IMAGE_DIM, TILE_IMAGE_DIM);
+
+		mat4 M = mat4::LookAt(O, O + D);
+		float3 cam = TransformPosition(make_float3(0), M);
+		float3 p0 = TransformPosition(make_float3(-1, 1, 2), M);
+		float3 p1 = TransformPosition(make_float3(1, 1, 2), M);
+		float3 p2 = TransformPosition(make_float3(-1, -1, 2), M);
+
+		int numSamplesPerPixel = 5;
+		for (int y = 0; y < TILE_IMAGE_DIM; y++)
+		{
+			for (int x = 0; x < TILE_IMAGE_DIM; x++)
+			{
+				float3 color = make_float3(0.0f, 0.0f, 0.0f);
+
+				uint val = 0;
+				for (int s = 0; s < numSamplesPerPixel; s++)
+				{
+					float u = (float(x) + RandomFloat()) / static_cast<float>(TILE_IMAGE_DIM);
+					float v = (float(y) + RandomFloat()) / static_cast<float>(TILE_IMAGE_DIM);
+
+					Ray ray;
+					ray.O = O;
+					ray.D = normalize((p0 + (p1 - p0) * u + (p2 - p0) * v) - O);
+					ray.t = 1e34f;
+
+					Intersection intersection = Trace(ray);
+					if (intersection.GetVoxel())
+					{
+						color = ToFloatRGB(intersection.GetVoxel());
+						const float3 brdf = color * INVPI;
+
+						float3 incoming = make_float3(0.0f, 0.0f, 0.0f);
+						const float skyLightScale = 3.0f;
+						const float r0 = blueNoiseSampler(blueNoise, x, y, 0, 0);
+						const float r1 = blueNoiseSampler(blueNoise, x, y, 0, 1);
+						const float3 R = DiffuseReflectionCosWeighted(r0, r1, intersection.GetNormal());
+						uint side2;
+						float dist2;
+						const float3 shadingPoint = D * intersection.GetDistance() + ray.O;
+						const float3 shadingPointOffset = shadingPoint + 0.1 * intersection.GetNormal();
+						Ray ray2;
+						ray2.O = shadingPointOffset;
+						ray2.D = R;
+						ray2.t = 1e34f;
+
+						Intersection intersection2 = Trace(ray2);
+						const float3 N2 = intersection2.GetNormal();
+						float3 toAdd = make_float3(skyLightScale), M = intersection.GetNormal();
+						// TO-DO: Add alpha blend here
+						if (intersection2.GetVoxel() != 0)
+							toAdd *= INVPI * ToFloatRGB(intersection2.GetVoxel()), M = N2;
+
+						float4* skyLight = world.GetSkyLight();
+						float4 sky;
+						if (M.x < -0.9f) sky = skyLight[0];
+						if (M.x > 0.9f) sky = skyLight[1];
+						if (M.y < -0.9f) sky = skyLight[2];
+						if (M.y > 0.9f) sky = skyLight[3];
+						if (M.z < -0.9f) sky = skyLight[4];
+						if (M.z > 0.9f) sky = skyLight[5];
+						incoming += toAdd * make_float3(sky.x, sky.y, sky.z);
+
+						color += incoming * brdf;
+						val |= 255 << 24;
+					}
+				}
+
+				float scale = 1.0f / numSamplesPerPixel;
+				val |= ((std::min<uint32_t>(static_cast<uint32_t>(sqrt(scale * color.x) * 255), 255) << 0) |
+					(std::min<uint32_t>(static_cast<uint32_t>(sqrt(scale * color.y) * 255), 255) << 8) |
+					(std::min<uint32_t>(static_cast<uint32_t>(sqrt(scale * color.z) * 255), 255) << 16));
+
+				surface->Plot((TILE_IMAGE_DIM - 1 - x), y, val);
+			}
+		}
+
+		stbi_write_png(filename, TILE_IMAGE_DIM, TILE_IMAGE_DIM, 4, surface->buffer, TILE_IMAGE_DIM * sizeof(uint32_t));
+	};
 
 	// Load any saved Tiles
 	for (auto const& dir_entry : std::filesystem::directory_iterator{ tiles })
@@ -233,42 +342,13 @@ void WorldEditor::LoadTiles()
 			p.replace_extension(png);
 			if (!std::filesystem::exists(p)) // Construct a preview for the tile
 			{
-				int imageSize = TILE_IMAGE_DIM * TILE_IMAGE_DIM;
-				uint32_t* buffer = new uint32_t[imageSize];
-				memset(buffer, 0, imageSize * sizeof(uint32_t));
-
 				PAYLOAD* voxels = tileManager->tile[tileIdx]->voxels;
 
-				// Find the first non transparent voxel for each x,y position
-				for (int y = 0; y < BRICKDIM; y++)
-				{
-					for (int x = 0; x < BRICKDIM; x++)
-					{
-						for (int z = 0; z < BRICKDIM; z++)
-						{
-							PAYLOAD v = voxels[x + y * BRICKDIM + z * BRICKDIM * BRICKDIM];
-							if (v)
-							{
-								float3 val = ToFloatRGB(v);
+				world.DrawTile(tileIdx, 0, 0, 0);
 
-								// Fill in a square of pixels (TILE_IMAGE_SCALE * TILE_IMAGE_SCALE) for a given voxel color 
-								for (int _x = x * TILE_IMAGE_SCALE; _x < (x + 1) * TILE_IMAGE_SCALE; _x++)
-									for (int _y = y * TILE_IMAGE_SCALE; _y < (y + 1) * TILE_IMAGE_SCALE; _y++)
-									{
-										uint32_t& dst = buffer[((TILE_IMAGE_DIM - 1) - (_y)) * TILE_IMAGE_DIM + (TILE_IMAGE_DIM - 1) - (_x)];
-										dst = ((std::min<uint32_t>(static_cast<uint32_t>(val.x * 255), 255) << 0) |
-											(std::min<uint32_t>(static_cast<uint32_t>(val.y * 255), 255) << 8) |
-											(std::min<uint32_t>(static_cast<uint32_t>(val.z * 255), 255) << 16) | 255 << 24);
-									}
-
-								break;
-							}
-						}
-
-					}
-				}
-
-				stbi_write_png(p.string().c_str(), TILE_IMAGE_DIM, TILE_IMAGE_DIM, 4, buffer, TILE_IMAGE_DIM * sizeof(uint32_t));
+				float3 O = make_float3(12, 9, -8);
+				float3 D = make_float3(-0.522, -0.401, 0.753);
+				CreateTilePreview(p.string().c_str(), O, D);
 			}
 
 			int my_image_width = 0;
@@ -295,40 +375,13 @@ void WorldEditor::LoadTiles()
 			p.replace_extension(png);
 			if (!std::filesystem::exists(p)) // Construct a preview for the tile
 			{
-				int imageSize = TILE_IMAGE_DIM * TILE_IMAGE_DIM;
-				uint32_t* buffer = new uint32_t[imageSize];
-				memset(buffer, 0, imageSize * sizeof(uint32_t));
 
-				Tile* tiles = tileManager->bigTile[bigTileIdx]->tile;
+				world.DrawBigTile(bigTileIdx, 0, 0, 0);
 
-				for (int subTile = 0; subTile < 8; subTile++)
-				{
-					int sx = subTile & 1, sy = (subTile >> 1) & 1, sz = (subTile >> 2) & 1;
-
-					for (int z = BRICKDIM - 1; z > 0; z--) for (int y = 0; y < BRICKDIM; y++) for (int x = 0; x < BRICKDIM; x++)
-					{
-						PAYLOAD v = tiles[subTile].voxels[x + y * BRICKDIM + z * BRICKDIM * BRICKDIM];
-						if (v)
-						{
-							float3 val = ToFloatRGB(v);
-
-							int xPos = x * BIG_TILE_IMAGE_SCALE + sx * BIG_TILE_IMAGE_SCALE * BRICKDIM;
-							int yPos = y * BIG_TILE_IMAGE_SCALE + sy * BIG_TILE_IMAGE_SCALE * BRICKDIM;
-							// Fill in a square of pixels (BIG_TILE_IMAGE_SCALE * BIG_TILE_IMAGE_SCALE) for a given voxel color 
-							for (int _x = xPos; _x < xPos + BIG_TILE_IMAGE_SCALE; _x++)
-								for (int _y = yPos; _y < yPos + BIG_TILE_IMAGE_SCALE; _y++)
-								{
-									uint32_t& dst = buffer[((TILE_IMAGE_DIM - 1) - _y) * TILE_IMAGE_DIM + (TILE_IMAGE_DIM - 1) - _x];
-									dst = ((std::min<uint32_t>(static_cast<uint32_t>(val.x * 255), 255) << 0) |
-										(std::min<uint32_t>(static_cast<uint32_t>(val.y * 255), 255) << 8) |
-										(std::min<uint32_t>(static_cast<uint32_t>(val.z * 255), 255) << 16) | 255 << 24);
-								}
-						}
-					}
-				}
-				stbi_write_png(p.string().c_str(), TILE_IMAGE_DIM, TILE_IMAGE_DIM, 4, buffer, TILE_IMAGE_DIM * sizeof(uint32_t));
+				float3 O = make_float3(18, 22, -12);
+				float3 D = make_float3(-0.387, -0.539, 0.748);
+				CreateTilePreview(p.string().c_str(), O, D);
 			}
-
 			int my_image_width = 0;
 			int my_image_height = 0;
 			GLuint my_image_texture = 0;
@@ -338,6 +391,9 @@ void WorldEditor::LoadTiles()
 			loadedBigTiles.push_back(std::make_pair(bigTileIdx, my_image_texture));
 		}
 	}
+
+	delete[] blueNoise;
+	world.Clear();
 }
 
 WorldEditor::WorldEditor()
@@ -351,8 +407,6 @@ WorldEditor::WorldEditor()
 	memset(tempBricks, 0, CHUNKCOUNT * CHUNKSIZE);
 	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 	memset(tempZeroes, BRICKSIZE, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
-
-	LoadTiles();
 }
 #pragma endregion 
 
@@ -786,10 +840,6 @@ void WorldEditor::UpdateSelectedBox()
 	RenderParams& params = world.GetRenderParams();
 
 	int boxScale = GetBoxScale();
-
-	// setup primary ray for pixel [x,y] 
-	float u = (float)mousePos.x / SCRWIDTH;
-	float v = (float)mousePos.y / SCRHEIGHT;
 
 	const float2 uv = make_float2(mousePos.x * params.oneOverRes.x, mousePos.y * params.oneOverRes.y);
 	const float3 P = params.p0 + (params.p1 - params.p0) * uv.x + (params.p2 - params.p0) * uv.y;
@@ -1466,10 +1516,41 @@ void WorldEditor::RenderGUI()
 {
 	if (!enabled) return;
 
+	World& world = *GetWorld();
+	RenderParams& params = world.GetRenderParams();
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
+	static bool showCameraWindow = true;
+	static bool showAllTiles = true;
+	static bool drawGrid = true;
+
+	// Saved indicies for proper ordering of the Tile Buttons
+	static bool savedTileInit = true;
+	static int savedTileIndices[8] = {};
+	if (savedTileInit)
+	{
+		for (int n = 0; n < IM_ARRAYSIZE(savedTileIndices); n++)
+		{
+			savedTileIndices[n] = n;
+		}
+		savedTileInit = false;
+	}
+
+	// Saved indicies for proper ordering of the Big Tile Buttons
+	static bool savedBigTileInit = true;
+	static int savedBigTileIndices[8] = {};
+	if (savedBigTileInit)
+	{
+		for (int n = 0; n < IM_ARRAYSIZE(savedBigTileIndices); n++)
+		{
+			savedBigTileIndices[n] = n;
+		}
+		savedBigTileInit = false;
+	}
+
+	// Main Menu
 	if (ImGui::BeginMainMenuBar())
 	{
 		if (ImGui::BeginMenu("File"))
@@ -1486,19 +1567,28 @@ void WorldEditor::RenderGUI()
 			if (ImGui::MenuItem("Redo", "CTRL+Y", false, stateCurrent->nextState != NULL)) { Redo(); }
 			ImGui::EndMenu();
 		}
+		if (ImGui::BeginMenu("View"))
+		{
+			ImGui::MenuItem("Camera", NULL, &showCameraWindow);
+			ImGui::MenuItem("Render Grid", NULL, &drawGrid);
+			ImGui::MenuItem("Show All Tiles", NULL, &showAllTiles);
+			ImGui::EndMenu();
+		}
+
 		ImGui::EndMainMenuBar();
 	}
 
-	// render your GUI
-	ImGui::Begin("Edit Tool");
-
-	auto StyleTileTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& tiles, int& tileIdx) -> bool
+	// Edit Tool Window
+	ImGui::Begin("Tool Bar");
+	auto StyleTileTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& tiles, int& tileIdx, int* savedIndex) -> bool
 	{
 		if (ImGui::BeginTabItem(tabName.c_str()))
 		{
-			int numButtons = min(10, (int)tiles.size());
-			for (int buttonIdx = 0; buttonIdx < numButtons; buttonIdx++)
+			int numButtons = min(8, (int)tiles.size());
+			for (int i = 0; i < numButtons; i++)
 			{
+				ImGui::PushID(i);
+				int buttonIdx = savedIndex[i];
 				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0, 0.0, 0.0, 1.0));
 				if (buttonIdx == tileIdx)
 					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 5.0f);
@@ -1506,14 +1596,45 @@ void WorldEditor::RenderGUI()
 					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 
 
-				if (ImGui::ImageButton((void*)(intptr_t)tiles[buttonIdx].second, ImVec2(TILE_IMAGE_DIM, TILE_IMAGE_DIM), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
+				if (ImGui::ImageButton((void*)(intptr_t)tiles[buttonIdx].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
 				{
 					tileIdx = buttonIdx;
 				}
 
 				ImGui::PopStyleVar();
 				ImGui::PopStyleColor();
+
+				// Our buttons are both drag sources and drag targets here!
+				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+				{
+					// Set payload to carry the index of our item (could be anything)
+					ImGui::SetDragDropPayload("HotBar", &i, sizeof(int));
+					ImGui::EndDragDropSource();
+				}
+
+				if (ImGui::BeginDragDropTarget())
+				{
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HotBar"))
+					{
+						IM_ASSERT(payload->DataSize == sizeof(int));
+						int payload_n = *(const int*)payload->Data;
+						int tmp = savedIndex[i];
+						savedIndex[i] = savedIndex[payload_n];
+						savedIndex[payload_n] = tmp;
+					}
+
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("AllTiles"))
+					{
+						IM_ASSERT(payload->DataSize == sizeof(int));
+						int payload_n = *(const int*)payload->Data;
+						savedIndex[i] = payload_n;
+						
+					}
+					ImGui::EndDragDropTarget();
+				}
+
 				ImGui::SameLine();
+				ImGui::PopID();
 			}
 			// switch to the newly selected tab
 			ImGui::EndTabItem();
@@ -1522,14 +1643,52 @@ void WorldEditor::RenderGUI()
 		return false;
 	};
 
-	ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_AutoSelectNewTabs;
-	if (ImGui::BeginTabBar("EditingTabBar", tab_bar_flags))
+	auto StyleVerticalTileTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& tiles, int& tileIdx) -> bool
 	{
-		if (StyleTileTab("Tile", loadedTiles, selectedTileIdx))
+		if (ImGui::BeginTabItem(tabName.c_str()))
+		{
+			for (int i = 0; i < (int)tiles.size(); i++)
+			{
+				ImGui::PushID(i);
+				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0, 0.0, 0.0, 1.0));
+				if (i == tileIdx)
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 5.0f);
+				else
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+
+
+				if (ImGui::ImageButton((void*)(intptr_t)tiles[i].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
+				{
+					tileIdx = i;
+				}
+
+				ImGui::PopStyleVar();
+				ImGui::PopStyleColor();
+
+				// Our buttons are both drag sources and drag targets here!
+				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+				{
+					// Set payload to carry the index of our item (could be anything)
+					ImGui::SetDragDropPayload("AllTiles", &i, sizeof(int));
+					ImGui::EndDragDropSource();
+				}
+
+				ImGui::PopID();
+			}
+			// switch to the newly selected tab
+			ImGui::EndTabItem();
+			return true;
+		}
+		return false;
+	};
+
+	if (ImGui::BeginTabBar("EditingTabBar", ImGuiTabBarFlags_AutoSelectNewTabs))
+	{
+		if (StyleTileTab("Tile", loadedTiles, selectedTileIdx, savedTileIndices))
 		{
 			gesture.size = GestureSize::GESTURE_TILE;
 		}
-		if (StyleTileTab("Big Tile", loadedBigTiles, selectedBigTileIdx))
+		if (StyleTileTab("Big Tile", loadedBigTiles, selectedBigTileIdx, savedBigTileIndices))
 		{
 			gesture.size = GestureSize::GESTURE_BIG_TILE;
 		}
@@ -1545,7 +1704,6 @@ void WorldEditor::RenderGUI()
 			static int displayMode = 0;
 			static int pickerMode = 0;
 			static int emissiveVal = 0;
-
 
 			ImGuiColorEditFlags flags = ImGuiColorEditFlags_None;
 
@@ -1569,6 +1727,7 @@ void WorldEditor::RenderGUI()
 			ImGui::Text("Voxel Color:");
 			bool picker = ImGui::ColorButton("##voxelcolor", color, flags, ImVec2(128, 128)); 
 			ImGui::NextColumn();
+			ImGui::NewLine();
 			ImGui::Checkbox("Emissive", &emissive);
 			if (emissive)
 			{
@@ -1611,7 +1770,7 @@ void WorldEditor::RenderGUI()
 
 					ImGuiColorEditFlags palette_button_flags = ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_NoPicker | ImGuiColorEditFlags_NoTooltip;
 					if (ImGui::ColorButton("##palette", saved_palette[n], palette_button_flags, ImVec2(20, 20)))
-						color = ImVec4(saved_palette[n].x, saved_palette[n].y, saved_palette[n].z, color.w); // Preserve alpha!
+						color = ImVec4(saved_palette[n].x, saved_palette[n].y, saved_palette[n].z, saved_palette[n].w);
 
 					// Allow user to drop colors into each palette entry. Note that ColorButton() is already a
 					// drag source by default, unless specifying the ImGuiColorEditFlags_NoDragDrop flag.
@@ -1652,8 +1811,44 @@ void WorldEditor::RenderGUI()
 
 		ImGui::EndTabBar();
 	}
-
 	ImGui::End();
+
+	// Camera Window
+	if (showCameraWindow)
+	{
+		ImGui::Begin("Camera");
+		float cameraPos[3];
+		cameraPos[0] = world.GetCameraPos().x;	
+		cameraPos[1] = world.GetCameraPos().y;
+		cameraPos[2] = world.GetCameraPos().z;
+
+		ImGui::InputFloat3("Position", cameraPos, "%.1f", ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue);
+		world.SetCameraPos(make_float3(cameraPos[0], cameraPos[1], cameraPos[2]));
+
+
+		float cameraViewDir[3];
+		cameraViewDir[0] = world.GetCameraViewDir().x;
+		cameraViewDir[1] = world.GetCameraViewDir().y;
+		cameraViewDir[2] = world.GetCameraViewDir().z;
+		ImGui::InputFloat3("Direction", cameraViewDir, "%.3f", ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_EnterReturnsTrue);
+		world.SetCameraViewDir(make_float3(cameraViewDir[0], cameraViewDir[1], cameraViewDir[2]));
+		ImGui::End();
+	}
+
+	if (showAllTiles)
+	{
+		ImGui::Begin("Loaded Tiles");
+		if (ImGui::BeginTabBar("AllTiles", ImGuiTabBarFlags_AutoSelectNewTabs))
+		{
+			if (StyleVerticalTileTab("Tiles", loadedTiles, selectedTileIdx)) { gesture.size == GestureSize::GESTURE_TILE; }
+			if (StyleVerticalTileTab("Big Tiles", loadedBigTiles, selectedBigTileIdx)) { gesture.size == GestureSize::GESTURE_BIG_TILE;  }
+		}
+		ImGui::EndTabBar();
+		ImGui::End();
+	}
+
+	params.drawGrid = drawGrid;
+
 	// Render dear imgui into screen
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
