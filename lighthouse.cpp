@@ -20,6 +20,8 @@ void Lighthouse::SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint 
 
 void Lighthouse::InitialiseLighthouseScenario()
 {
+	int fixed = LoadSprite("assets/ground.vox");
+	StampSpriteTo(fixed, make_int3(450, 500, 500));
 	lighthouseSprite = LoadSprite("assets/lighthouse.vox");
 	MoveSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
 
