@@ -190,18 +190,18 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 		}
 	}
 
-	if (voxel == 0)
+	if (params->editorEnabled && params->drawGrid && HitWorldGrid(params->E, D))
 	{
-		if (params->editorEnabled && params->drawGrid && HitWorldGrid(params->E, D))
-		{
-			color = (float3)(0.8, 0.8, 0.8);
-		}
-		else if (params->skyDomeSampling)
+		color = (float3)(0.8, 0.8, 0.8) * (1.0f - GetAlphaf(voxel));
+	}
+	else if (voxel == 0)
+	{
+		if (params->skyDomeSampling)
 		{
 			color = SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight);
 		}
 	}
-	else
+	if (voxel != 0)
 	{
 		float3 skyContribution = (float3)(0.0, 0.0, 0.0);
 		uint alpha = GetAlpha(voxel);
@@ -285,12 +285,10 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 		if (M.z > 0.9f) sky = params->skyLight[5];
 		incoming += toAdd * sky.xyz;
 
-		// TO-DO: Add alpha blend here
 		const float3 brdf = ToFloatRGB(voxel) * INVPI;
 		color += incoming * brdf;
 	}
 
-	//if (x == DBX && y == DBY) color = DEBUGCOLOR;
 	return (float4)(color, dist);
 }
 
@@ -322,7 +320,8 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	// final shading function
 	int iteration = 0;
 	float remainingVisibility = 1.0f - GetAlphaf(voxel);
-	int MaxIterations = 100;
+	// This is the number of "transparent bounces" we basically have
+	int MaxIterations = 25;
 	uint previousSide = 0;
 	uint previousHitVoxel = 0;
 	float previousDist = 0.f;
@@ -355,6 +354,15 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 			// Skybox hack. If we reached the max number of iterations, we consider the light
 			// to have been fully absorbed. If not, the skybox will blend with the remainder
 			remainingVisibility = 0.f;
+		}
+		// For some reason the ray doesn't always advance. This usually happens if the last "volume" we hit
+		// is the sky and it gets stuck in a loop. The previous voxel should be equal to the current in that situation
+		// but it does not end up that way. Reason for this is currently unknown. Note that this value
+		// is much smaller than one voxel distance, so this will rarely cause actual issues.
+		// TO-DO: Figure out why the tracing goes back and forth and fix this in a different way
+		if (dist <= 0.001f)
+		{
+			break;
 		}
 	}
 	if (voxel != 0)
