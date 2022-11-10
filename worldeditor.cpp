@@ -375,7 +375,7 @@ void WorldEditor::LoadTiles()
 			p.replace_extension(png);
 			if (!std::filesystem::exists(p)) // Construct a preview for the tile
 			{
-
+				
 				world.DrawBigTile(bigTileIdx, 0, 0, 0);
 
 				float3 O = make_float3(18, 22, -12);
@@ -774,7 +774,14 @@ void WorldEditor::Add(uint vx, uint vy, uint vz)
 
 	if (gesture.size == GestureSize::GESTURE_VOXEL)
 	{
-		world.Set(vx, vy, vz, voxelValue);
+		if (IsEmitter(voxelValue))
+		{
+			world.AddVoxelLight(make_int3(vx, vy, vz), voxelValue);
+		} 
+		else
+		{
+			world.Set(vx, vy, vz, voxelValue);
+		}
 		UpdateEditedBricks(vx, vy, vz);
 	}
 	else 
@@ -1650,20 +1657,11 @@ void WorldEditor::RenderGUI()
 			for (int i = 0; i < (int)tiles.size(); i++)
 			{
 				ImGui::PushID(i);
-				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0, 0.0, 0.0, 1.0));
-				if (i == tileIdx)
-					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 5.0f);
-				else
-					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-
 
 				if (ImGui::ImageButton((void*)(intptr_t)tiles[i].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
 				{
 					tileIdx = i;
 				}
-
-				ImGui::PopStyleVar();
-				ImGui::PopStyleColor();
 
 				// Our buttons are both drag sources and drag targets here!
 				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))

@@ -485,6 +485,13 @@ void main()
 	Surface* screen = new Surface( SCRWIDTH, SCRHEIGHT );
 	world = new World( renderTarget->ID );
 	world->InitReSTIR();
+
+	// Load the default skyDome to ensure world editor has adequate lighting for generation
+	// of tile/large tile previews
+	world->LoadSky(Game::skyDomeImage.c_str(), Game::skyDomeScale);
+	// Ensure world editor is initialised before the game as World Editor init utilizes brick/grid then clears
+	world->InitWorldEditor();
+
 	game = CreateGame();
 	game->screen = screen;
 	game->Init();
@@ -494,7 +501,6 @@ void main()
 	// after init, optimize world and sync all bricks to GPU
 	world->OptimizeBricks();
 	world->ForceSyncAllBricks();
-	world->InitWorldEditor();
 	// done, enter main loop
 	Shader* shader = new Shader(
 		"#version 330\nin vec4 p;\nin vec2 t;out vec2 u;void main(){u=t;gl_Position=p;}",
