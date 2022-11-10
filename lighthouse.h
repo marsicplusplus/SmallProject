@@ -6,17 +6,12 @@ namespace Tmpl8
 
 	struct PathPoint { float3 O, D; };
 
-	class WaterWorld : public Game
+	class Lighthouse : public Game
 	{
 	public:
-		WaterWorld();
+		Lighthouse();
+		void InitialiseLighthouseScenario();
 		void SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint d, uint v);
-		void InitialiseDamHoleScenario();
-		void InitialiseWaterLevelScenario();
-		void InitialiseDamBreakScenario();
-		void InitialiseWaterBlockDropScenario();
-		void InitialiseBuildingDropScenario();
-		void InitialiseTsunami();
 
 		// game flow methods
 		void Init();
@@ -44,7 +39,6 @@ namespace Tmpl8
 		int2 mousePos;
 		float3 ballPos = make_float3(300, 100, 300);
 		float3 ballVel = make_float3(0.3f, 0, 0.5f);
-		int ship, corvette;
 		// spline path data
 		vector<PathPoint> splinePath;
 		int pathPt = 1; // spline path vertex
@@ -53,6 +47,7 @@ namespace Tmpl8
 		float3 D = make_float3(0, 0, 1);
 		float3 O = make_float3(512, 512, 512);
 
+		int lighthouseSprite, frame = 0;
 		FluidSimulator fluidSimulator;
 		bool runCAPESimulation = false;
 		bool keyPressed[0xFF];

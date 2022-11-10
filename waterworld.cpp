@@ -99,39 +99,6 @@ void WaterWorld::InitialiseWaterBlockDropScenario()
 	SetStaticBlock(500, 500, 500, 60, 1, 60, RED);
 }
 
-void WaterWorld::InitialiseLighthouseScenario()
-{
-	lighthouseSprite = LoadSprite("assets/lighthouse.vox");
-	MoveSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
-
-	World& world = *GetWorld();
-	for (int lx = 18; lx < 25; ++lx) {
-		for (int ly = 62; ly < 71; ++ly) {
-			world.Set(450 + lx, 500 + ly, 500 + 60, WHITE | (255 << 16));
-		}
-	}
-	for (int lx = 18; lx < 25; ++lx) {
-		for (int ly = 62; ly < 71; ++ly) {
-			world.Set(450 + lx, 500 + ly, 500 + 68, WHITE | (255 << 16));
-		}
-	}
-	for (int ly = 62; ly < 70; ++ly) {
-		for (int lz = 61; lz < 68; ++lz) {
-			world.Set(450 + 25, 500 + ly, 500 + lz, WHITE | (255 << 16));
-		}
-	}
-	for (int ly = 62; ly < 70; ++ly) {
-		for (int lz = 61; lz < 68; ++lz) {
-			world.Set(450 + 17, 500 + ly, 500 + lz, WHITE | (255 << 16));
-		}
-	}
-	SetStaticBlock(450 + 114, 500 + 3, 500+8, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(450 + 88, 500 + 3, 500+26, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(450 + 112, 500 + 3, 500+67, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(450 + 87, 500 + 3, 500+105, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(400, 400, 400, 300, 103, 300, 0X00f | 13 << 12);
-}
-
 //Scenario used for evaluation: Drop a block 40x40x40 water into 100x100x100 cube
 void WaterWorld::InitialiseBuildingDropScenario()
 {
@@ -174,16 +141,15 @@ void WaterWorld::Init()
 	World& world = *GetWorld();
 	ShowCursor(false);
 	// default scene is a box; punch a hole in the ceiling
-	//Box(256, 240, 256, 768, 260, 768, 0);
+	Box(256, 240, 256, 768, 260, 768, 0);
 
 	//A few scenario's to choose from
-	//InitialiseDamHoleScenario();
+	InitialiseDamHoleScenario();
 	//InitialiseWaterBlockDropScenario();
 	//InitialiseDamBreakScenario();
 	//InitialiseWaterLevelScenario();
 	//InitialiseBuildingDropScenario();
 	//InitialiseTsunami();
-	InitialiseLighthouseScenario();
 
 	/* Overwrite defaults for ReSTIR */
 	RenderParams& params = world.GetRenderParams();
@@ -203,8 +169,6 @@ void WaterWorld::Init()
 	vector<Light> vls;
 	world.FindLightsInWord(vls);
 	world.SetupLightBuffer(vls);
-	skyDomeLightScale = 0.0f;
-	skyDomeImage = "assets/sky_21.hdr";
 }
 
 // -----------------------------------------------------------
@@ -224,7 +188,6 @@ void WaterWorld::HandleInput(float deltaTime)
 	if (GetAsyncKeyState(VK_DOWN)) D = normalize(D + up * 0.025f * speed);
 	if (GetAsyncKeyState(VK_SPACE))
 	{
-		SetSpriteFrame(lighthouseSprite, (frame = frame + 1) % 5);
 		fluidSimulator.Update(deltaTime);
 	}
 	if (GetAsyncKeyState(VK_SHIFT) && !keyPressed[VK_SHIFT])

@@ -16,6 +16,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WaterWorld", "meaning.vcxpr
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "mse", "mse.vcxproj", "{ED98DFA6-5768-474A-826D-479F1491C24B}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Lighthouse", "lighthouse.vcxproj", "{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -70,6 +72,14 @@ Global
 		{ED98DFA6-5768-474A-826D-479F1491C24B}.Release|x64.Build.0 = Release|x64
 		{ED98DFA6-5768-474A-826D-479F1491C24B}.Release|x86.ActiveCfg = Release|x64
 		{ED98DFA6-5768-474A-826D-479F1491C24B}.Release|x86.Build.0 = Release|x64
+		{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}.Debug|x64.ActiveCfg = Debug|x64
+		{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}.Debug|x64.Build.0 = Debug|x64
+		{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}.Debug|x86.ActiveCfg = Debug|x64
+		{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}.Debug|x86.Build.0 = Debug|x64
+		{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}.Release|x64.ActiveCfg = Release|x64
+		{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}.Release|x64.Build.0 = Release|x64
+		{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}.Release|x86.ActiveCfg = Release|x64
+		{D67D6F82-FEBA-484A-A9BD-668CD97A06AA}.Release|x86.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

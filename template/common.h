@@ -207,5 +207,5 @@ inline bool IsEmitter(const uint v)
 
 inline float EmitStrength(const uint v)
 {
-	return (float)((v & 0xff0000) >> 16);
+	return (float)((v & 0xff0000) >> 16) * 1;
 }

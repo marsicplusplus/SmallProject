@@ -1,18 +1,27 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include="template">
+      <UniqueIdentifier>{d2494e15-02af-4bf2-8daf-a50d3cf19dd4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="template\cl">
+      <UniqueIdentifier>{5ff2ece0-38a9-4fc5-bab0-b3995faff07d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{09cb2ea4-d655-4749-9860-9345f012ebb3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="template\CAPE.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
     <ClCompile Include="template\template.cpp">
       <Filter>template</Filter>
     </ClCompile>
     <ClCompile Include="template\world.cpp">
       <Filter>template</Filter>
     </ClCompile>
-    <ClCompile Include="waterworld.cpp" />
     <ClCompile Include="world_to_obj.cpp">
-      <Filter>template</Filter>
-    </ClCompile>
-    <ClCompile Include="fluid_simulator.cpp" />
-    <ClCompile Include="template\CAPE.cpp">
       <Filter>template</Filter>
     </ClCompile>
     <ClCompile Include="tools\imgui\imgui.cpp">
@@ -36,12 +45,13 @@
     <ClCompile Include="tools\imgui\imgui_widgets.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
+    <ClCompile Include="lighthouse.cpp" />
     <ClCompile Include="worldeditor.cpp">
       <Filter>template</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="template\bluenoise.h">
+    <ClInclude Include="template\CAPE.h">
       <Filter>template</Filter>
     </ClInclude>
     <ClInclude Include="template\common.h">
@@ -56,20 +66,15 @@
     <ClInclude Include="template\worldapi.h">
       <Filter>template</Filter>
     </ClInclude>
-    <ClInclude Include="cl\trace.cl">
-      <Filter>template\cl</Filter>
+    <ClInclude Include="world_to_obj.h">
+      <Filter>template</Filter>
     </ClInclude>
     <ClInclude Include="cl\tools.cl">
       <Filter>template\cl</Filter>
     </ClInclude>
-    <ClInclude Include="waterworld.h" />
-    <ClInclude Include="template\CAPE.h">
-      <Filter>template</Filter>
+    <ClInclude Include="cl\trace.cl">
+      <Filter>template\cl</Filter>
     </ClInclude>
-    <ClInclude Include="world_to_obj.h">
-      <Filter>template</Filter>
-    </ClInclude>
-    <ClInclude Include="fluid_simulator.h" />
     <ClInclude Include="tools\imgui\imconfig.h">
       <Filter>imgui</Filter>
     </ClInclude>
@@ -97,21 +102,22 @@
     <ClInclude Include="tools\imgui\imstb_truetype.h">
       <Filter>imgui</Filter>
     </ClInclude>
+    <ClInclude Include="lighthouse.h" />
     <ClInclude Include="worldeditor.h">
       <Filter>template</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="template\LICENSE">
-      <Filter>template</Filter>
-    </None>
     <None Include="README.md">
       <Filter>template</Filter>
     </None>
-    <None Include="cl\kernels.cl">
-      <Filter>template\cl</Filter>
+    <None Include="template\LICENSE">
+      <Filter>template</Filter>
     </None>
     <None Include="cl\cape.cl">
+      <Filter>template\cl</Filter>
+    </None>
+    <None Include="cl\kernels.cl">
       <Filter>template\cl</Filter>
     </None>
     <None Include="cl\phat.cl">
@@ -126,16 +132,5 @@
     <None Include="cl\spatialSampling.cl">
       <Filter>template\cl</Filter>
     </None>
-  </ItemGroup>
-  <ItemGroup>
-    <Filter Include="template">
-      <UniqueIdentifier>{a7d6e3cb-bfcd-438d-979f-17df241a55b4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="template\cl">
-      <UniqueIdentifier>{dc41819e-b6c1-4070-b4c1-0849e444ca7e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="imgui">
-      <UniqueIdentifier>{6b0c2cd6-1ebb-4747-bb30-9892d4bb49a8}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
 </Project>
