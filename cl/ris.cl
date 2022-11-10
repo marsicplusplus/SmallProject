@@ -346,8 +346,7 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 		float3 color = ToFloatRGB(voxel);
 		alpha = GetAlphaf(voxel);
 		outputColor += remainingVisibility * color * alpha;
-		// If the most recently hit object is fully opaque, the visibility goes to zero
-		remainingVisibility = alpha < 0.99f ? remainingVisibility * (1 - alpha) : 0.f;
+		remainingVisibility = remainingVisibility * (1 - alpha);
 		// A failsafe to prevent completely tanking performance
 		if (++iteration == MaxIterations)
 		{
