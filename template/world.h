@@ -184,9 +184,11 @@ public:
 	// camera
 	void SetCameraMatrix(const mat4& m) { camMat = m; }
 	float3 GetCameraViewDir() { return make_float3(camMat[2], camMat[6], camMat[10]); }
+	void SetCameraViewDir(const float3 D) { camMat[2] = D.x, camMat[6] = D.y, camMat[10] = D.z; }
 	float3 GetCameraPos() { return make_float3(camMat[3], camMat[7], camMat[11]); }
 	void SetCameraPos(const float3 P) { camMat[3] = P.x, camMat[7] = P.y, camMat[11] = P.z; }
 	mat4& GetCameraMatrix() { return camMat; }
+	float4* GetSkyLight() { return skyLight; }
 	RenderParams& GetRenderParams() { return params; }
 	DebugInfo& GetDebugInfo() { return debugInfo; }
 	cl_event& GetRenderDoneEventHandle() { return renderDone; }
@@ -239,6 +241,7 @@ public:
 	// inline ray tracing / cpu-only ray tracing / inline ray batch rendering
 	uint TraceRay( float4 A, const float4 B, float& dist, float3& N, int steps );
 	uint TraceBrick( float4 A, const float4 B, float& dist, float3& N, int steps );
+	uint TraceTile(float4 A, const float4 B, const PAYLOAD* tile, float& dist, float3& N, int steps);
 	uint TraceRay(float4 A, const float4 B, float& dist, float3& N, int steps, const PAYLOAD* oldBricks, const uint* oldGrid);
 	void TraceRayToVoid( float4 A, const float4 B, float& dist, float3& N );
 	Ray* GetBatchBuffer();
@@ -258,8 +261,8 @@ public:
 
 	void AddRandomLights(int numberOfLights);
 	void RemoveRandomLights(int numberOfLights);
-	void AddLight(const int3 pos, const uint c) { AddLight(pos, make_int3(1), c); };
-	void AddLight(const int3 pos, const int3 size, const uint c);
+	void AddVoxelLight(const int3 pos, const uint c) { AddVoxelLight(pos, make_int3(1), c); };
+	void AddVoxelLight(const int3 pos, const int3 size, const uint c);
 	void RemoveLight(const int3 pos);
 
 	void SetUpMovingLights(int numberOfLights);
@@ -268,6 +271,7 @@ public:
 	uint MovingLightCount() { return movinglights.size(); }
 
 	void InitReSTIR();
+	void InitWorldEditor();
 
 	vector<Tile*>& GetTileList() { return TileManager::GetTileManager()->tile; }
 	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
@@ -304,15 +308,15 @@ public:
 	__forceinline void AddBrick(const uint bx, const uint by, const uint bz, const uint v /* actually an 8-bit value */)
 	{
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
-		const uint brickIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-		uint cellValue = grid[brickIdx], brickBufferOffset = cellValue >> 1;
+		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		uint cellValue = grid[cellIdx], brickBufferOffset = cellValue >> 1;
 		if (!IsSolidGridCell(cellValue))
 		{
 			FreeBrick(brickBufferOffset);
 		}
 
 		Mark(0); // Mark to ensure new grid gets sent to GPU
-		grid[brickIdx] = v << 1;
+		grid[cellIdx] = v << 1;
 	}
 
 	__forceinline void SetBrick(const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */)

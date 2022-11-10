@@ -74,11 +74,19 @@ float4 FixZeroDeltas( float4 V )
 
 #define GRIDSTEP(exitX, zeroTest)																			\
 	if (!--steps) break;																		\
-	if (o != 0) if ((o & 1) == 0) { *dist = (t + to) * 8.0f, *side = last; return o >> 1; } else	\
+	{																							\
+	PAYLOAD v = o >> 1;																			\
+	if ((zeroTest && (o & 1) == 0) || (o & 1) == 1) {																				\
+	if ((o & 1) == 0) 																			\
+	{ 																							\
+		*dist = t * 8.0f + to, *side = last;													\
+		return v; 																				\
+	} 																							\
+	else																						\
 	{																							\
 		const float4 tm_ = tm;																	\
 		const uint4 p4 = convert_uint4( A + V * (t *= 8) );										\
-		uint v, p = (clamp( p4.x, tp >> 17, (tp >> 17) + 7 ) << 20) +							\
+		uint p = (clamp( p4.x, tp >> 17, (tp >> 17) + 7 ) << 20) +							\
 			(clamp( p4.y, (tp >> 7) & 1023, ((tp >> 7) & 1023) + 7 ) << 10) +					\
 			clamp( p4.z, (tp << 3) & 1023, ((tp << 3) & 1023) + 7 ), lp = ~1;					\
 		tm = (convert_float4( (uint4)((p >> 20) + OFFS_X, ((p >> 10) & 1023) +					\
@@ -93,13 +101,14 @@ float4 FixZeroDeltas( float4 V )
 		BRICKSTEP( exitX, zeroTest ); BRICKSTEP( exitX, zeroTest ); BRICKSTEP( exitX, zeroTest )\
 		BRICKSTEP( exitX, zeroTest ); BRICKSTEP( exitX, zeroTest ); BRICKSTEP( exitX, zeroTest )\
 	exitX: tm = tm_;																			\
-	}																							\
+	}}																							\
 	t = min( tm.x, min( tm.y, tm.z ) ), last = 0;												\
 	if (t == tm.x) tm.x += td.x, tp += dx;														\
 	if (t == tm.y) tm.y += td.y, tp += dy, last = 1;											\
 	if (t == tm.z) tm.z += td.z, tp += dz, last = 2;											\
 	if ((tp & UBERMASK3) - tq) break;															\
-	o = read_imageui( grid, (int4)(tp >> 20, tp & 127, (tp >> 10) & 127, 0) ).x;
+	o = read_imageui( grid, (int4)(tp >> 20, tp & 127, (tp >> 10) & 127, 0) ).x;				\
+	}
 
 #define GRIDSTEP_ALL(exitLabel) GRIDSTEP(exitLabel, v != 0 && v!=RED)
 
@@ -151,7 +160,9 @@ uint TraceThrough(uint toTraceThrough, uint compareMask, float4 A, const float4 
 	while (1)
 	{
 		if ((steps -= 4) <= 0) break;
-		if (o)
+		// Different from normal traversal. If we want to trace through a volume up to the next different type of voxel,
+		// we definitely do want
+		if (o != 0 || toTraceThrough != 0)
 		{
 			// backup ubergrid traversal state
 			const float4 tm_ = tm;

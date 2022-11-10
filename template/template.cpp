@@ -278,7 +278,8 @@ Intersection Trace( const Ray& r )
 	const uint voxel = world->TraceRay( make_float4( r.O, 1 ), make_float4( r.D, 1 ), dist, N, 999999 );
 	i.t = dist < r.t ? dist : 1e34f;
 	const uint Nval = ((int)N.x + 1) + (((int)N.y + 1) << 2) + (((int)N.z + 1) << 4);
-	i.N = (voxel == 0 ? 0 : Nval) + (voxel << 16);
+	i.N = (voxel == 0 ? 0 : Nval);
+	i.V = voxel;
 	return i;
 }
 Intersection Trace(const Ray& r, PAYLOAD* oldBricks, uint* oldGrid)
@@ -289,7 +290,8 @@ Intersection Trace(const Ray& r, PAYLOAD* oldBricks, uint* oldGrid)
 	const uint voxel = world->TraceRay(make_float4(r.O, 1), make_float4(r.D, 1), dist, N, 999999, oldBricks, oldGrid);
 	i.t = dist < r.t ? dist : 1e34f;
 	const uint Nval = ((int)N.x + 1) + (((int)N.y + 1) << 2) + (((int)N.z + 1) << 4);
-	i.N = (voxel == 0 ? 0 : Nval) + (voxel << 16);
+	i.N = (voxel == 0 ? 0 : Nval);
+	i.V = voxel;
 	return i;
 }
 Intersection TraceBrick(const Ray& r)
@@ -349,17 +351,21 @@ void ReshapeWindowCallback( GLFWwindow* window, int w, int h )
 }
 void KeyEventCallback( GLFWwindow* window, int key, int scancode, int action, int mods )
 {
-	WorldEditor* worldEditor = world->getWorldEditor();
-	if (key == GLFW_KEY_ESCAPE) running = false;
-	if (action == GLFW_PRESS)
-	{ 
-		if (worldEditor->IsEnabled()) worldEditor->KeyDown( key );
-		else if (game) if (key >= 0) game->KeyDown( key ); 
-	}
-	else if (action == GLFW_RELEASE) 
-	{ 
-		if (worldEditor->IsEnabled()) worldEditor->KeyUp( key );
-		if (game) if (key >= 0) game->KeyUp( key ); 
+	ImGuiIO& io = ImGui::GetIO();
+	if (!io.WantTextInput)
+	{
+		WorldEditor* worldEditor = world->getWorldEditor();
+		if (key == GLFW_KEY_ESCAPE) running = false;
+		if (action == GLFW_PRESS)
+		{
+			if (worldEditor->IsEnabled()) worldEditor->KeyDown(key);
+			else if (game) if (key >= 0) game->KeyDown(key);
+		}
+		else if (action == GLFW_RELEASE)
+		{
+			if (worldEditor->IsEnabled()) worldEditor->KeyUp(key);
+			if (game) if (key >= 0) game->KeyUp(key);
+		}
 	}
 }
 void CharEventCallback( GLFWwindow* window, uint code ) { /* nothing here yet */ }
@@ -488,6 +494,7 @@ void main()
 	// after init, optimize world and sync all bricks to GPU
 	world->OptimizeBricks();
 	world->ForceSyncAllBricks();
+	world->InitWorldEditor();
 	// done, enter main loop
 	Shader* shader = new Shader(
 		"#version 330\nin vec4 p;\nin vec2 t;out vec2 u;void main(){u=t;gl_Position=p;}",
