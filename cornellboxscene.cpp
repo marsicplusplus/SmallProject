@@ -93,10 +93,11 @@ void MyGameScene::CreateCornellBoxWorld(World& world)
 		world.Set(x, _ym, z, WHITE | (1 << 12));
 	}
 #else
-	for (int x = _x; x < _xm; x+=BRICKDIM) for (int z = _z; z < _zm; z+=BRICKDIM)
+	int by = _ym / BRICKDIM;
+	for (int bx = _x / BRICKDIM; bx < _xm / BRICKDIM; bx++) for (int bz = _z / BRICKDIM; bz < _zm / BRICKDIM; bz++)
 	{
 		//world.Set(x, _y, z, WHITE | (1 << 12));
-		world.SetBrick(x, _ym, z, WHITE | (15 << 12));
+		world.AddBrick(bx, by, bz, WHITE | (15 << 12));
 	}
 #endif
 }

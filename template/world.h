@@ -259,10 +259,10 @@ public:
 	void SetupLightBuffer() { vector<Light> empty; SetupLightBuffer(empty); }
 	void SetupLightBuffer(const vector<Light>& ls, int pos = 0);
 
+	void AddLight(const int3 pos, const uint size, const uint c);
+
 	void AddRandomLights(int numberOfLights);
 	void RemoveRandomLights(int numberOfLights);
-	void AddVoxelLight(const int3 pos, const uint c) { AddVoxelLight(pos, make_int3(1), c); };
-	void AddVoxelLight(const int3 pos, const int3 size, const uint c);
 	void RemoveLight(const int3 pos);
 
 	void SetUpMovingLights(int numberOfLights);
@@ -310,28 +310,47 @@ public:
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
 		const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 		uint cellValue = grid[cellIdx], brickBufferOffset = cellValue >> 1;
+
+		// If we're adding a brick to a non-solid cell,
+		// we need to free the brick and ensure that any lights in the cell
+		// are removed from the light buffer
 		if (!IsSolidGridCell(cellValue))
 		{
 			FreeBrick(brickBufferOffset);
+			for (uint ly = 0; ly < BRICKDIM; ly++)
+				for (uint lz = 0; lz < BRICKDIM; lz++)
+					for (uint lx = 0; lx < BRICKDIM; lx++)
+					{
+						uint _v = Get(lx + bx * BRICKDIM, ly + by * BRICKDIM, lz + bz * BRICKDIM);
+
+						// If we're replacing what was a light, remove it from the light buffer
+						if (IsEmitter(_v))
+						{
+							RemoveLight(int3(lx + bx * BRICKDIM, ly + by * BRICKDIM, lz + bz * BRICKDIM));
+						}
+					}
+		}
+		else
+		{
+			// If we're replacing what was a brick light, remove it from the light buffer
+			uint oldV = cellValue >> 1;
+			if (IsEmitter(oldV))
+			{
+				RemoveLight(int3(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM));
+			}
+
+		}
+
+		// If we're adding a brick light, add it to the light buffer
+		if (IsEmitter(v))
+		{
+			AddLight(int3(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM), BRICKDIM, v);
 		}
 
 		Mark(0); // Mark to ensure new grid gets sent to GPU
 		grid[cellIdx] = v << 1;
 	}
 
-	__forceinline void SetBrick(const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */)
-	{
-		for (uint ly = 0; ly < BRICKDIM; ly++)
-		{
-			for (uint lz = 0; lz < BRICKDIM; lz++)
-			{
-				for (uint lx = 0; lx < BRICKDIM; lx++)
-				{
-					Set(lx + x, ly + y, lz + z, v);
-				}
-			}
-		}
-	}
 	__forceinline void RemoveBrick(const uint bx, const uint by, const uint bz)
 	{
 		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH) return;
@@ -344,7 +363,29 @@ public:
 		{
 			zeroes[brickBufferOffset] = BRICKSIZE;
 			FreeBrick(brickBufferOffset);
+			for (uint ly = 0; ly < BRICKDIM; ly++)
+				for (uint lz = 0; lz < BRICKDIM; lz++)
+					for (uint lx = 0; lx < BRICKDIM; lx++)
+					{
+						uint v = Get(lx + bx * BRICKDIM, ly + by * BRICKDIM, lz + bz * BRICKDIM);
+
+						// If we're removing individual voxels that were lights, remove them from the light buffer
+						if (IsEmitter(v))
+						{
+							RemoveLight(int3(lx + bx * BRICKDIM, ly + by * BRICKDIM, lz + bz * BRICKDIM));
+						}
+					}
 		}
+		else
+		{
+			// If we're replacing what was a brick light, remove it from the light buffer
+			uint oldV = cellValue >> 1;
+			if (IsEmitter(oldV))
+			{
+				RemoveLight(int3(bx * BRICKDIM, by * BRICKDIM, bz * BRICKDIM));
+			}
+		}
+
 		Mark(0); // Mark to ensure new grid gets sent to GPU
 	}
 
@@ -412,7 +453,66 @@ public:
 	}
 
 
-	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */ )
+	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */)
+	{
+		// calculate brick location in top-level grid
+		uint bx = x / BRICKDIM;
+		uint by = y / BRICKDIM;
+		uint bz = z / BRICKDIM;
+
+		if (bx >= GRIDWIDTH || by >= GRIDHEIGHT || bz >= GRIDDEPTH)
+			return;		//Way to prevent this branching?
+
+		const uint cellIndex = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+		uint cellValue = grid[cellIndex];
+		uint brickColor = cellValue >> 1;
+		uint brickBufferOffset = cellValue >> 1;
+
+		if (IsSolidGridCell(cellValue))
+		{
+			// No change to the actual brick color, return
+			if (v == brickColor)
+			{
+				return;
+			}
+			brickBufferOffset = SplitSolidBrick(brickColor, cellIndex);
+			cellValue = grid[cellIndex];
+		}
+
+
+		// calculate the position of the voxel inside the brick
+		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
+		const uint voxelIdx = brickBufferOffset * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM; //Precalculate this?
+		const uint originalVoxel = brick[voxelIdx];
+
+		// If we're replacing what was a light, remove it from the light buffer
+		if (IsEmitter(originalVoxel))
+		{
+			RemoveLight(int3(x, y, z));
+		}
+
+		// If we're adding a light, add it to the light buffer
+		if (IsEmitter(v))
+		{
+			AddLight(int3(x, y, z), 1, v);
+		}
+
+
+		int zeroChange = (originalVoxel != 0 && v == 0) - (originalVoxel == 0 && v != 0);
+		zeroes[brickBufferOffset] += zeroChange;
+		if (zeroes[brickBufferOffset] < BRICKSIZE)
+		{
+			brick[voxelIdx] = v; 
+			Mark(brickBufferOffset);
+		}
+		else
+		{
+			grid[cellIndex] = 0;
+			FreeBrick(brickBufferOffset);
+		}
+	}
+
+	__forceinline void SetFromSprite(const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */)
 	{
 		// calculate brick location in top-level grid
 		uint bx = x / BRICKDIM;
@@ -447,7 +547,7 @@ public:
 		zeroes[brickBufferOffset] += zeroChange;
 		if (zeroes[brickBufferOffset] < BRICKSIZE)
 		{
-			brick[voxelIdx] = v; 
+			brick[voxelIdx] = v;
 			Mark(brickBufferOffset);
 		}
 		else

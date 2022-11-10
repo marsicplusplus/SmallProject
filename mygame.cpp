@@ -120,20 +120,6 @@ void MyGame::Init()
 	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->RemoveRandomLights(a); }, _1, _2, 2500); } });
 	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {GetWorld()->SetUpMovingLights(a); }, _1, _2, 2500); } });
 
-	//world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
-	//world.SetBrick(8 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
-	//world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
-	//world.Set(12 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
-	//world.Set(12 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
-	//world.Set(12 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
-
-	//world.SetBrick(24 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
-	//world.SetBrick(24 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
-	//world.SetBrick(24 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
-	//world.Set(20 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
-	//world.Set(20 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
-	//world.Set(20 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
-
 	world.OptimizeBricks(); //important to recognize bricks
 }
 

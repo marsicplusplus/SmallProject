@@ -139,6 +139,7 @@ namespace Tmpl8
 		void SaveWorld();
 		void LoadWorld();
 		int GetBoxScale();
+		void AddBackLights(uint bx, uint by, uint bz);
 
 		// Input and Gesture 
 		int2 mousePos;

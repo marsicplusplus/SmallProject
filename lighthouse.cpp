@@ -3,10 +3,7 @@
 
 Game* CreateGame() { return new Lighthouse(); }
 
-Tmpl8::Lighthouse::Lighthouse() :
-	fluidSimulator(GetWorld())
-{
-}
+Tmpl8::Lighthouse::Lighthouse() {}
 
 void Lighthouse::SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint d, uint v)
 {
@@ -111,7 +108,6 @@ void Lighthouse::HandleInput(float deltaTime)
 	if (GetAsyncKeyState(VK_SPACE))
 	{
 		SetSpriteFrame(lighthouseSprite, (frame = frame + 1) % 5);
-		fluidSimulator.Update(deltaTime);
 	}
 	if (GetAsyncKeyState(VK_SHIFT) && !keyPressed[VK_SHIFT])
 	{
@@ -178,7 +174,4 @@ void Lighthouse::Tick(float deltaTime)
 {
 	// update camera
 	HandleInput(deltaTime);
-
-	if (runCAPESimulation)
-		fluidSimulator.Update(deltaTime);
 }

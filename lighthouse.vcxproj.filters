@@ -49,7 +49,6 @@
     <ClCompile Include="worldeditor.cpp">
       <Filter>template</Filter>
     </ClCompile>
-    <ClCompile Include="fluid_simulator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="template\CAPE.h">
@@ -107,7 +106,6 @@
     <ClInclude Include="worldeditor.h">
       <Filter>template</Filter>
     </ClInclude>
-    <ClInclude Include="fluid_simulator.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md">

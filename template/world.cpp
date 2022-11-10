@@ -231,32 +231,22 @@ void World::SetupReservoirBuffers()
 	}
 }
 
-void World::AddVoxelLight(const int3 pos, const int3 size, const uint c)
+void World::AddLight(const int3 pos, const uint size, const uint c)
 {
-	//TODO: Recognize bricks;
 	vector<Light> ls;
-	for (int x = 0; x < size.x; ++x)
+	uint index = (pos.x) + (pos.z) * MAPWIDTH + (pos.y) * MAPWIDTH * MAPDEPTH;
+	uint prev = Get(pos.x, pos.y, pos.z);
+
+	if (EmitStrength(prev) == 0)
 	{
-		for (int y = 0; y < size.y; ++y)
-		{
-			for (int z = 0; z < size.z; ++z)
-			{
-				uint index = (pos.x + x) + (pos.z + z) * MAPWIDTH + (pos.y + y) * MAPWIDTH * MAPDEPTH;
-				uint prev = Get(pos.x + x, pos.y + y, pos.z + z);
-				if (EmitStrength(prev) == 0)
-				{
-					defaultVoxel[index] = prev;
-				}
-				Set(pos.x+x, pos.y+y, pos.z+z, c);
-				printf("Adding light at: (%d, %d, %d)\n", pos.x + x, pos.y + y, pos.z + z);
-				Light l;
-				l.position = index;
-				l.voxel = c;
-				l.size = 1;
-				ls.push_back(l);
-			}
-		}
+		defaultVoxel[index] = prev;
 	}
+
+	Light l;
+	l.position = index;
+	l.voxel = c;
+	l.size = size;
+	ls.push_back(l);
 	SetupLightBuffer(ls, params.numberOfLights);
 	params.restirtemporalframe = 0;
 }
@@ -278,22 +268,8 @@ void World::AddRandomLights(int _numberOfLights)
 		uint y = RandomFloat() * world_height;
 		uint z = RandomFloat() * world_depth;
 		uint c = (uint)(RandomFloat() * ((1 << 12) - 2) + 1) | (1 << 12);
-		uint index = x + z * sizex + y * sizex * sizez;
-		uint prev = Get(x, y, z);
-		if (EmitStrength(prev) == 0)
-		{
-			defaultVoxel[index] = prev;
-		}
 		Set(x, y, z, c);
-		Light l;
-		l.position = index;
-		l.voxel = c;
-		l.size = 1;
-		ls.push_back(l);
 	}
-
-	SetupLightBuffer(ls, params.numberOfLights);
-	params.restirtemporalframe = 0;
 }
 void World::MoveLights()
 {
@@ -328,7 +304,6 @@ void World::MoveLights()
 		}
 		Set(oldx, oldy, oldz, color);
 		Set(pos.x, pos.y, pos.z, l.voxel);
-		l.position = lightposition;
 	}
 
 	// spatial hides the incorrect temporal albedo artifacts
@@ -536,6 +511,7 @@ void World::FindLightsInWord(vector<Light>& ls)
 
 void World::RemoveLight(const int3 pos) 
 {
+	printf("Removing light. Num lights left %d\n", (int)params.numberOfLights - 1);
 	uint numberOfLights = max(0, (int)params.numberOfLights - 1);
 	if (!lightsBuffer)
 	{
@@ -589,13 +565,6 @@ void World::RemoveLight(const int3 pos)
 	params.restirtemporalframe = 0;
 	params.numberOfLights = numberOfLights;
 	lightsBuffer->CopyToDevice();
-
-	uint color = 0;
-	if (defaultVoxel.find(toRemove) != defaultVoxel.end())
-	{
-		color = defaultVoxel[toRemove];
-	}
-	Set(pos.x, pos.y, pos.z, color);
 }
 
 void World::SetupLightBuffer(const vector<Light> &ls, int pos)
@@ -778,6 +747,8 @@ void World::Clear()
 		zeroes[i] = 0;
 	zeroesBuffer->CopyToDevice();
 
+	if (lightsBuffer) delete(lightsBuffer), lightsBuffer = NULL;
+	params.numberOfLights = 0;
 	ClearMarks();
 }
 
@@ -1437,7 +1408,7 @@ uint World::SpriteFrameCount(const uint idx)
 // ----------------------------------------------------------------------------
 void World::EraseSprite(const uint idx)
 {
-	// restore pixels occupied by sprite at previous location
+	// restore pixels occupied by sprite at previous locationU
 	auto& sprite = GetSpriteList();
 	const int3 lastPos = sprite[idx]->lastPos;
 	if (lastPos.x == OUTOFRANGE) return;
@@ -1448,7 +1419,7 @@ void World::EraseSprite(const uint idx)
 	{
 		const uint v = localPos[i];
 		const uint vx = v & 1023, vy = (v >> 10) & 1023, vz = (v >> 20) & 1023;
-		Set(vx + lastPos.x, vy + lastPos.y, vz + lastPos.z, backup->buffer[i]);
+		SetFromSprite(vx + lastPos.x, vy + lastPos.y, vz + lastPos.z, backup->buffer[i]);
 	}
 }
 
@@ -1474,7 +1445,7 @@ void World::DrawSprite(const uint idx)
 				const uint v = localPos[i];
 				const uint vx = v & 1023, vy = (v >> 10) & 1023, vz = (v >> 20) & 1023;
 				backup->buffer[i] = Get(vx + pos.x, vy + pos.y, vz + pos.z);
-				Set(vx + pos.x, vy + pos.y, vz + pos.z, val[i] | 0x0F000);
+				SetFromSprite(vx + pos.x, vy + pos.y, vz + pos.z, val[i] | 0x0F000);
 			}
 		}
 		else

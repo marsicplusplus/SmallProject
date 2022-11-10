@@ -620,6 +620,24 @@ int WorldEditor::GetBoxScale()
 	}
 }
 
+void WorldEditor::AddBackLights(uint bx, uint by, uint bz)
+{
+	World& world = *GetWorld();
+	for (uint ly = 0; ly < BRICKDIM; ly++)
+		for (uint lz = 0; lz < BRICKDIM; lz++)
+			for (uint lx = 0; lx < BRICKDIM; lx++)
+			{
+				uint v = world.Get(lx + bx * BRICKDIM, ly + by * BRICKDIM, lz + bz * BRICKDIM);
+
+				// If we're removing individual voxels that were lights, remove them from the light buffer
+				if (IsEmitter(v))
+				{
+					world.AddLight(int3(lx + bx * BRICKDIM, ly + by * BRICKDIM, lz + bz * BRICKDIM), 1, v);
+				}
+			}
+}
+
+
 // Allow the adding/removing of multiple bricks in the seclected box
 void WorldEditor::MultiAddRemove()
 {
@@ -649,11 +667,11 @@ void WorldEditor::MultiAddRemove()
 		const uint tempCellVal = tempGrid[cellIndex];
 		const uint curCellVal = grid[cellIndex];
 
-		// If we're reintroducing what was an empty/solid brick, just remove the current one
+		// If we're reintroducing what was an empty/solid brick, remove the current one
 		if (IsSolidGridCell(tempCellVal))
 		{
 			world.RemoveBrick(bx, by, bz);
-			grid[cellIndex] = tempCellVal;
+			world.AddBrick(bx, by, bz, tempCellVal >> 1);
 			return;
 		}
 
@@ -672,6 +690,7 @@ void WorldEditor::MultiAddRemove()
 		grid[cellIndex] = cellVal;
 		world.GetZeroes()[brickBufferOffset] = tempZeroes[tempBrickBufferOffset];
 		world.Mark(brickBufferOffset);
+		AddBackLights(bx, by, bz);
 	};
 
 	if (gesture.size == GestureSize::GESTURE_BRICK || gesture.size == GestureSize::GESTURE_TILE)
@@ -774,14 +793,7 @@ void WorldEditor::Add(uint vx, uint vy, uint vz)
 
 	if (gesture.size == GestureSize::GESTURE_VOXEL)
 	{
-		if (IsEmitter(voxelValue))
-		{
-			world.AddVoxelLight(make_int3(vx, vy, vz), voxelValue);
-		} 
-		else
-		{
-			world.Set(vx, vy, vz, voxelValue);
-		}
+		world.Set(vx, vy, vz, voxelValue);
 		UpdateEditedBricks(vx, vy, vz);
 	}
 	else 
@@ -1031,11 +1043,11 @@ void WorldEditor::Undo()
 		const uint oldCellValue = stateCurrent->oldCellValues[idx];
 		const uint newCellValue = stateCurrent->newCellValues[idx];
 
-		// If we're restoring what was an empty/solid brick, just remove the current one
+		// If we're restoring what was an empty/solid brick, remove the current one
 		if (IsSolidGridCell(oldCellValue))
 		{
 			world.RemoveBrick(b.x, b.y, b.z);
-			grid[cellIndex] = oldCellValue;
+			world.AddBrick(b.x, b.y, b.z, oldCellValue >> 1);
 			continue;
 		}
 
@@ -1054,6 +1066,7 @@ void WorldEditor::Undo()
 		grid[cellIndex] = cellValue;
 		zeroes[brickBufferOffset] = stateCurrent->oldBrickZeroes[idx];
 		world.Mark(brickBufferOffset);
+		AddBackLights(b.x, b.y, b.z);
 	}
 
 	stateCurrent = stateCurrent->prevState;
@@ -1084,7 +1097,7 @@ void WorldEditor::Redo()
 		if (IsSolidGridCell(newCellValue))
 		{
 			world.RemoveBrick(b.x, b.y, b.z);
-			grid[cellIndex] = newCellValue;
+			world.AddBrick(b.x, b.y, b.z, newCellValue >> 1);
 			continue;
 		}
 
@@ -1103,6 +1116,7 @@ void WorldEditor::Redo()
 		grid[cellIndex] = cellValue;
 		zeroes[brickBufferOffset] = stateCurrent->oldBrickZeroes[idx];
 		world.Mark(brickBufferOffset);
+		AddBackLights(b.x, b.y, b.z);
 	}
 }
 
@@ -1182,7 +1196,8 @@ void WorldEditor::SaveState()
 
 
 	// Check to see if the state has actually changed....if not don't add it to the history
-	if (memcmp(stateCurrent->oldCellValues, stateCurrent->newCellValues, numBricks * 4) == 0)
+	if (memcmp(stateCurrent->oldCellValues, stateCurrent->newCellValues, numBricks * 4) == 0 && 
+		memcmp(stateCurrent->oldBricks, stateCurrent->newBricks, numBricks * BRICKSIZE * PAYLOADSIZE) == 0)
 	{
 		stateCurrent = stateCurrent->prevState;
 		DeleteState(stateCurrent->nextState);
@@ -1319,7 +1334,7 @@ void WorldEditor::LoadWorld()
 						}
 					}
 				}
-				world.Mark(brickBufferOffset); // Mark to send to GPU
+				world.Mark(brickBufferOffset);
 				world.NewBrick(); // Call New Brick to ensure trash buffer is initialised correctly
 			}
 		}
@@ -1333,6 +1348,15 @@ void WorldEditor::LoadWorld()
 		DeleteState(stateTail->nextState);
 		stateTail->nextState = NULL;
 	}
+
+	// Check for added lights in the scene
+	vector<Light> vls;
+	world.FindLightsInWord(vls);
+	world.SetupLightBuffer(vls);
+
+	// Optimize and forcve sync bricks to GPU
+	world.OptimizeBricks();
+	world.ForceSyncAllBricks();
 }
 
 void WorldEditor::SaveWorld()

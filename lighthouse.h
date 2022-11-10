@@ -48,7 +48,6 @@ namespace Tmpl8
 		float3 O = make_float3(512, 512, 512);
 
 		int lighthouseSprite, frame = 0;
-		FluidSimulator fluidSimulator;
 		bool runCAPESimulation = false;
 		bool keyPressed[0xFF];
 	};
