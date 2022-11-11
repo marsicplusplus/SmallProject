@@ -113,7 +113,7 @@ float4 FixZeroDeltas( float4 V )
 #define GRIDSTEP_ALL(exitLabel) GRIDSTEP(exitLabel, v != 0)
 
 // This traces only fully opaque voxels. The != 0 becomes implicit via the alpha check
-#define GRIDSTEP_OPAQUE(exitLabel) GRIDSTEP(exitLabel, v != 0 && GetAlpha(v) == 0xF)
+#define GRIDSTEP_OPAQUE(exitLabel) GRIDSTEP(exitLabel, GetAlpha(v) == 0xF)
 
 // Traces everything that does not match the given voxel value when applying the compare mask
 #define GRIDSTEP_TRACETHROUGH_IDENTICAL(exitLabel, toTraceThrough, compareMask) GRIDSTEP(exitLabel, (v & compareMask) != (toTraceThrough & compareMask))
