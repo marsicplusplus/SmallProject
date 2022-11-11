@@ -122,7 +122,6 @@ namespace Tmpl8
 		void Disable() { ResetEditor(); enabled = false; }
 		void ResetEditor();
 		void RenderGUI();
-		void LoadAssets();
 
 	private:
 		void UpdateSelectedBox();
@@ -141,6 +140,7 @@ namespace Tmpl8
 		void LoadWorld();
 		int3 GetBoxScale();
 		void AddBackLights(uint bx, uint by, uint bz);
+		void LoadAssets();
 
 		// Input and Gesture 
 		int2 mousePos;

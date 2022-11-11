@@ -491,7 +491,6 @@ void main()
 	world->LoadSky(Game::skyDomeImage.c_str(), Game::skyDomeScale);
 	// Ensure world editor is initialised before the game as World Editor init utilizes brick/grid then clears
 	worldEditor = new WorldEditor();
-	worldEditor->LoadAssets();
 
 	game = CreateGame();
 	game->screen = screen;
