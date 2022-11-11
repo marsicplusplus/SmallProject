@@ -275,6 +275,10 @@ public:
 
 	vector<Tile*>& GetTileList() { return TileManager::GetTileManager()->tile; }
 	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
+	// convenient access to 'guaranteed to be instantiated' sprite, particle, tile lists
+	vector<Sprite*>& GetSpriteList() { return SpriteManager::GetSpriteManager()->sprite; }
+	vector<Particles*>& GetParticlesList() { return ParticlesManager::GetParticlesManager()->particles; }
+
 private:
 	// internal methods
 	void EraseSprite( const uint idx );
@@ -285,9 +289,7 @@ private:
 	void DrawParticles( const uint set );
 	void DrawTileVoxels( const uint cellIdx, const PAYLOAD* voxels, const uint zeroes );
 	void SetupReservoirBuffers();
-	// convenient access to 'guaranteed to be instantiated' sprite, particle, tile lists
-	vector<Sprite*>& GetSpriteList() { return SpriteManager::GetSpriteManager()->sprite; }
-	vector<Particles*>& GetParticlesList() { return ParticlesManager::GetParticlesManager()->particles; }
+
 public:
 	// low-level voxel access
 	__forceinline PAYLOAD Get( const uint x, const uint y, const uint z)

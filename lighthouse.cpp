@@ -20,8 +20,8 @@ void Lighthouse::SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint 
 
 void Lighthouse::InitialiseLighthouseScenario()
 {
-	lighthouseSprite = LoadSprite("assets/lighthouse.vox");
-	MoveSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
+	lighthouseSprite = LoadSprite("assets/sprites/lighthouse.vox");
+	MoveSpriteTo(lighthouseSprite, make_int3(0, 0, 0));
 
 	World& world = *GetWorld();
 	for (int lx = 18; lx < 25; ++lx) {
@@ -88,6 +88,8 @@ void Lighthouse::Init()
 	world.SetupLightBuffer(vls);
 	skyDomeLightScale = 0.0f;
 	skyDomeImage = "assets/sky_21.hdr";
+
+	LookAt(O, O + D);
 }
 
 // -----------------------------------------------------------
@@ -95,6 +97,10 @@ void Lighthouse::Init()
 // -----------------------------------------------------------
 void Lighthouse::HandleInput(float deltaTime)
 {
+	World& world = *GetWorld();
+	O = world.GetCameraPos();
+	D = world.GetCameraViewDir();
+
 	// free cam controls
 	float3 tmp(0, 1, 0), right = normalize(cross(tmp, D)), up = cross(D, right);
 	float speed = deltaTime * 0.1f;
@@ -121,7 +127,6 @@ void Lighthouse::HandleInput(float deltaTime)
 
 	if (GetAsyncKeyState('G') && !keyPressed['G'])
 	{
-		World& world = *GetWorld();
 		WorldEditor& worldEditor = *world.getWorldEditor();
 		if (worldEditor.IsEnabled())
 		{

@@ -564,6 +564,7 @@ inline void operator*=( uint4& a, const uint4& b ) { a.x *= b.x;	a.y *= b.y;	a.z
 inline uint4 operator*( const uint4& a, uint b ) { return make_uint4( a.x * b, a.y * b, a.z * b, a.w * b ); }
 inline uint4 operator*( uint b, const uint4& a ) { return make_uint4( b * a.x, b * a.y, b * a.z, b * a.w ); }
 inline void operator*=( uint4& a, uint b ) { a.x *= b;	a.y *= b;	a.z *= b;	a.w *= b; }
+inline float3 operator*(float3 b, const int3& a) { return make_float3(b.x * a.x, b.y * a.y, b.z * a.z); }
 
 inline float2 operator/( const float2& a, const float2& b ) { return make_float2( a.x / b.x, a.y / b.y ); }
 inline void operator/=( float2& a, const float2& b ) { a.x /= b.x;	a.y /= b.y; }
@@ -580,6 +581,11 @@ inline void operator/=( float4& a, const float4& b ) { a.x /= b.x;	a.y /= b.y;	a
 inline float4 operator/( const float4& a, float b ) { return make_float4( a.x / b, a.y / b, a.z / b, a.w / b ); }
 inline void operator/=( float4& a, float b ) { a.x /= b;	a.y /= b;	a.z /= b;	a.w /= b; }
 inline float4 operator/( float b, const float4& a ) { return make_float4( b / a.x, b / a.y, b / a.z, b / a.w ); }
+inline void operator/=(int3& a, int b) { a.x /= b;	a.y /= b;	a.z /= b; }
+inline int3 operator/(int b, const int3& a) { return make_int3(b / a.x, b / a.y, b / a.z); }
+inline int3 operator/(const int3& a, const int3& b) { return make_int3(a.x / b.x, a.y / b.y, a.z / b.z); }
+inline void operator/=(int3& a, const int3& b) { a.x /= b.x;	a.y /= b.y;	a.z /= b.z; }
+
 
 inline float2 fminf( const float2& a, const float2& b ) { return make_float2( fminf( a.x, b.x ), fminf( a.y, b.y ) ); }
 inline float3 fminf( const float3& a, const float3& b ) { return make_float3( fminf( a.x, b.x ), fminf( a.y, b.y ), fminf( a.z, b.z ) ); }

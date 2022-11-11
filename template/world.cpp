@@ -195,7 +195,7 @@ World::World(const uint targetID)
 void World::InitWorldEditor()
 {
 	worldEditor = new Tmpl8::WorldEditor();
-	worldEditor->LoadTiles();
+	worldEditor->LoadAssets();
 }
 
 void World::InitReSTIR() {
@@ -511,7 +511,6 @@ void World::FindLightsInWord(vector<Light>& ls)
 
 void World::RemoveLight(const int3 pos) 
 {
-	printf("Removing light. Num lights left %d\n", (int)params.numberOfLights - 1);
 	uint numberOfLights = max(0, (int)params.numberOfLights - 1);
 	if (!lightsBuffer)
 	{

@@ -97,7 +97,8 @@ namespace Tmpl8
 			GESTURE_VOXEL = 0,
 			GESTURE_BRICK = 1,
 			GESTURE_TILE = 2,
-			GESTURE_BIG_TILE = 3
+			GESTURE_BIG_TILE = 3,
+			GESTURE_SPRITE = 4
 		};
 
 		struct Gesture
@@ -121,7 +122,7 @@ namespace Tmpl8
 		void Disable() { ResetEditor(); enabled = false; }
 		void ResetEditor();
 		void RenderGUI();
-		void LoadTiles();
+		void LoadAssets();
 
 	private:
 		void UpdateSelectedBox();
@@ -138,7 +139,7 @@ namespace Tmpl8
 		void UpdateEditedBricks(uint bx, uint by, uint bz);
 		void SaveWorld();
 		void LoadWorld();
-		int GetBoxScale();
+		int3 GetBoxScale();
 		void AddBackLights(uint bx, uint by, uint bz);
 
 		// Input and Gesture 
@@ -155,8 +156,10 @@ namespace Tmpl8
 
 		std::vector<std::pair<int, GLuint>> loadedTiles;
 		std::vector<std::pair<int, GLuint>> loadedBigTiles;
+		std::vector<std::pair<int, GLuint>> loadedSprites;
 		int selectedTileIdx = 0;
 		int selectedBigTileIdx = 0;
+		int selectedSpriteIdx = 0;
 		uint voxelValue;
 
 		State* stateHead;

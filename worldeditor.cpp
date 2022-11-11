@@ -228,10 +228,11 @@ float blueNoiseSampler(const uint* blueNoise, int x, int y, int sampleIndex, int
 	return retVal;
 }
 
-void WorldEditor::LoadTiles()
+void WorldEditor::LoadAssets()
 {
 	const std::filesystem::path tiles{ "assets/Tiles" };
 	const std::filesystem::path bigTiles{ "assets/BigTiles" };
+	const std::filesystem::path sprites{ "assets/Sprites" };
 
 	TileManager* tileManager = TileManager::GetTileManager();
 	World& world = *GetWorld();
@@ -246,7 +247,7 @@ void WorldEditor::LoadTiles()
 	for (int i = 0; i < (128 * 128 * 8); i++) blueNoise[i + 3 * 65536] = data8[i];
 
 
-	auto CreateTilePreview = [&blueNoise, &world](const char* filename, float3 O, float3 D)
+	auto CreatePreview = [&blueNoise, &world](const char* filename, float3 O, float3 D)
 	{
 		Surface* surface = new Surface(TILE_IMAGE_DIM, TILE_IMAGE_DIM);
 
@@ -328,6 +329,7 @@ void WorldEditor::LoadTiles()
 		stbi_write_png(filename, TILE_IMAGE_DIM, TILE_IMAGE_DIM, 4, surface->buffer, TILE_IMAGE_DIM * sizeof(uint32_t));
 	};
 
+	float3 cameraOrigin = make_float3(12, 10, -8);
 	// Load any saved Tiles
 	for (auto const& dir_entry : std::filesystem::directory_iterator{ tiles })
 	{
@@ -346,9 +348,9 @@ void WorldEditor::LoadTiles()
 
 				world.DrawTile(tileIdx, 0, 0, 0);
 
-				float3 O = make_float3(12, 9, -8);
-				float3 D = make_float3(-0.522, -0.401, 0.753);
-				CreateTilePreview(p.string().c_str(), O, D);
+				float3 O = cameraOrigin;
+				float3 D = make_float3(-0.5, -0.5, 0.7);
+				CreatePreview(p.string().c_str(), O, D);
 			}
 
 			int my_image_width = 0;
@@ -378,9 +380,9 @@ void WorldEditor::LoadTiles()
 				
 				world.DrawBigTile(bigTileIdx, 0, 0, 0);
 
-				float3 O = make_float3(18, 22, -12);
-				float3 D = make_float3(-0.387, -0.539, 0.748);
-				CreateTilePreview(p.string().c_str(), O, D);
+				float3 O = cameraOrigin * 2;
+				float3 D = make_float3(-0.5, -0.5, 0.7);
+				CreatePreview(p.string().c_str(), O, D);
 			}
 			int my_image_width = 0;
 			int my_image_height = 0;
@@ -389,6 +391,42 @@ void WorldEditor::LoadTiles()
 			bool ret = LoadTextureFromFile(p.string().c_str(), &my_image_texture, &my_image_width, &my_image_height);
 			IM_ASSERT(ret);
 			loadedBigTiles.push_back(std::make_pair(bigTileIdx, my_image_texture));
+		}
+	}
+
+	// Load any saved BigTiles
+	for (auto const& dir_entry : std::filesystem::directory_iterator{ sprites })
+	{
+		std::filesystem::path p = dir_entry.path();
+		if (p.extension() == ".vox")
+		{
+			// Load the tile
+			uint spriteIdx = LoadSprite(dir_entry.path().string().c_str());
+
+			// Check to see if the tile has a preview png already
+			std::filesystem::path png = ".png";
+			p.replace_extension(png);
+			if (!std::filesystem::exists(p)) // Construct a preview for the tile
+			{
+
+				world.StampSpriteTo(spriteIdx, 0, 0, 0);
+				Sprite* sprite = world.GetSpriteList()[spriteIdx];
+				int3 spriteSize = sprite->frame[0]->size;
+				float3 cameraShift = make_float3(spriteSize) / 8.0f;
+				cameraShift.x = max(cameraShift.x, 1.0f), cameraShift.y = max(cameraShift.y, 1.0f), cameraShift.z = max(cameraShift.x, 1.0f);
+				float3 O = cameraOrigin * cameraShift;
+				float3 D = make_float3(-0.5, -0.5, 0.7);
+				CreatePreview(p.string().c_str(), O, D);
+
+				world.Clear();
+			}
+			int my_image_width = 0;
+			int my_image_height = 0;
+			GLuint my_image_texture = 0;
+
+			bool ret = LoadTextureFromFile(p.string().c_str(), &my_image_texture, &my_image_width, &my_image_height);
+			IM_ASSERT(ret);
+			loadedSprites.push_back(std::make_pair(spriteIdx, my_image_texture));
 		}
 	}
 
@@ -431,7 +469,8 @@ void WorldEditor::MouseMove(int x, int y)
 		return;
 	}
 
-	if (gesture.mode & GestureMode::GESTURE_MULTI)
+	// Don't allow multi add/remove for sprites
+	if (gesture.mode & GestureMode::GESTURE_MULTI && gesture.size != GestureSize::GESTURE_SPRITE)
 	{
 		MultiAddRemove();
 	}
@@ -597,6 +636,15 @@ void WorldEditor::UpdateEditedBricks(uint x, uint y, uint z)
 				for (uint _z = 0; _z < 2; _z++)
 					editedBricks.insert(make_int3(x / BRICKDIM + _x, y / BRICKDIM + _y, z / BRICKDIM + _z));
 	}
+	else if (gesture.size == GestureSize::GESTURE_SPRITE)
+	{
+		World& world = *GetWorld();
+		int3 spriteSize = world.GetSpriteList()[selectedSpriteIdx]->frame[0]->size;
+		for (uint _x = 0; _x < spriteSize.x; _x++)
+			for (uint _y = 0; _y < spriteSize.y; _y++)
+				for (uint _z = 0; _z < spriteSize.z; _z++)
+					editedBricks.insert(make_int3((x + _x) / BRICKDIM, (y + _y) / BRICKDIM, (z + _z) / BRICKDIM));
+	}
 	else
 	{
 		editedBricks.insert((make_int3)(x / BRICKDIM, y / BRICKDIM, z / BRICKDIM));
@@ -605,18 +653,24 @@ void WorldEditor::UpdateEditedBricks(uint x, uint y, uint z)
 	return;
 }
 
-int WorldEditor::GetBoxScale()
+int3 WorldEditor::GetBoxScale()
 {
 	switch (gesture.size)
 	{
 	case GestureSize::GESTURE_TILE:
 	case GestureSize::GESTURE_BRICK:
-		return BRICKDIM;
+		return make_int3(BRICKDIM);
 	case GestureSize::GESTURE_BIG_TILE:
-		return BRICKDIM * 2;
+		return make_int3(BRICKDIM * 2);
+	case GestureSize::GESTURE_SPRITE:
+	{
+		World& world = *GetWorld();
+		int3 spriteSize = world.GetSpriteList()[selectedSpriteIdx]->frame[0]->size;
+		return spriteSize;
+	}
 	case GestureSize::GESTURE_VOXEL:
 	default:
-		return 1;
+		return make_int3(1);
 	}
 }
 
@@ -654,12 +708,12 @@ void WorldEditor::MultiAddRemove()
 	aabb newBox = selected.box;
 	// Compute the overlap betweeen the old and new aabbs
 
-	int boxScale = GetBoxScale();
+	int3 boxScale = GetBoxScale();
 
-	oldBox.bmin3 = make_float3((uint)oldBox.bmin3.x / boxScale, (uint)oldBox.bmin3.y / boxScale, (uint)oldBox.bmin3.z / boxScale);
-	oldBox.bmax3 = make_float3((uint)oldBox.bmax3.x / boxScale, (uint)oldBox.bmax3.y / boxScale, (uint)oldBox.bmax3.z / boxScale);
-	newBox.bmin3 = make_float3((uint)newBox.bmin3.x / boxScale, (uint)newBox.bmin3.y / boxScale, (uint)newBox.bmin3.z / boxScale);
-	newBox.bmax3 = make_float3((uint)newBox.bmax3.x / boxScale, (uint)newBox.bmax3.y / boxScale, (uint)newBox.bmax3.z / boxScale);
+	oldBox.bmin3 = make_float3(make_int3(oldBox.bmin3) / boxScale);
+	oldBox.bmax3 = make_float3(make_int3(oldBox.bmax3) / boxScale);
+	newBox.bmin3 = make_float3(make_int3(newBox.bmin3) / boxScale);
+	newBox.bmax3 = make_float3(make_int3(newBox.bmax3) / boxScale);
 	aabb intersection = oldBox.Intersection(newBox);
 
 	auto RestoreTempBrickVal = [&](uint bx, uint by, uint bz) {
@@ -767,17 +821,17 @@ void WorldEditor::MultiAddRemove()
 				__m128 b4 = _mm_setr_ps(x, y, z, 0);
 				if (intersection.Contains(b4))
 				{
-					UpdateEditedBricks(x * boxScale, y * boxScale, z * boxScale);
+					UpdateEditedBricks(x * boxScale.x, y * boxScale.y, z * boxScale.z);
 					continue;
 				}
 
 				if (gesture.mode & GestureMode::GESTURE_REMOVE)
 				{
-					Remove(x * boxScale, y * boxScale, z * boxScale);
+					Remove(x * boxScale.x, y * boxScale.y, z * boxScale.z);
 				}
 				else
 				{
-					Add(x * boxScale, y * boxScale, z * boxScale);
+					Add(x * boxScale.x, y * boxScale.y, z * boxScale.z);
 				}
 			}
 }
@@ -815,6 +869,10 @@ void WorldEditor::Add(uint vx, uint vy, uint vz)
 			{
 				world.AddBrick(bx, by, bz, voxelValue);
 			}
+			else if (gesture.size == GestureSize::GESTURE_SPRITE)
+			{
+				world.StampSpriteTo(selectedSpriteIdx, vx, vy, vz);
+			}
 		}
 	}
 }
@@ -847,6 +905,14 @@ void WorldEditor::Remove(uint vx, uint vy, uint vz)
 			{
 				world.RemoveBigTile(bx, by, bz);
 			}
+			else if (gesture.size == GestureSize::GESTURE_SPRITE)
+			{
+				int3 spriteSize = world.GetSpriteList()[selectedSpriteIdx]->frame[0]->size;
+				for (uint _x = 0; _x < spriteSize.x; _x++)
+					for (uint _y = 0; _y < spriteSize.y; _y++)
+						for (uint _z = 0; _z < spriteSize.z; _z++)
+							world.Set(vx + _x, vy + _y, vz + _z, 0);
+			}
 		}
 	}
 
@@ -858,7 +924,7 @@ void WorldEditor::UpdateSelectedBox()
 	World& world = *GetWorld();
 	RenderParams& params = world.GetRenderParams();
 
-	int boxScale = GetBoxScale();
+	int3 boxScale = GetBoxScale();
 
 	const float2 uv = make_float2(mousePos.x * params.oneOverRes.x, mousePos.y * params.oneOverRes.y);
 	const float3 P = params.p0 + (params.p1 - params.p0) * uv.x + (params.p2 - params.p0) * uv.y;
@@ -940,14 +1006,20 @@ void WorldEditor::UpdateSelectedBox()
 		if (gridPos.x < 0 || gridPos.y < 0 || gridPos.z < 0 || gridPos.x > MAPWIDTH || gridPos.y > MAPHEIGHT || gridPos.z > MAPDEPTH)
 			return;
 
-		float3 boxPos;
-		boxPos = make_float3(
-			(int)(gridPos.x / boxScale) * boxScale,
-			(int)(gridPos.y / boxScale) * boxScale,
-			(int)(gridPos.z / boxScale) * boxScale
-		);
-		selected.box.Grow(boxPos);
-		selected.box.Grow(boxPos + make_float3(boxScale - 1, boxScale - 1, boxScale - 1));
+		float3 minBoxPos;
+		if (gesture.size == GestureSize::GESTURE_SPRITE)
+		{
+			// Allow sprites to be placed anywhere
+			minBoxPos = make_float3(make_int3(gridPos));
+		}
+		else
+		{
+			minBoxPos = make_float3(make_int3(gridPos / make_float3(boxScale)) * boxScale);
+		}
+
+		selected.box.Grow(minBoxPos);
+		float3 maxBoxPos = minBoxPos + make_float3(boxScale - make_int3(1));
+		selected.box.Grow(maxBoxPos);
 	}
 	else
 	{
@@ -957,33 +1029,47 @@ void WorldEditor::UpdateSelectedBox()
 
 		// Get position inside of the voxel to determine brick location
 		float3 voxelPos = hitPoint - 0.1 * normal;
-		float3 boxPos;
-		boxPos = make_float3(
-			(uint)(voxelPos.x / boxScale) * boxScale,
-			(uint)(voxelPos.y / boxScale) * boxScale,
-			(uint)(voxelPos.z / boxScale) * boxScale
-		);
+		float3 minBoxPos;
+
+		if (gesture.size == GestureSize::GESTURE_SPRITE)
+		{
+			// Allow sprites to be placed anywhere
+			minBoxPos = make_float3(make_int3(voxelPos));
+		}
+		else
+		{
+			minBoxPos = make_float3(make_int3(voxelPos / make_float3(boxScale)) * boxScale);
+		}
 
 		if (gesture.mode & GestureMode::GESTURE_REMOVE)
 		{
-			selected.box.Grow(boxPos);
-			selected.box.Grow(boxPos + make_float3(boxScale - 1, boxScale - 1, boxScale - 1));
+			selected.box.Grow(minBoxPos);
+			selected.box.Grow(minBoxPos + make_float3(boxScale - make_int3(1)));
 
 		}
 		else
 		{
-			float3 newBoxPos = boxPos + normal * boxScale;
+			float3 newBoxPos;
+			if (gesture.size == GestureSize::GESTURE_SPRITE)
+			{
+				newBoxPos = minBoxPos + normal;
+			}
+			else
+			{
+				newBoxPos = minBoxPos + normal * boxScale;
+
+			}
 
 			// If the normal puts us outside of the grid, just use the original intersection
 			if (newBoxPos.x < 0 || newBoxPos.y < 0 || newBoxPos.z < 0 || newBoxPos.x > MAPWIDTH || newBoxPos.y > MAPHEIGHT || newBoxPos.z > MAPDEPTH)
 			{
-				selected.box.Grow(boxPos);
-				selected.box.Grow(boxPos + make_float3(boxScale - 1, boxScale - 1, boxScale - 1));
+				selected.box.Grow(minBoxPos);
+				selected.box.Grow(minBoxPos + make_float3(boxScale - make_int3(1)));
 			}
 			else
 			{
 				selected.box.Grow(newBoxPos);
-				selected.box.Grow(newBoxPos + make_float3(boxScale - 1, boxScale - 1, boxScale - 1));
+				selected.box.Grow(newBoxPos + make_float3(boxScale - make_int3(1)));
 			}
 		}
 	}
@@ -991,8 +1077,8 @@ void WorldEditor::UpdateSelectedBox()
 	// Update rendering params to trace the selected box outline
 	params.selectedMin = selected.box.bmin3;
 	params.selectedMax = selected.box.bmax3;
-	if (gesture.size == GestureSize::GESTURE_BIG_TILE) params.wireBoxWidth = 0.5f;
-	if (gesture.size == GestureSize::GESTURE_TILE || GESTURE_BRICK) params.wireBoxWidth = 0.3f;
+	if (gesture.size == GestureSize::GESTURE_BIG_TILE || gesture.size == GestureSize::GESTURE_SPRITE) params.wireBoxWidth = 0.5f;
+	if (gesture.size == GestureSize::GESTURE_TILE || gesture.size == GestureSize::GESTURE_BRICK) params.wireBoxWidth = 0.3f;
 	if (gesture.size == GestureSize::GESTURE_VOXEL) params.wireBoxWidth = 0.1f;
 
 }
@@ -1581,11 +1667,24 @@ void WorldEditor::RenderGUI()
 		savedBigTileInit = false;
 	}
 
+	// Saved indicies for proper ordering of the Sprite Buttons
+	static bool savedSpriteInit = true;
+	static int savedSpriteIndices[8] = {};
+	if (savedSpriteInit)
+	{
+		for (int n = 0; n < IM_ARRAYSIZE(savedSpriteIndices); n++)
+		{
+			savedSpriteIndices[n] = n;
+		}
+		savedSpriteInit = false;
+	}
+
 	// Main Menu
 	if (ImGui::BeginMainMenuBar())
 	{
 		if (ImGui::BeginMenu("File"))
 		{
+			if (ImGui::MenuItem("New World")) { world.Clear(); }
 			if (ImGui::MenuItem("Save World")) { SaveWorld(); }
 			if (ImGui::MenuItem("Load World")) { LoadWorld(); } 
 
@@ -1602,6 +1701,7 @@ void WorldEditor::RenderGUI()
 		{
 			ImGui::MenuItem("Camera", NULL, &showCameraWindow);
 			ImGui::MenuItem("Render Grid", NULL, &drawGrid);
+			ImGui::MenuItem("Render Sprites", NULL, &drawGrid);
 			ImGui::MenuItem("Show All Tiles", NULL, &showAllTiles);
 			ImGui::EndMenu();
 		}
@@ -1713,6 +1813,10 @@ void WorldEditor::RenderGUI()
 		if (StyleTileTab("Big Tile", loadedBigTiles, selectedBigTileIdx, savedBigTileIndices))
 		{
 			gesture.size = GestureSize::GESTURE_BIG_TILE;
+		}
+		if (StyleTileTab("Sprite", loadedSprites, selectedSpriteIdx, savedSpriteIndices))
+		{
+			gesture.size = GestureSize::GESTURE_SPRITE;
 		}
 
 		if (ImGui::BeginTabItem("Brick/Voxel"))
