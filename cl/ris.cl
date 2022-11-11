@@ -308,10 +308,11 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	uint side = 0;
 	float dist = 0;
 	float3 origin = params->E;
-	uint voxel = TraceRay((float4)(origin, 0), (float4)(D, 1), &dist, &side, grid,
+	PAYLOAD voxel = TraceRay((float4)(origin, 0), (float4)(D, 1), &dist, &side, grid,
 		uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 	float alpha = GetAlphaf(voxel);
-	float3 outputColor = ToFloatRGB(voxel) * alpha;
+	float3 outputColor = (float3)(0., 0., 0.);
+	float3 color = ToFloatRGB(voxel);
 	float totalDist = 0.;
 
 	// Continue until we have a non translucent voxel. 0 is considered solid as well, to avoid users
@@ -319,19 +320,18 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	// Note that we modify the albedo here directly. An alternative is to shoot these rays from the 
 	// final shading function
 	int iteration = 0;
-	float remainingVisibility = 1.0f - GetAlphaf(voxel);
+	float remainingVisibility = 1.0f;
 	// This is the number of "transparent bounces" we basically have
-	int MaxIterations = 25;
+	int MaxIterations = 10;
 	uint previousSide = 0;
 	uint previousHitVoxel = 0;
-	float previousDist = 0.f;
+	float alphaExp;
 
 	// If the previously hit voxel and current voxel are equal, it means we can no longer trace anything behind the translucent surface.
 	// This is just a shortcut for checking if voxel == 0 && previousHitVoxel == 0. They can never both be zero under different circumstances
-	while (previousHitVoxel != voxel && remainingVisibility > 0.f)
+	while (previousHitVoxel != voxel && remainingVisibility > 0.f && alpha < 0.99f)
 	{
 		previousHitVoxel = voxel;
-		previousDist = totalDist;
 		previousSide = side;
 
 		// Small offset to avoid hitting the voxel behind the one that we started at. This is known to happen. 
@@ -342,11 +342,16 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 
 		// Ignore emissive value for this by masking it out. We don't care about it as we're only interested in the albedo, I think?
 		voxel = TraceThrough(voxel, 0x00FFFF, (float4)(origin, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */ );
+		alphaExp*= (exp(-fabs(dist) * alpha));
 
-		float3 color = ToFloatRGB(voxel);
+		// Approach from Raytracing Gems 2 CH 11
+		outputColor += color * remainingVisibility * alphaExp;
+		// color = (0.0, 0.0, 0.5f)
+		remainingVisibility *= (1.f - alphaExp);
+
+		color = ToFloatRGB(voxel);
 		alpha = GetAlphaf(voxel);
-		outputColor += remainingVisibility * color * alpha;
-		remainingVisibility = remainingVisibility * (1 - alpha);
+
 		// A failsafe to prevent completely tanking performance
 		if (++iteration == MaxIterations)
 		{
@@ -364,6 +369,8 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 			break;
 		}
 	}
+	outputColor += color * remainingVisibility * alpha;
+	remainingVisibility *= (1.f - alpha);
 	if (voxel != 0)
 	{
 		// If we end on a non-void voxel (either transparent because we had the max number of iterations or opaque), 
