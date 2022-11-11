@@ -122,6 +122,8 @@ void Lighthouse::HandleInput(float deltaTime)
 	D = world.GetCameraViewDir();
 	RenderParams& params = world.GetRenderParams();
 
+	if (!isFocused) return; // ignore controls if window doesnt have focus
+
 	// free cam controls
 	float3 tmp(0, 1, 0), right = normalize(cross(tmp, D)), up = cross(D, right);
 	float speed = deltaTime * 0.1f;

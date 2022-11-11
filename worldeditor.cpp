@@ -446,6 +446,8 @@ WorldEditor::WorldEditor()
 	memset(tempBricks, 0, CHUNKCOUNT * CHUNKSIZE);
 	memset(tempGrid, 0, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
 	memset(tempZeroes, BRICKSIZE, GRIDWIDTH * GRIDHEIGHT * GRIDDEPTH * sizeof(uint));
+
+	LoadAssets();
 }
 #pragma endregion 
 
