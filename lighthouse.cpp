@@ -22,6 +22,8 @@ void Lighthouse::InitialiseLighthouseScenario()
 {
 	int fixed = LoadSprite("assets/ground.vox");
 	StampSpriteTo(fixed, make_int3(450, 500, 500));
+	int fixed2 = LoadSprite("assets/ground2.vox");
+	StampSpriteTo(fixed2, make_int3(324, 500, 500));
 	lighthouseSprite = LoadSprite("assets/lighthouse.vox");
 	MoveSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
 
@@ -50,7 +52,8 @@ void Lighthouse::InitialiseLighthouseScenario()
 	SetStaticBlock(450 + 88, 500 + 5, 500 + 26, 2, 3, 2, WHITE | 100 << 16);
 	SetStaticBlock(450 + 112, 500 + 5, 500 + 67, 2, 3, 2, WHITE | 100 << 16);
 	SetStaticBlock(450 + 87, 500 + 5, 500 + 105, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(400, 400, 400, 300, 103, 300, 0X00f | 13 << 12);
+	SetStaticBlock(324 + 18, 500 + 8, 500 + 85, 2, 2, 2, WHITE | 100 << 16);
+	SetStaticBlock(250, 400, 400, 600, 103, 300, 0X00f | 13 << 12);
 }
 
 static bool shouldDumpBuffer = false;
