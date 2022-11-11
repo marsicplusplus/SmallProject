@@ -115,32 +115,37 @@ void Lighthouse::Init()
 // -----------------------------------------------------------
 void Lighthouse::HandleInput(float deltaTime)
 {
+	bool dirty = false;
 	World& world = *GetWorld();
 	O = world.GetCameraPos();
 	D = world.GetCameraViewDir();
+	RenderParams& params = world.GetRenderParams();
 
 	// free cam controls
 	float3 tmp(0, 1, 0), right = normalize(cross(tmp, D)), up = cross(D, right);
 	float speed = deltaTime * 0.1f;
-	if (GetAsyncKeyState('W')) O += speed * D; else if (GetAsyncKeyState('S')) O -= speed * D;
-	if (GetAsyncKeyState('A')) O -= speed * right; else if (GetAsyncKeyState('D')) O += speed * right;
-	if (GetAsyncKeyState('R')) O += speed * up; else if (GetAsyncKeyState('F')) O -= speed * up;
-	if (GetAsyncKeyState(VK_LEFT)) D = normalize(D - right * 0.025f * speed);
-	if (GetAsyncKeyState(VK_RIGHT)) D = normalize(D + right * 0.025f * speed);
-	if (GetAsyncKeyState(VK_UP)) D = normalize(D - up * 0.025f * speed);
-	if (GetAsyncKeyState(VK_DOWN)) D = normalize(D + up * 0.025f * speed);
+	if (GetAsyncKeyState('W')) O += speed * D, dirty = true; else if (GetAsyncKeyState('S')) O -= speed * D, dirty = true;
+	if (GetAsyncKeyState('A')) O -= speed * right, dirty = true; else if (GetAsyncKeyState('D')) O += speed * right, dirty = true;
+	if (GetAsyncKeyState('R')) O += speed * up, dirty = true; else if (GetAsyncKeyState('F')) O -= speed * up, dirty = true;
+	if (GetAsyncKeyState(VK_LEFT)) D = normalize(D - right * 0.025f * speed), dirty = true;
+	if (GetAsyncKeyState(VK_RIGHT)) D = normalize(D + right * 0.025f * speed), dirty = true;
+	if (GetAsyncKeyState(VK_UP)) D = normalize(D - up * 0.025f * speed), dirty = true;
+	if (GetAsyncKeyState(VK_DOWN)) D = normalize(D + up * 0.025f * speed), dirty = true;
 	if (GetAsyncKeyState(VK_SPACE))
 	{
 		SetSpriteFrame(lighthouseSprite, (frame = frame + 1) % 5);
+		dirty = true;
 	}
-	if (GetAsyncKeyState(VK_SHIFT) && !keyPressed[VK_SHIFT])
+	if (GetAsyncKeyState('M') && !keyPressed['M'])
 	{
-		runCAPESimulation = !runCAPESimulation;
-		keyPressed[VK_SHIFT] = true;
+		World& world = *GetWorld();
+		params.accumulate = (int)(!(bool)(params.accumulate & 1));
+		dirty = true;
+		keyPressed['M'] = true;
 	}
-	else if (!GetAsyncKeyState(VK_SHIFT))
+	else if (!GetAsyncKeyState('M'))
 	{
-		keyPressed[VK_SHIFT] = false;
+		keyPressed['M'] = false;
 	}
 
 	if (GetAsyncKeyState('G') && !keyPressed['G'])
@@ -161,6 +166,12 @@ void Lighthouse::HandleInput(float deltaTime)
 	else if (!GetAsyncKeyState('G'))
 	{
 		keyPressed['G'] = false;
+	}
+
+	if (dirty)
+	{
+		params.framecount = 0;
+		params.frame = 0;
 	}
 
 

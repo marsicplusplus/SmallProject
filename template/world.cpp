@@ -746,8 +746,8 @@ void World::Clear()
 		zeroes[i] = 0;
 	zeroesBuffer->CopyToDevice();
 
-	if (lightsBuffer) delete(lightsBuffer), lightsBuffer = NULL;
 	params.numberOfLights = 0;
+	if (lightsBuffer) delete(lightsBuffer), lightsBuffer = NULL, SetupLightBuffer();
 	ClearMarks();
 }
 

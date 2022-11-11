@@ -11,6 +11,7 @@
 #define TILE_IMAGE_DIM BRICKDIM * TILE_IMAGE_SCALE
 
 #pragma region NBTHelper
+// Helper functions to write and read NBT tags from stream
 void NBTHelper::WriteTag(std::ofstream& wf, Tag& tag)
 {
 	WriteTagType(wf, tag.type);
@@ -627,6 +628,7 @@ void WorldEditor::MouseUp(int mouseButton)
 
 
 #pragma region Editing
+// Update what bricks have been edited during this gesture depending on the gesture type
 void WorldEditor::UpdateEditedBricks(uint x, uint y, uint z)
 {
 	if (gesture.size == GestureSize::GESTURE_BIG_TILE)
@@ -653,6 +655,7 @@ void WorldEditor::UpdateEditedBricks(uint x, uint y, uint z)
 	return;
 }
 
+// Get the scale required to draw the selected box
 int3 WorldEditor::GetBoxScale()
 {
 	switch (gesture.size)
@@ -674,6 +677,7 @@ int3 WorldEditor::GetBoxScale()
 	}
 }
 
+// Add back lights in the world after a Redo/Undo
 void WorldEditor::AddBackLights(uint bx, uint by, uint bz)
 {
 	World& world = *GetWorld();
@@ -683,14 +687,12 @@ void WorldEditor::AddBackLights(uint bx, uint by, uint bz)
 			{
 				uint v = world.Get(lx + bx * BRICKDIM, ly + by * BRICKDIM, lz + bz * BRICKDIM);
 
-				// If we're removing individual voxels that were lights, remove them from the light buffer
 				if (IsEmitter(v))
 				{
 					world.AddLight(int3(lx + bx * BRICKDIM, ly + by * BRICKDIM, lz + bz * BRICKDIM), 1, v);
 				}
 			}
 }
-
 
 // Allow the adding/removing of multiple bricks in the seclected box
 void WorldEditor::MultiAddRemove()
@@ -836,6 +838,7 @@ void WorldEditor::MultiAddRemove()
 			}
 }
 
+// Add depending on the selected gesture
 void WorldEditor::Add(uint vx, uint vy, uint vz)
 {
 	World& world = *GetWorld();
@@ -877,6 +880,7 @@ void WorldEditor::Add(uint vx, uint vy, uint vz)
 	}
 }
 
+// Remove depending on the selected gesture
 void WorldEditor::Remove(uint vx, uint vy, uint vz)
 {
 	World& world = *GetWorld();
@@ -937,7 +941,7 @@ void WorldEditor::UpdateSelectedBox()
 	// Trace the ray using the previous grid/brick state if gesture is active
 	Intersection intersection = (gesture.state == GestureState::GESTURE_ACTIVE) ? Trace(ray, tempBricks, tempGrid) : Trace(ray);
 
-	// Check to see if we hit the world grid
+	// Check to see if we hit the world grid using method from  Majercik et al. https://jcgt.org/published/0007/03/04/paper-lowres.pdf
 	if (intersection.GetVoxel() == 0)
 	{
 		float3 radius = make_float3(512, 512, 512);
@@ -1684,7 +1688,7 @@ void WorldEditor::RenderGUI()
 	{
 		if (ImGui::BeginMenu("File"))
 		{
-			if (ImGui::MenuItem("New World")) { world.Clear(); }
+			if (ImGui::MenuItem("New World")) { world.Clear(); world.Mark(0); }
 			if (ImGui::MenuItem("Save World")) { SaveWorld(); }
 			if (ImGui::MenuItem("Load World")) { LoadWorld(); } 
 
@@ -1710,26 +1714,26 @@ void WorldEditor::RenderGUI()
 	}
 
 	// Edit Tool Window
-	ImGui::Begin("Tool Bar");
-	auto StyleTileTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& tiles, int& tileIdx, int* savedIndex) -> bool
+	ImGui::Begin("Hot Bar");
+	auto StyleHotBarTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& assets, int& assetIdx, int* savedIndex) -> bool
 	{
 		if (ImGui::BeginTabItem(tabName.c_str()))
 		{
-			int numButtons = min(8, (int)tiles.size());
+			int numButtons = min(8, (int)assets.size());
 			for (int i = 0; i < numButtons; i++)
 			{
 				ImGui::PushID(i);
 				int buttonIdx = savedIndex[i];
 				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0, 0.0, 0.0, 1.0));
-				if (buttonIdx == tileIdx)
+				if (buttonIdx == assetIdx)
 					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 5.0f);
 				else
 					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
 
 
-				if (ImGui::ImageButton((void*)(intptr_t)tiles[buttonIdx].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
+				if (ImGui::ImageButton((void*)(intptr_t)assets[buttonIdx].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
 				{
-					tileIdx = buttonIdx;
+					assetIdx = buttonIdx;
 				}
 
 				ImGui::PopStyleVar();
@@ -1754,7 +1758,7 @@ void WorldEditor::RenderGUI()
 						savedIndex[payload_n] = tmp;
 					}
 
-					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("AllTiles"))
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(tabName.c_str()))
 					{
 						IM_ASSERT(payload->DataSize == sizeof(int));
 						int payload_n = *(const int*)payload->Data;
@@ -1774,24 +1778,42 @@ void WorldEditor::RenderGUI()
 		return false;
 	};
 
-	auto StyleVerticalTileTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& tiles, int& tileIdx) -> bool
+	auto StyleVerticalTab = [](std::string tabName, std::vector<std::pair<int, GLuint>>& assets, int& assetIdx) -> bool
 	{
 		if (ImGui::BeginTabItem(tabName.c_str()))
 		{
-			for (int i = 0; i < (int)tiles.size(); i++)
+			for (int i = 0; i < (int)assets.size(); i++)
 			{
 				ImGui::PushID(i);
 
-				if (ImGui::ImageButton((void*)(intptr_t)tiles[i].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
+				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0, 0.0, 0.0, 1.0));
+				if (i == assetIdx)
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 5.0f);
+				else
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+
+				// Center the Image Button for the vertical window
+				ImGuiStyle& style = ImGui::GetStyle();
+				float size = 128 + style.FramePadding.x * 2.0f;
+				float avail = ImGui::GetContentRegionAvail().x;
+
+				float off = (avail - size) * 0.5f;
+				if (off > 0.0f)
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + off);
+
+				if (ImGui::ImageButton((void*)(intptr_t)assets[i].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
 				{
-					tileIdx = i;
+					assetIdx = i;
 				}
+
+				ImGui::PopStyleVar();
+				ImGui::PopStyleColor();
 
 				// Our buttons are both drag sources and drag targets here!
 				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
 				{
 					// Set payload to carry the index of our item (could be anything)
-					ImGui::SetDragDropPayload("AllTiles", &i, sizeof(int));
+					ImGui::SetDragDropPayload(tabName.c_str(), & i, sizeof(int));
 					ImGui::EndDragDropSource();
 				}
 
@@ -1806,15 +1828,15 @@ void WorldEditor::RenderGUI()
 
 	if (ImGui::BeginTabBar("EditingTabBar", ImGuiTabBarFlags_AutoSelectNewTabs))
 	{
-		if (StyleTileTab("Tile", loadedTiles, selectedTileIdx, savedTileIndices))
+		if (StyleHotBarTab("Tiles", loadedTiles, selectedTileIdx, savedTileIndices))
 		{
 			gesture.size = GestureSize::GESTURE_TILE;
 		}
-		if (StyleTileTab("Big Tile", loadedBigTiles, selectedBigTileIdx, savedBigTileIndices))
+		if (StyleHotBarTab("Big Tiles", loadedBigTiles, selectedBigTileIdx, savedBigTileIndices))
 		{
 			gesture.size = GestureSize::GESTURE_BIG_TILE;
 		}
-		if (StyleTileTab("Sprite", loadedSprites, selectedSpriteIdx, savedSpriteIndices))
+		if (StyleHotBarTab("Sprites", loadedSprites, selectedSpriteIdx, savedSpriteIndices))
 		{
 			gesture.size = GestureSize::GESTURE_SPRITE;
 		}
@@ -1963,11 +1985,12 @@ void WorldEditor::RenderGUI()
 
 	if (showAllTiles)
 	{
-		ImGui::Begin("Loaded Tiles");
-		if (ImGui::BeginTabBar("AllTiles", ImGuiTabBarFlags_AutoSelectNewTabs))
+		ImGui::Begin("Loaded Assets");
+		if (ImGui::BeginTabBar("AllAssets", ImGuiTabBarFlags_AutoSelectNewTabs))
 		{
-			if (StyleVerticalTileTab("Tiles", loadedTiles, selectedTileIdx)) { gesture.size == GestureSize::GESTURE_TILE; }
-			if (StyleVerticalTileTab("Big Tiles", loadedBigTiles, selectedBigTileIdx)) { gesture.size == GestureSize::GESTURE_BIG_TILE;  }
+			if (StyleVerticalTab("Tiles", loadedTiles, selectedTileIdx)) { gesture.size == GestureSize::GESTURE_TILE; }
+			if (StyleVerticalTab("Big Tiles", loadedBigTiles, selectedBigTileIdx)) { gesture.size == GestureSize::GESTURE_BIG_TILE; }
+			if (StyleVerticalTab("Sprites", loadedSprites, selectedSpriteIdx)) { gesture.size == GestureSize::GESTURE_SPRITE;  }
 		}
 		ImGui::EndTabBar();
 		ImGui::End();
