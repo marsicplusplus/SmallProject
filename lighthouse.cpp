@@ -20,10 +20,15 @@ void Lighthouse::SetStaticBlock(uint x0, uint y0, uint z0, uint w, uint h, uint 
 
 void Lighthouse::InitialiseLighthouseScenario()
 {
+	int fixed = LoadSprite("assets/sprites/ground.vox");
+	StampSpriteTo(fixed, make_int3(450, 500, 500));
+	int fixed2 = LoadSprite("assets/sprites/ground2.vox");
+	StampSpriteTo(fixed2, make_int3(324, 500, 500));
 	lighthouseSprite = LoadSprite("assets/sprites/lighthouse.vox");
-	MoveSpriteTo(lighthouseSprite, make_int3(0, 0, 0));
+	MoveSpriteTo(lighthouseSprite, make_int3(450, 500, 500));
 
 	World& world = *GetWorld();
+	/* Lights */
 	for (int lx = 18; lx < 25; ++lx) {
 		for (int ly = 62; ly < 71; ++ly) {
 			world.Set(450 + lx, 500 + ly, 500 + 60, WHITE | (255 << 16));
@@ -44,11 +49,24 @@ void Lighthouse::InitialiseLighthouseScenario()
 			world.Set(450 + 17, 500 + ly, 500 + lz, WHITE | (255 << 16));
 		}
 	}
-	SetStaticBlock(450 + 114, 500 + 5, 500 + 8, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(450 + 88, 500 + 5, 500 + 26, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(450 + 112, 500 + 5, 500 + 67, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(450 + 87, 500 + 5, 500 + 105, 2, 3, 2, WHITE | 100 << 16);
-	SetStaticBlock(400, 400, 400, 300, 103, 300, 0X00f | 13 << 12);
+	SetStaticBlock(450 + 114, 500 + 5, 500 + 8, 2, 3, 2, WHITE | 90 << 16);
+	SetStaticBlock(450 + 88, 500 + 5, 500 + 26, 2, 3, 2, WHITE | 90 << 16);
+	SetStaticBlock(450 + 112, 500 + 5, 500 + 67, 2, 3, 2, WHITE | 90 << 16);
+	SetStaticBlock(450 + 87, 500 + 5, 500 + 105, 2, 3, 2, WHITE | 90 << 16);
+
+	SetStaticBlock(324 + 18, 500 + 8, 500 + 85, 2, 3, 2, WHITE | 90 << 16);
+	SetStaticBlock(324 + 43, 500 + 5, 500 + 25, 2, 3, 2, WHITE | 90 << 16);
+	SetStaticBlock(324 + 72, 500 + 5, 500 + 12, 2, 3, 2, WHITE | 90 << 16);
+	SetStaticBlock(324 + 74, 500 + 5, 500 + 95, 2, 3, 2, WHITE | 90 << 16);
+
+	//Water
+	SetStaticBlock(250, 400, 400, 600, 103, 300, 0X00f | 13 << 12);
+	SetStaticBlock(250, 390, 400, 600, 10, 300, 0X00f | 14 << 12);
+	SetStaticBlock(250, 389, 400, 600, 1, 300, 0Xf00f);
+	SetStaticBlock(250, 389, 701, 600, 114, 1, 0Xf00F);
+	SetStaticBlock(250, 389, 401, 600, 114, 1, 0Xf00F);
+	SetStaticBlock(249, 389, 401, 1, 114, 300, 0Xf00F);
+	SetStaticBlock(851, 389, 401, 1, 114, 300, 0Xf00F);
 }
 
 static bool shouldDumpBuffer = false;

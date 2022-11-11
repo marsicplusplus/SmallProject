@@ -44,8 +44,8 @@ namespace Tmpl8
 		int pathPt = 1; // spline path vertex
 		float t = 0; // spline path t (0..1)
 		// camera
-		float3 D = make_float3(0, 0, 1);
-		float3 O = make_float3(512, 512, 512);
+		float3 D = make_float3(0.931, -0.1081, -0.348);
+		float3 O = make_float3(298, 530, 596);
 
 		int lighthouseSprite, frame = 0;
 		bool runCAPESimulation = false;
