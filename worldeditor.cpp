@@ -1712,7 +1712,12 @@ void WorldEditor::RenderGUI()
 			ImGui::EndMenu();
 		}
 
-		ImGui::Text("Albedo FPS: %f", 1.0f / world.GetAlbedoTime());
+		if (ImGui::BeginMenu("Stats"))
+		{
+			ImGui::Text("Albedo render time: %.2f ms",  world.GetAlbedoTime() * 1000);
+			ImGui::Text("Total render time: %.2f ms",  world.GetRenderTime() * 1000);
+			ImGui::EndMenu();
+		}
 
 		ImGui::EndMainMenuBar();
 	}
