@@ -1837,7 +1837,6 @@ void WorldEditor::RenderGUI()
 
 			static ImVec4 color = { 1.0f, 1.0f, 1.0f, 1.0f};
 
-			static bool emissive = false;
 			static bool voxel = false;
 			static bool refColor = false;
 			static int displayMode = 0;
@@ -1867,8 +1866,6 @@ void WorldEditor::RenderGUI()
 			bool picker = ImGui::ColorButton("##voxelcolor", color, flags, ImVec2(128, 128)); 
 			ImGui::NextColumn();
 			ImGui::NewLine();
-			ImGui::Checkbox("Emissive", &emissive);
-			if (emissive)
 			{
 				ImGui::PushItemWidth(ImGui::GetColumnWidth(1) * 0.35);
 				ImGui::SliderInt ("Emissive Strength", &emissiveVal, 0, 255, "%d", ImGuiSliderFlags_AlwaysClamp);
@@ -1943,7 +1940,7 @@ void WorldEditor::RenderGUI()
 			voxelValue = (p == 0) ? 1 : p;
 
 			voxelValue |= alpha << 12;
-			if (emissive) voxelValue |= emissiveness << 16;
+			voxelValue |= emissiveness << 16;
 			
 			ImGui::EndTabItem();
 		}
