@@ -325,7 +325,6 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	int MaxIterations = 10;
 	uint previousSide = 0;
 	uint previousHitVoxel = 0;
-	float alphaExp;
 
 	// If the previously hit voxel and current voxel are equal, it means we can no longer trace anything behind the translucent surface.
 	// This is just a shortcut for checking if voxel == 0 && previousHitVoxel == 0. They can never both be zero under different circumstances
@@ -342,12 +341,12 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 
 		// Ignore emissive value for this by masking it out. We don't care about it as we're only interested in the albedo, I think?
 		voxel = TraceThrough(voxel, 0x00FFFF, (float4)(origin, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */ );
-		alphaExp*= (exp(-fabs(dist) * alpha));
+		alpha = 1.f - (exp((-fabs(dist)) * (1 - alpha)));
 
 		// Approach from Raytracing Gems 2 CH 11
-		outputColor += color * remainingVisibility * alphaExp;
+		outputColor += color * remainingVisibility * alpha;
 		// color = (0.0, 0.0, 0.5f)
-		remainingVisibility *= (1.f - alphaExp);
+		remainingVisibility *= (1.f - alpha);
 
 		color = ToFloatRGB(voxel);
 		alpha = GetAlphaf(voxel);
