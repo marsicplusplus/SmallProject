@@ -211,12 +211,13 @@ public:
 	void SetReservoirBuffer(Buffer* buffer, int index) { reservoirBuffers[index] = buffer; }
 	void Commit();
 	void Render();
-	float GetRenderTime() { return renderTime; }
-	float GetAlbedoTime() { return albedoTime; }
-	float GetCandidateTime() { return candidateTime; }
-	float GetSpatialTime() { return spatialTime; }
-	float GetShadingTime() { return shadingTime; }
-	float GetFinalizingTime() { return finalizingTime; }
+	float GetAverage(float* values, unsigned int numValues);
+	float GetRenderTime() { return GetAverage(renderTimes, NumFrametimeSamples); }
+	float GetAlbedoTime() { return GetAverage(albedoTimes, NumFrametimeSamples); }
+	float GetCandidateTime() { return GetAverage(candidateTimes, NumFrametimeSamples); }
+	float GetSpatialTime() { return GetAverage(spatialTimes, NumFrametimeSamples); }
+	float GetShadingTime() { return GetAverage(shadingTimes, NumFrametimeSamples); }
+	float GetFinalizingTime() { return GetAverage(finalizingTimes, NumFrametimeSamples);  }
 	// high-level voxel access
 	void Sphere( const float x, const float y, const float z, const float r, const uint c );
 	void HDisc( const float x, const float y, const float z, const float r, const uint c );
@@ -732,12 +733,15 @@ private:
 	cl_event shadingDone;
 	cl_event finalizingDone;
 	private:
-	float renderTime = 0;					// render time for the previous frame (in seconds)
-	float albedoTime = 0;
-	float candidateTime = 0;
-	float spatialTime = 0;
-	float shadingTime = 0;
-	float finalizingTime = 0;
+
+	constexpr static uint NumFrametimeSamples = 100;
+	float renderTimes[NumFrametimeSamples];					// render time for the previous frame (in seconds)
+	float albedoTimes[NumFrametimeSamples];
+	float candidateTimes[NumFrametimeSamples];
+	float spatialTimes[NumFrametimeSamples];
+	float shadingTimes[NumFrametimeSamples];
+	float finalizingTimes[NumFrametimeSamples];
+	uint64_t currentFrame = 0;
 	uint tasks = 0;						// number of changed bricks, to be passed to commit kernel
 	bool copyInFlight = false;			// flag for skipping async copy on first iteration
 	bool commitInFlight = false;		// flag to make next commit wait for previous to complete
