@@ -209,7 +209,7 @@ bool HitAABB(const float3 O, const float3 D, const float3 boxMin, const float3 b
 	return hit;
 }
 
-bool HitSelectedBrick(const float3 O, const float3 D, const float3 bboxMin, const float3 bboxMax, const float wireBoxWidth, float* distance)
+bool HitSelectedBox(const float3 O, const float3 D, const float3 bboxMin, const float3 bboxMax, const float wireBoxWidth, float* distance)
 {
 	float closeDistance = *distance;
 	float3 wireMin = bboxMin;
