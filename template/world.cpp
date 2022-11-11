@@ -2339,6 +2339,19 @@ void World::Render()
 	}
 }
 
+float World::GetAverage(float* values, unsigned int numValues)
+{
+	float average = 0.f;
+	for (int i = 0; i < numValues; i++)
+	{
+		if (values[i] != 0.f)
+		{
+			average += values[i] / numValues;
+		}
+	}
+	return average;
+}
+
 // World::Commit
 // ----------------------------------------------------------------------------
 void World::Commit()
@@ -2430,9 +2443,12 @@ void World::Commit()
 		const int nrOfTimers = 1;
 #endif
 		float* durationArr[nrOfTimers] = { 
-			&finalizingTime
+			&finalizingTimes[currentFrame % NumFrametimeSamples]
 #if RIS == 1
-			,&albedoTime, &candidateTime, &spatialTime, &shadingTime
+			,&albedoTimes[currentFrame % NumFrametimeSamples], 
+			&candidateTimes[currentFrame % NumFrametimeSamples], 
+			&spatialTimes[currentFrame % NumFrametimeSamples], 
+			&shadingTimes[currentFrame % NumFrametimeSamples]
 #endif
 		};
 		cl_event eventArr[nrOfTimers] = { 
@@ -2452,7 +2468,7 @@ void World::Commit()
 			*durationArr[i] = duration / 1000000000.0f;
 			totalTime += *durationArr[i];
 		}
-		renderTime = totalTime;
+		renderTimes[currentFrame % NumFrametimeSamples] = totalTime;
 
 		//{
 		//	cl_ulong renderStart = 0;
@@ -2463,6 +2479,7 @@ void World::Commit()
 		//	renderTime = duration / 1000000000.0f;
 		//}
 	}
+	currentFrame++;
 }
 
 // World::StreamCopyMT

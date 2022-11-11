@@ -183,7 +183,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	if (params->editorEnabled) 
 	{
 		float distance = dist;
-		if (HitSelectedBrick(params->E, D, params->selectedMin, params->selectedMax, params->wireBoxWidth, &distance))
+		if (HitSelectedBox(params->E, D, params->selectedMin, params->selectedMax, params->wireBoxWidth, &distance))
 		{
 			color = (float3)(0.2, 0.8, 0.8);
 			return (float4)(color, distance);

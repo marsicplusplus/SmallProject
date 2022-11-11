@@ -1701,6 +1701,7 @@ void WorldEditor::RenderGUI()
 
 			if (ImGui::MenuItem("Undo", "CTRL+Z", false, stateCurrent->prevState != NULL)) { Undo(); }
 			if (ImGui::MenuItem("Redo", "CTRL+Y", false, stateCurrent->nextState != NULL)) { Redo(); }
+			if (ImGui::MenuItem("Optimize Bricks", NULL, false)) { world.OptimizeBricks(); }
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("View"))
