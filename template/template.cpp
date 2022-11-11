@@ -37,6 +37,7 @@ static bool hasFocus = true, running = true;
 static GLTexture* renderTarget = 0;
 static int scrwidth = 0, scrheight = 0;
 static World* world = 0;
+static WorldEditor* worldEditor = 0;
 static Game* game = 0;
 
 // static member data for instruction set support class
@@ -47,6 +48,7 @@ Game* CreateGame();
 
 // world access / C API implementation
 World* GetWorld() { return world; }
+WorldEditor* GetWorldEditor() { return worldEditor; }
 void ClearWorld() { world->Clear(); }
 void FillWorld( const uint c ) { world->Fill( c ); }
 void WorldXScroll( const int offset ) { world->ScrollX( offset ); }
@@ -354,7 +356,6 @@ void KeyEventCallback( GLFWwindow* window, int key, int scancode, int action, in
 	ImGuiIO& io = ImGui::GetIO();
 	if (!io.WantTextInput)
 	{
-		WorldEditor* worldEditor = world->getWorldEditor();
 		if (key == GLFW_KEY_ESCAPE) running = false;
 		if (action == GLFW_PRESS)
 		{
@@ -384,7 +385,6 @@ void MouseButtonCallback( GLFWwindow* window, int button, int action, int mods )
 
 	if (!io.WantCaptureMouse && world)
 	{
-		WorldEditor* worldEditor = world->getWorldEditor();
 		if (action == GLFW_PRESS)
 		{
 			if (worldEditor->IsEnabled()) worldEditor->MouseDown(button);
@@ -404,7 +404,7 @@ void MousePosCallback( GLFWwindow* window, double x, double y )
 
 	if (!io.WantCaptureMouse)
 	{
-		if (world) world->getWorldEditor()->MouseMove((int)x, (int)y);
+		if (worldEditor) worldEditor->MouseMove((int)x, (int)y);
 		if (game) game->MouseMove((int)x, (int)y);
 	}
 }
@@ -415,7 +415,7 @@ void ErrorCallback( int error, const char* description )
 
 void RenderGUI()
 {
-	world->getWorldEditor()->RenderGUI();
+	worldEditor->RenderGUI();
 }
 
 // Application entry point
@@ -490,7 +490,8 @@ void main()
 	// of tile/large tile previews
 	world->LoadSky(Game::skyDomeImage.c_str(), Game::skyDomeScale);
 	// Ensure world editor is initialised before the game as World Editor init utilizes brick/grid then clears
-	world->InitWorldEditor();
+	worldEditor = new WorldEditor();
+	worldEditor->LoadAssets();
 
 	game = CreateGame();
 	game->screen = screen;

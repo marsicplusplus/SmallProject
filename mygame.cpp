@@ -151,7 +151,7 @@ KeyHandler pHandler = { 0, 'P' };
 void MyGame::HandleControls(float deltaTime)
 {
 	World& w = *GetWorld();
-	WorldEditor& worldEditor = *w.getWorldEditor();
+	WorldEditor& worldEditor = *GetWorldEditor();
 	RenderParams& renderparams = w.GetRenderParams();
 
 	O = w.GetCameraPos();

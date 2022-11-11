@@ -1644,7 +1644,7 @@ void WorldEditor::RenderGUI()
 	ImGui::NewFrame();
 
 	static bool showCameraWindow = true;
-	static bool showAllTiles = true;
+	static bool showAllTiles = false;
 	static bool drawGrid = true;
 
 	// Saved indicies for proper ordering of the Tile Buttons
@@ -1706,7 +1706,7 @@ void WorldEditor::RenderGUI()
 			ImGui::MenuItem("Camera", NULL, &showCameraWindow);
 			ImGui::MenuItem("Render Grid", NULL, &drawGrid);
 			ImGui::MenuItem("Render Sprites", NULL, &drawGrid);
-			ImGui::MenuItem("Show All Tiles", NULL, &showAllTiles);
+			ImGui::MenuItem("Show All Assets", NULL, &showAllTiles);
 			ImGui::EndMenu();
 		}
 
@@ -1786,12 +1786,6 @@ void WorldEditor::RenderGUI()
 			{
 				ImGui::PushID(i);
 
-				ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0, 0.0, 0.0, 1.0));
-				if (i == assetIdx)
-					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 5.0f);
-				else
-					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-
 				// Center the Image Button for the vertical window
 				ImGuiStyle& style = ImGui::GetStyle();
 				float size = 128 + style.FramePadding.x * 2.0f;
@@ -1801,19 +1795,12 @@ void WorldEditor::RenderGUI()
 				if (off > 0.0f)
 					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + off);
 
-				if (ImGui::ImageButton((void*)(intptr_t)assets[i].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f)))
-				{
-					assetIdx = i;
-				}
+				ImGui::Image((void*)(intptr_t)assets[i].second, ImVec2(TILE_IMAGE_DIM / 2, TILE_IMAGE_DIM / 2), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f));
 
-				ImGui::PopStyleVar();
-				ImGui::PopStyleColor();
-
-				// Our buttons are both drag sources and drag targets here!
-				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
 				{
 					// Set payload to carry the index of our item (could be anything)
-					ImGui::SetDragDropPayload(tabName.c_str(), & i, sizeof(int));
+					ImGui::SetDragDropPayload(tabName.c_str(), &i, sizeof(int));
 					ImGui::EndDragDropSource();
 				}
 
@@ -1985,7 +1972,7 @@ void WorldEditor::RenderGUI()
 
 	if (showAllTiles)
 	{
-		ImGui::Begin("Loaded Assets");
+		ImGui::Begin("All Assets"); ImGui::SameLine(); HelpMarker("Drag and drop assets from here into the Hot Bar for use");
 		if (ImGui::BeginTabBar("AllAssets", ImGuiTabBarFlags_AutoSelectNewTabs))
 		{
 			if (StyleVerticalTab("Tiles", loadedTiles, selectedTileIdx)) { gesture.size == GestureSize::GESTURE_TILE; }
