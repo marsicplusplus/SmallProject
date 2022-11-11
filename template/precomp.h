@@ -1324,9 +1324,9 @@ inline float3 DiffuseReflectionCosWeighted(const float r0, const float r1, const
 #include <map>
 #include <set>
 #include "world.h"
+#include "worldeditor.h"
 #include "worldapi.h"
 #include "world_to_obj.h"
-#include "worldeditor.h"
 
 struct KeyHandler
 {

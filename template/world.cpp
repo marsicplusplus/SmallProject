@@ -192,12 +192,6 @@ World::World(const uint targetID)
 	font = new Surface("assets/font.png");
 }
 
-void World::InitWorldEditor()
-{
-	worldEditor = new Tmpl8::WorldEditor();
-	worldEditor->LoadAssets();
-}
-
 void World::InitReSTIR() {
 	/* ReSTIR initialization */
 	params.numberOfLights = 0;
@@ -637,7 +631,6 @@ World::~World()
 	delete sky;
 	delete blueNoise;
 	delete font;
-	delete worldEditor;
 	clReleaseProgram(sharedProgram);
 }
 
@@ -2185,7 +2178,7 @@ void World::Render()
 		params.prevP2 = make_float4(prevP2, 0);
 		params.prevP3 = make_float4(prevP3, 0);
 
-		params.editorEnabled = worldEditor->IsEnabled();
+		params.editorEnabled = GetWorldEditor()->IsEnabled();
 
 		// finalize params
 		params.R0 = RandomUInt();

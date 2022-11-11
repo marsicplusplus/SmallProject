@@ -1,6 +1,7 @@
 // definition of the C-API of the Voxel World Template
 
 World* GetWorld();
+WorldEditor* GetWorldEditor();
 void ClearWorld();
 float2 GetCursorPosition();
 void FillWorld( const uint c );

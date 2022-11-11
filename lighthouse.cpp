@@ -117,6 +117,7 @@ void Lighthouse::HandleInput(float deltaTime)
 {
 	bool dirty = false;
 	World& world = *GetWorld();
+	WorldEditor& worldEditor = *GetWorldEditor();
 	O = world.GetCameraPos();
 	D = world.GetCameraViewDir();
 	RenderParams& params = world.GetRenderParams();
@@ -150,7 +151,6 @@ void Lighthouse::HandleInput(float deltaTime)
 
 	if (GetAsyncKeyState('G') && !keyPressed['G'])
 	{
-		WorldEditor& worldEditor = *world.getWorldEditor();
 		if (worldEditor.IsEnabled())
 		{
 			ShowCursor(false);

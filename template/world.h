@@ -12,8 +12,6 @@
 
 namespace Tmpl8
 {
-class WorldEditor;
-
 // Sprite system overview:
 // The world contains a set of 0 or more sprites, typically loaded from .vox files.
 // Sprites act like classic homecomputer sprites: they do not affect the world in
@@ -180,7 +178,6 @@ public:
 	void UpdateSkylights(); // updates the six skylight colors
 	void ForceSyncAllBricks();
 	void OptimizeBricks();
-	WorldEditor* getWorldEditor() { return worldEditor; };
 	float GetRendertime() { return renderTime; }
 	// camera
 	void SetCameraMatrix(const mat4& m) { camMat = m; }
@@ -272,7 +269,6 @@ public:
 	uint MovingLightCount() { return movinglights.size(); }
 
 	void InitReSTIR();
-	void InitWorldEditor();
 	float GetCurrentFrametime();
 
 	vector<Tile*>& GetTileList() { return TileManager::GetTileManager()->tile; }
@@ -756,7 +752,6 @@ private:
 	public:
 	bool lightsAreMoving = false;
 	bool poppingLights = false;
-	WorldEditor* worldEditor;
 };
 
 } // namespace Tmpl8
