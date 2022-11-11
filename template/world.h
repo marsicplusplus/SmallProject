@@ -181,6 +181,7 @@ public:
 	void ForceSyncAllBricks();
 	void OptimizeBricks();
 	WorldEditor* getWorldEditor() { return worldEditor; };
+	float GetRendertime() { return renderTime; }
 	// camera
 	void SetCameraMatrix(const mat4& m) { camMat = m; }
 	float3 GetCameraViewDir() { return make_float3(camMat[2], camMat[6], camMat[10]); }
@@ -272,6 +273,7 @@ public:
 
 	void InitReSTIR();
 	void InitWorldEditor();
+	float GetCurrentFrametime();
 
 	vector<Tile*>& GetTileList() { return TileManager::GetTileManager()->tile; }
 	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }

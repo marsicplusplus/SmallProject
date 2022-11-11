@@ -1710,6 +1710,8 @@ void WorldEditor::RenderGUI()
 			ImGui::EndMenu();
 		}
 
+		ImGui::Text("FPS: %f", 1.0f / world.GetRenderTime());
+
 		ImGui::EndMainMenuBar();
 	}
 
